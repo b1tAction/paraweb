@@ -260,6 +260,10 @@ export class NakamaService {
           this.handleFullSync(data);
           break;
 
+        case opcodes.OpStartGameAck:
+          this.handleStartGameAck(data as protocol.StartGameAck);
+          break;
+
         default:
           console.warn(`[Nakama] 未处理的 OpCode: ${matchData.op_code}`);
       }
@@ -395,6 +399,16 @@ export class NakamaService {
   private handleFullSync(data: any) {
     console.log('[Nakama] 完整同步', data);
     // 处理重连时的完整状态同步
+  }
+
+  private handleStartGameAck(data: protocol.StartGameAck) {
+    const store = useGameStore.getState();
+    store.setStartGameAck(data);
+
+    console.log('[Nakama] 游戏开始确认', {
+      mapLength: data.map_config.length,
+      cells: data.map_config.cells.length,
+    });
   }
 
   /**

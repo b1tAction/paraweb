@@ -287,6 +287,55 @@ export interface WaitingPlayer {
   is_host: boolean;
 }
 
+/**
+ * StartGameAck - 开始游戏确认信号
+ * 房主发送 OpStartGame 后，服务端广播此信号给所有玩家
+ */
+export interface StartGameAck {
+  /** 完整地图配置 */
+  map_config: MapConfig;
+}
+
+/**
+ * MapConfig - 完整地图配置 (对齐 pkg/net.MapConfig)
+ * 包含地图所有格子的完整信息，用于前端渲染
+ */
+export interface MapConfig {
+  /** 地图长度 (格子数) */
+  length: number;
+  /** 起点索引 */
+  start_index: number;
+  /** 终点索引 (Boss 格子) */
+  end_index: number;
+  /** 格子配置列表 */
+  cells: MapCellConfig[];
+}
+
+/**
+ * MapCellConfig - 完整格子配置 (对齐 pkg/net.MapCellConfig)
+ * 包含格子类型、绘制类型、概率等完整信息
+ */
+export interface MapCellConfig {
+  /** 格子索引 (0 到 Length-1) */
+  index: number;
+  /** 格子类型 (normal, fragile, fog, checkpoint, boss, event) */
+  cell_type: string;
+  /** 是否已破坏 (仅 Fragile 类型) */
+  is_broken: boolean;
+  /** 事件 ID (仅 Event 类型格子) */
+  event_id: string;
+  /** 是否激活迷雾 (仅 Fog 类型) */
+  fog_active: boolean;
+  /** 绘制类型 (none, event, item) - 决定着陆时抽取什么 */
+  draw_type: string;
+  /** 好事件概率权重 */
+  prob_good: number;
+  /** 中性事件概率权重 */
+  prob_neutral: number;
+  /** 坏事件概率权重 */
+  prob_bad: number;
+}
+
 // ========== 客户端 -> 服务端消息类型 ==========
 
 /**
