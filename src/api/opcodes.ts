@@ -37,6 +37,9 @@ export const OpActionRejected = 9;
 /** 等待同步 - 游戏开始前房主等待状态 */
 export const OpWaitingSync = 10;
 
+/** 开始游戏确认 - 房主开始游戏后广播地图配置 */
+export const OpStartGameAck = 11;
+
 // ========== Client -> Server Messages ==========
 
 /** 掷骰子请求 */
@@ -72,6 +75,7 @@ export function getOpCodeName(opCode: number): string {
     [OpFullSync]: 'full_sync',
     [OpActionRejected]: 'action_rejected',
     [OpWaitingSync]: 'waiting_sync',
+    [OpStartGameAck]: 'start_game_ack',
     [OpRollDice]: 'roll_dice',
     [OpUseItem]: 'use_item',
     [OpUseSkill]: 'use_skill',
