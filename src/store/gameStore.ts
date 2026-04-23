@@ -14,6 +14,7 @@ import type {
   MiniGameStart,
   MiniGameResult,
   GameOver,
+  TurnSync,
   StartGameAck,
 } from '../types/protocol';
 
@@ -53,14 +54,14 @@ export type GlobalState =
   | 'boss_battle'
   | 'game_over';
 
-/** 回合状态 (Layer 2) */
+/** 回合状态 (Layer 2) - 支持 snake_case 和 PascalCase 两种格式 */
 export type TurnState =
-  | 'turn_upkeep'
-  | 'main_action'
-  | 'turn_moving'
-  | 'turn_landed'
-  | 'turn_event'
-  | 'turn_end'
+  | 'turn_upkeep' | 'TurnUpkeep'
+  | 'main_action' | 'MainAction'
+  | 'turn_moving' | 'TurnMoving'
+  | 'turn_landed' | 'TurnLanded'
+  | 'turn_event' | 'TurnEvent'
+  | 'turn_end' | 'TurnEnd'
   | '';
 
 // ========== Zustand Store ==========
@@ -110,6 +111,8 @@ interface GameState {
   startGameAck: StartGameAck | null;
   /** 当前房间 ID */
   matchId: string;
+  /** 当前回合同步数据 (TurnSync) */
+  turnSync: TurnSync | null;
 
   // ========== 状态 Actions ==========
 
@@ -141,6 +144,8 @@ interface GameState {
   setMiniGameResult: (result: MiniGameResult | null) => void;
   /** 设置游戏结束 */
   setGameOver: (gameOver: GameOver | null) => void;
+  /** 设置回合同步数据 (TurnSync) */
+  setTurnSync: (turnSync: TurnSync | null) => void;
   /** 设置开始游戏确认 */
   setStartGameAck: (ack: StartGameAck | null) => void;
 
@@ -178,6 +183,7 @@ export const useGameStore = create<GameState>((set) => ({
   startGameAck: null,
   matchId: '',
   displayName: '',
+  turnSync: null,
 
   // ========== Actions ==========
 
@@ -208,6 +214,7 @@ export const useGameStore = create<GameState>((set) => ({
 
   setGameOver: (gameOver) => set({ gameOver }),
 
+  setTurnSync: (turnSync) => set({ turnSync }),
   setStartGameAck: (ack) => set({ startGameAck: ack }),
 
   setPlayers: (players) => set({ players }),
@@ -233,6 +240,7 @@ export const useGameStore = create<GameState>((set) => ({
       miniGameStart: null,
       miniGameResult: null,
       gameOver: null,
+      turnSync: null,
       startGameAck: null,
     }),
 }));
