@@ -4,9 +4,10 @@
  * 显示游戏主界面，玩家可以进行回合操作
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
+import type { Player, MapConfig, MapCellConfig } from '../types/protocol';
 
 export const BoardScene: React.FC = () => {
   const {
@@ -18,7 +19,26 @@ export const BoardScene: React.FC = () => {
     availableActions,
     decisionRequest,
     turnSync,
+    mapConfig,
   } = useGameStore();
+
+  // #region agent instrumentation - Hypothesis C
+  useEffect(() => {
+    fetch('http://127.0.0.1:7649/ingest/fd570d88-3ae3-47ed-8ee1-493b444c6f23', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '31c30f' },
+      body: JSON.stringify({
+        sessionId: '31c30f',
+        location: 'BoardScene.tsx:mapConfig',
+        message: 'mapConfig in BoardScene',
+        data: { hasMapConfig: !!mapConfig, mapLength: mapConfig?.length, cells: mapConfig?.cells?.length },
+        timestamp: Date.now(),
+        runId: 'debug',
+        hypothesisId: 'C'
+      })
+    }).catch(() => {});
+  }, [mapConfig]);
+  // #endregion
 
   const isMyTurn = myPlayerId === currentPlayerId;
 
@@ -101,6 +121,21 @@ export const BoardScene: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* 地图渲染 */}
+      {mapConfig && (
+        <>
+          {/* #region agent instrumentation - Hypothesis C render check */}
+          <MapRenderer mapConfig={mapConfig} players={players} />
+        </>
+      )}
+
+      {/* 未渲染地图调试 */}
+      {!mapConfig && (
+        <div style={{ color: 'red', padding: '10px', backgroundColor: '#ffebee' }}>
+          地图未加载 (mapConfig is null)
+        </div>
+      )}
 
       {/* 我的状态 */}
       {myPlayer && (
@@ -408,6 +443,163 @@ const styles: Record<string, React.CSSProperties> = {
   logSource: {
     color: '#999',
   },
+  // ========== 地图渲染样式 ==========
+  mapContainer: {
+    marginTop: '16px',
+    padding: '12px',
+    backgroundColor: '#fafafa',
+    borderRadius: '8px',
+    overflowX: 'auto',
+  },
+  mapTitle: {
+    fontSize: '16px',
+    fontWeight: 'bold',
+    marginBottom: '12px',
+    color: '#333',
+  },
+  mapGrid: {
+    display: 'flex',
+    gap: '4px',
+    minWidth: 'fit-content',
+    padding: '8px',
+  },
+  cell: {
+    width: '48px',
+    height: '48px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '4px',
+    fontSize: '11px',
+    position: 'relative',
+    border: '2px solid transparent',
+  },
+  cellIndex: {
+    fontSize: '10px',
+    color: '#666',
+    position: 'absolute',
+    top: '2px',
+    left: '4px',
+  },
+  cellPlayers: {
+    display: 'flex',
+    gap: '2px',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  playerDot: {
+    width: '12px',
+    height: '12px',
+    borderRadius: '50%',
+    fontSize: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'white',
+    fontWeight: 'bold',
+  },
+};
+
+// ========== 地图渲染组件 ==========
+
+interface MapRendererProps {
+  mapConfig: MapConfig;
+  players: Player[];
+}
+
+const MapRenderer: React.FC<MapRendererProps> = ({ mapConfig, players }) => {
+  // 格子类型到颜色的映射
+  const getCellColor = (cell: MapCellConfig): string => {
+    switch (cell.cell_type) {
+      case 'normal':
+        return '#e0e0e0';
+      case 'fragile':
+        return cell.is_broken ? '#9e9e9e' : '#fff9c4';
+      case 'fog':
+        return cell.fog_active ? '#90a4ae' : '#eceff1';
+      case 'checkpoint':
+        return '#c8e6c9';
+      case 'boss':
+        return '#ffcdd2';
+      case 'event':
+        return '#e1bee7';
+      default:
+        return '#eeeeee';
+    }
+  };
+
+  // 获取格子上的玩家
+  const getPlayersOnCell = (cellIndex: number): Player[] => {
+    return players.filter((p) => p.position === cellIndex);
+  };
+
+  // 获取玩家颜色
+  const getPlayerColor = (playerId: string): string => {
+    const player = players.find((p) => p.player_id === playerId);
+    if (!player) return '#9e9e9e';
+    switch (player.faction) {
+      case 'sword':
+        return '#f44336';
+      case 'shield':
+        return '#2196f3';
+      case 'bow':
+        return '#4caf50';
+      default:
+        return '#9e9e9e';
+    }
+  };
+
+  return (
+    <div style={styles.mapContainer}>
+      <h3 style={styles.mapTitle}>
+        地图 (共 {mapConfig.length} 格)
+      </h3>
+      <div style={styles.mapGrid}>
+        {mapConfig.cells.map((cell) => {
+          const cellPlayers = getPlayersOnCell(cell.index);
+          const isStart = cell.index === mapConfig.start_index;
+          const isEnd = cell.index === mapConfig.end_index;
+
+          return (
+            <div
+              key={cell.index}
+              style={{
+                ...styles.cell,
+                backgroundColor: getCellColor(cell),
+                border: isStart
+                  ? '2px solid #4caf50'
+                  : isEnd
+                    ? '2px solid #f44336'
+                    : '2px solid #bdbdbd',
+              }}
+              title={`${cell.cell_type}${cell.event_id ? ` (${cell.event_id})` : ''}`}
+            >
+              <span style={styles.cellIndex}>{cell.index}</span>
+              {cellPlayers.length > 0 && (
+                <div style={styles.cellPlayers}>
+                  {cellPlayers.map((p) => (
+                    <div
+                      key={p.player_id}
+                      style={{
+                        ...styles.playerDot,
+                        backgroundColor: getPlayerColor(p.player_id),
+                      }}
+                      title={p.display_name}
+                    >
+                      {p.display_name.charAt(0).toUpperCase()}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {isStart && <span style={{ fontSize: '8px', color: '#4caf50' }}>START</span>}
+              {isEnd && <span style={{ fontSize: '8px', color: '#f44336' }}>BOSS</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 };
 
 export default BoardScene;
