@@ -17,6 +17,7 @@ export const BoardScene: React.FC = () => {
     players,
     availableActions,
     decisionRequest,
+    turnSync,
   } = useGameStore();
 
   const isMyTurn = myPlayerId === currentPlayerId;
@@ -154,8 +155,8 @@ export const BoardScene: React.FC = () => {
         </div>
       )}
 
-      {/* 操作区域 */}
-      {turnState === 'main_action' && (
+      {/* 操作区域 - 支持多种状态格式 (main_action/MainAction) */}
+      {(turnState === 'main_action' || turnState === 'MainAction') && (
         <div style={styles.actionSection}>
           {isMyTurn ? (
             <>
@@ -195,6 +196,22 @@ export const BoardScene: React.FC = () => {
           ) : (
             <p style={styles.waiting}>等待其他玩家行动...</p>
           )}
+        </div>
+      )}
+
+      {/* 回合日志 (TurnSync) */}
+      {turnSync && turnSync.entries.length > 0 && (
+        <div style={styles.turnSyncSection}>
+          <h3>回合日志 (R{turnSync.round}T{turnSync.turn})</h3>
+          <div style={styles.logList}>
+            {turnSync.entries.map((entry, index) => (
+              <div key={index} style={styles.logEntry}>
+                <span style={styles.logType}>{entry.action_type}</span>
+                <span style={styles.logTarget}>目标: {entry.target || '-'}</span>
+                <span style={styles.logSource}>来源: {entry.source || '-'}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -362,6 +379,34 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
+  },
+  turnSyncSection: {
+    padding: '12px',
+    backgroundColor: '#e8eaf6',
+    borderRadius: '8px',
+    marginTop: '16px',
+  },
+  logList: {
+    maxHeight: '200px',
+    overflowY: 'auto',
+  },
+  logEntry: {
+    display: 'flex',
+    gap: '12px',
+    padding: '8px',
+    borderBottom: '1px solid #c5cae9',
+    fontSize: '13px',
+  },
+  logType: {
+    fontWeight: 'bold',
+    color: '#3f51b5',
+    minWidth: '100px',
+  },
+  logTarget: {
+    color: '#666',
+  },
+  logSource: {
+    color: '#999',
   },
 };
 

@@ -308,12 +308,14 @@ export class NakamaService {
   }
 
   private handleTurnSync(data: protocol.TurnSync) {
+    const store = useGameStore.getState();
+    store.setTurnSync(data);
+
     console.log('[Nakama] 回合同步', {
       round: data.round,
       turn: data.turn,
       entries: data.entries.length,
     });
-    // 可以在这里处理回合效果动画
   }
 
   private handleWaitingSync(data: protocol.WaitingSync) {
