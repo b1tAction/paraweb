@@ -15,6 +15,7 @@ import type {
   MiniGameResult,
   GameOver,
   TurnSync,
+  StartGameAck,
 } from '../types/protocol';
 
 // ========== 场景枚举 ==========
@@ -106,6 +107,8 @@ interface GameState {
   miniGameResult: MiniGameResult | null;
   /** 游戏结束信息 (如果有) */
   gameOver: GameOver | null;
+  /** 开始游戏确认 (包含地图配置) */
+  startGameAck: StartGameAck | null;
   /** 当前房间 ID */
   matchId: string;
   /** 当前回合同步数据 (TurnSync) */
@@ -143,6 +146,8 @@ interface GameState {
   setGameOver: (gameOver: GameOver | null) => void;
   /** 设置回合同步数据 (TurnSync) */
   setTurnSync: (turnSync: TurnSync | null) => void;
+  /** 设置开始游戏确认 */
+  setStartGameAck: (ack: StartGameAck | null) => void;
 
   /** 更新玩家列表 */
   setPlayers: (players: Player[]) => void;
@@ -175,6 +180,7 @@ export const useGameStore = create<GameState>((set) => ({
   miniGameStart: null,
   miniGameResult: null,
   gameOver: null,
+  startGameAck: null,
   matchId: '',
   displayName: '',
   turnSync: null,
@@ -209,6 +215,7 @@ export const useGameStore = create<GameState>((set) => ({
   setGameOver: (gameOver) => set({ gameOver }),
 
   setTurnSync: (turnSync) => set({ turnSync }),
+  setStartGameAck: (ack) => set({ startGameAck: ack }),
 
   setPlayers: (players) => set({ players }),
 
@@ -234,6 +241,7 @@ export const useGameStore = create<GameState>((set) => ({
       miniGameResult: null,
       gameOver: null,
       turnSync: null,
+      startGameAck: null,
     }),
 }));
 
