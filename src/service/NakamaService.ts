@@ -218,6 +218,22 @@ export class NakamaService {
 
       console.log(`[Nakama] 收到 OpCode: ${matchData.op_code} (${opcodes.getOpCodeName(matchData.op_code)})`, data);
 
+      // #region agent instrumentation - Hypothesis A: OpCode routing check
+      fetch('http://127.0.0.1:7649/ingest/fd570d88-3ae3-47ed-8ee1-493b444c6f23', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '31c30f' },
+        body: JSON.stringify({
+          sessionId: '31c30f',
+          location: 'NakamaService.ts:onmatchdata',
+          message: 'OpCode received in switch',
+          data: { opCode: matchData.op_code, opCodeName: opcodes.getOpCodeName(matchData.op_code) },
+          timestamp: Date.now(),
+          runId: 'debug',
+          hypothesisId: 'A'
+        })
+      }).catch(() => {});
+      // #endregion
+
       // 根据 OpCode 路由 (对齐 Go CLI)
       switch (matchData.op_code) {
         case opcodes.OpStateSync:
@@ -406,6 +422,23 @@ export class NakamaService {
   private handleStartGameAck(data: protocol.StartGameAck) {
     const store = useGameStore.getState();
     store.setStartGameAck(data);
+    store.setMapConfig(data.map_config);
+
+    // #region agent instrumentation - Hypothesis A/B
+    fetch('http://127.0.0.1:7649/ingest/fd570d88-3ae3-47ed-8ee1-493b444c6f23', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '31c30f' },
+      body: JSON.stringify({
+        sessionId: '31c30f',
+        location: 'NakamaService.ts:handleStartGameAck',
+        message: 'OpStartGameAck received',
+        data: { mapLength: data.map_config.length, cells: data.map_config.cells.length },
+        timestamp: Date.now(),
+        runId: 'debug',
+        hypothesisId: 'A'
+      })
+    }).catch(() => {});
+    // #endregion
 
     console.log('[Nakama] 游戏开始确认', {
       mapLength: data.map_config.length,

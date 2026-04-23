@@ -16,6 +16,7 @@ import type {
   GameOver,
   TurnSync,
   StartGameAck,
+  MapConfig,
 } from '../types/protocol';
 
 // ========== 场景枚举 ==========
@@ -109,6 +110,8 @@ interface GameState {
   gameOver: GameOver | null;
   /** 开始游戏确认 (包含地图配置) */
   startGameAck: StartGameAck | null;
+  /** 地图配置 (用于渲染地图) */
+  mapConfig: MapConfig | null;
   /** 当前房间 ID */
   matchId: string;
   /** 当前回合同步数据 (TurnSync) */
@@ -148,6 +151,8 @@ interface GameState {
   setTurnSync: (turnSync: TurnSync | null) => void;
   /** 设置开始游戏确认 */
   setStartGameAck: (ack: StartGameAck | null) => void;
+  /** 设置地图配置 */
+  setMapConfig: (config: MapConfig | null) => void;
 
   /** 更新玩家列表 */
   setPlayers: (players: Player[]) => void;
@@ -181,6 +186,7 @@ export const useGameStore = create<GameState>((set) => ({
   miniGameResult: null,
   gameOver: null,
   startGameAck: null,
+  mapConfig: null,
   matchId: '',
   displayName: '',
   turnSync: null,
@@ -217,6 +223,8 @@ export const useGameStore = create<GameState>((set) => ({
   setTurnSync: (turnSync) => set({ turnSync }),
   setStartGameAck: (ack) => set({ startGameAck: ack }),
 
+  setMapConfig: (config) => set({ mapConfig: config }),
+
   setPlayers: (players) => set({ players }),
 
   setCurrentPlayerId: (playerId) => set({ currentPlayerId: playerId }),
@@ -242,6 +250,7 @@ export const useGameStore = create<GameState>((set) => ({
       gameOver: null,
       turnSync: null,
       startGameAck: null,
+      mapConfig: null,
     }),
 }));
 
