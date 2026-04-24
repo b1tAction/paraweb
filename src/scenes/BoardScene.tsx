@@ -7,7 +7,7 @@
 import React, { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
-import type { Player, MapConfig, MapCellConfig } from '../types/protocol';
+import { PhaserBoard } from '../components/PhaserBoard';
 
 export const BoardScene: React.FC = () => {
   const {
@@ -81,221 +81,286 @@ export const BoardScene: React.FC = () => {
   const myPlayer = players.find((p) => p.player_id === myPlayerId);
 
   return (
-    <div style={styles.container}>
-      <h2 style={styles.title}>主棋盘</h2>
-
-      {/* 状态信息 */}
-      <div style={styles.statusSection}>
-        <p style={styles.info}>全局状态：{globalState}</p>
-        <p style={styles.info}>回合状态：{turnState}</p>
-        <p style={styles.info}>
-          当前玩家：{currentPlayer?.display_name || currentPlayerId}
-        </p>
+    <div style={styles.sceneRoot}>
+      <div style={styles.boardLayer}>
+        {mapConfig ? (
+          <PhaserBoard mapConfig={mapConfig} players={players} />
+        ) : (
+          <div style={styles.mapMissing}>地图未加载 (mapConfig is null)</div>
+        )}
       </div>
 
-      {/* 玩家列表 */}
-      <div style={styles.playerSection}>
-        <h3>玩家状态</h3>
-        {players.map((player) => (
-          <div
-            key={player.player_id}
-            style={{
-              ...styles.playerItem,
-              backgroundColor:
-                player.player_id === myPlayerId ? '#e3f2fd' : 'transparent',
-            }}
-          >
-            <div style={styles.playerInfo}>
-              <span style={styles.playerName}>
-                {player.display_name}
-                {player.player_id === currentPlayerId && ' (当前)'}
-                {player.player_id === myPlayerId && ' (你)'}
-              </span>
-              <span style={styles.playerFaction}>{player.faction}</span>
-            </div>
-            <div style={styles.playerStats}>
-              <span>HP: {player.hp}</span>
-              <span>LP: {player.lp}</span>
-              <span>位置：{player.position}</span>
-            </div>
+      <div style={styles.uiLayer}>
+        <div style={styles.topHud}>
+          <h2 style={styles.title}>主棋盘</h2>
+          <div style={styles.statusSection}>
+            <p style={styles.info}>全局状态：{globalState}</p>
+            <p style={styles.info}>回合状态：{turnState}</p>
+            <p style={styles.info}>当前玩家：{currentPlayer?.display_name || currentPlayerId}</p>
           </div>
-        ))}
-      </div>
-
-      {/* 地图渲染 */}
-      {mapConfig && (
-        <>
-          {/* #region agent instrumentation - Hypothesis C render check */}
-          <MapRenderer mapConfig={mapConfig} players={players} />
-        </>
-      )}
-
-      {/* 未渲染地图调试 */}
-      {!mapConfig && (
-        <div style={{ color: 'red', padding: '10px', backgroundColor: '#ffebee' }}>
-          地图未加载 (mapConfig is null)
         </div>
-      )}
 
-      {/* 我的状态 */}
-      {myPlayer && (
-        <div style={styles.myStatus}>
-          <h3>我的状态</h3>
-          <div style={styles.statusGrid}>
-            <div style={styles.statItem}>
-              <span>生命值</span>
-              <span style={styles.statValue}>{myPlayer.hp}</span>
-            </div>
-            <div style={styles.statItem}>
-              <span>幸运值</span>
-              <span style={styles.statValue}>{myPlayer.lp}</span>
-            </div>
-            <div style={styles.statItem}>
-              <span>充能</span>
-              <span style={styles.statValue}>{myPlayer.charge}</span>
-            </div>
-            <div style={styles.statItem}>
-              <span>位置</span>
-              <span style={styles.statValue}>{myPlayer.position}</span>
-            </div>
-          </div>
-
-          {/* Buff 列表 */}
-          {myPlayer.buffs.length > 0 && (
-            <div style={styles.buffList}>
-              <h4>增益效果</h4>
-              {myPlayer.buffs.map((buff, index) => (
-                <span key={index} style={styles.buffTag}>
-                  {buff.name} ({buff.duration})
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* 道具列表 */}
-          {myPlayer.items.length > 0 && (
-            <div style={styles.itemList}>
-              <h4>道具</h4>
-              {myPlayer.items.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleUseItem(item.id)}
-                  style={styles.itemButton}
+        <div style={styles.sidePanels}>
+          <div style={styles.leftPanel}>
+            <div style={styles.playerSection}>
+              <h3>玩家状态</h3>
+              {players.map((player) => (
+                <div
+                  key={player.player_id}
+                  style={{
+                    ...styles.playerItem,
+                    backgroundColor:
+                      player.player_id === myPlayerId ? 'rgba(227, 242, 253, 0.9)' : 'rgba(255, 255, 255, 0.82)',
+                  }}
                 >
-                  {item.name}
-                </button>
+                  <div style={styles.playerInfo}>
+                    <span style={styles.playerName}>
+                      {player.display_name}
+                      {player.player_id === currentPlayerId && ' (当前)'}
+                      {player.player_id === myPlayerId && ' (你)'}
+                    </span>
+                    <span style={styles.playerFaction}>{player.faction}</span>
+                  </div>
+                  <div style={styles.playerStats}>
+                    <span>HP: {player.hp}</span>
+                    <span>LP: {player.lp}</span>
+                    <span>位置：{player.position}</span>
+                  </div>
+                </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
 
-      {/* 操作区域 - 支持多种状态格式 (main_action/MainAction) */}
-      {(turnState === 'main_action' || turnState === 'MainAction') && (
-        <div style={styles.actionSection}>
-          {isMyTurn ? (
-            <>
-              <h3>你的回合！</h3>
+            {myPlayer && (
+              <div style={styles.myStatus}>
+                <h3>我的状态</h3>
+                <div style={styles.statusGrid}>
+                  <div style={styles.statItem}>
+                    <span>生命值</span>
+                    <span style={styles.statValue}>{myPlayer.hp}</span>
+                  </div>
+                  <div style={styles.statItem}>
+                    <span>幸运值</span>
+                    <span style={styles.statValue}>{myPlayer.lp}</span>
+                  </div>
+                  <div style={styles.statItem}>
+                    <span>充能</span>
+                    <span style={styles.statValue}>{myPlayer.charge}</span>
+                  </div>
+                  <div style={styles.statItem}>
+                    <span>位置</span>
+                    <span style={styles.statValue}>{myPlayer.position}</span>
+                  </div>
+                </div>
 
-              {/* 可用动作 */}
-              {availableActions && (
-                <div style={styles.availableActions}>
-                  <button
-                    onClick={handleRollDice}
-                    style={styles.actionButton}
-                  >
-                    掷骰子 ({availableActions.dice_type})
-                  </button>
+                {myPlayer.buffs.length > 0 && (
+                  <div style={styles.buffList}>
+                    <h4>增益效果</h4>
+                    {myPlayer.buffs.map((buff, index) => (
+                      <span key={index} style={styles.buffTag}>
+                        {buff.name} ({buff.duration})
+                      </span>
+                    ))}
+                  </div>
+                )}
 
-                  {availableActions.can_use_skill && (
-                    <button
-                      onClick={handleUseSkill}
-                      style={styles.actionButton}
-                    >
-                      使用技能
-                    </button>
-                  )}
+                {myPlayer.items.length > 0 && (
+                  <div style={styles.itemList}>
+                    <h4>道具</h4>
+                    {myPlayer.items.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => handleUseItem(item.id)}
+                        style={styles.itemButton}
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-                  {availableActions.items.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleUseItem(item.id)}
-                      style={styles.actionButton}
-                    >
-                      使用 {item.name}
-                    </button>
+          {turnSync && turnSync.entries.length > 0 && (
+            <div style={styles.rightPanel}>
+              <div style={styles.turnSyncSection}>
+                <h3>回合日志 (R{turnSync.round}T{turnSync.turn})</h3>
+                <div style={styles.logList}>
+                  {turnSync.entries.map((entry, index) => (
+                    <div key={index} style={styles.logEntry}>
+                      <span style={styles.logType}>{entry.action_type}</span>
+                      <span style={styles.logTarget}>目标: {entry.target || '-'}</span>
+                      <span style={styles.logSource}>来源: {entry.source || '-'}</span>
+                    </div>
                   ))}
                 </div>
-              )}
-            </>
-          ) : (
-            <p style={styles.waiting}>等待其他玩家行动...</p>
+              </div>
+            </div>
           )}
         </div>
-      )}
 
-      {/* 回合日志 (TurnSync) */}
-      {turnSync && turnSync.entries.length > 0 && (
-        <div style={styles.turnSyncSection}>
-          <h3>回合日志 (R{turnSync.round}T{turnSync.turn})</h3>
-          <div style={styles.logList}>
-            {turnSync.entries.map((entry, index) => (
-              <div key={index} style={styles.logEntry}>
-                <span style={styles.logType}>{entry.action_type}</span>
-                <span style={styles.logTarget}>目标: {entry.target || '-'}</span>
-                <span style={styles.logSource}>来源: {entry.source || '-'}</span>
+        {(turnState === 'main_action' || turnState === 'MainAction') && (
+          <div style={styles.bottomActionWrap}>
+            <div style={styles.actionSection}>
+              {isMyTurn ? (
+                <>
+                  <h3>你的回合！</h3>
+                  {availableActions && (
+                    <div style={styles.availableActions}>
+                      <button
+                        onClick={handleRollDice}
+                        style={styles.actionButton}
+                      >
+                        掷骰子 ({availableActions.dice_type})
+                      </button>
+
+                      {availableActions.can_use_skill && (
+                        <button
+                          onClick={handleUseSkill}
+                          style={styles.actionButton}
+                        >
+                          使用技能
+                        </button>
+                      )}
+
+                      {availableActions.items.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => handleUseItem(item.id)}
+                          style={styles.actionButton}
+                        >
+                          使用 {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p style={styles.waiting}>等待其他玩家行动...</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {decisionRequest && (
+          <div style={styles.decisionBackdrop}>
+            <div style={styles.decisionSection}>
+              <h3>{decisionRequest.prompt}</h3>
+              <p>{decisionRequest.context}</p>
+              <div style={styles.decisionOptions}>
+                {decisionRequest.options.map((option, index) => (
+                  <button
+                    key={option.id}
+                    onClick={() => handleChoice(index)}
+                    style={styles.decisionButton}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* 决策请求 */}
-      {decisionRequest && (
-        <div style={styles.decisionSection}>
-          <h3>{decisionRequest.prompt}</h3>
-          <p>{decisionRequest.context}</p>
-          <div style={styles.decisionOptions}>
-            {decisionRequest.options.map((option, index) => (
-              <button
-                key={option.id}
-                onClick={() => handleChoice(index)}
-                style={styles.decisionButton}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
 
 // 简单样式
 const styles: Record<string, React.CSSProperties> = {
-  container: {
-    padding: '20px',
-    maxWidth: '800px',
-    margin: '0 auto',
+  sceneRoot: {
+    position: 'fixed',
+    inset: 0,
+    width: '100vw',
+    height: '100vh',
+    overflow: 'hidden',
+    backgroundColor: '#0d1117',
+  },
+  boardLayer: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 0,
+  },
+  uiLayer: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 2,
+    pointerEvents: 'none',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    padding: '12px',
+    gap: '10px',
+  },
+  topHud: {
+    pointerEvents: 'auto',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '12px',
+  },
+  sidePanels: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'stretch',
+    gap: '12px',
+    flex: 1,
+    minHeight: 0,
+  },
+  leftPanel: {
+    pointerEvents: 'auto',
+    width: 'min(360px, 42vw)',
+    maxHeight: '100%',
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  rightPanel: {
+    pointerEvents: 'auto',
+    width: 'min(360px, 42vw)',
+    marginLeft: 'auto',
+    maxHeight: '100%',
+    overflowY: 'auto',
+  },
+  bottomActionWrap: {
+    pointerEvents: 'none',
+    display: 'flex',
+    justifyContent: 'center',
+  },
+  mapMissing: {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#ef9a9a',
+    fontWeight: 700,
+    background: 'rgba(0,0,0,0.5)',
   },
   title: {
-    textAlign: 'center',
+    pointerEvents: 'auto',
+    margin: 0,
+    padding: '8px 12px',
+    borderRadius: '10px',
+    backgroundColor: 'rgba(19, 26, 36, 0.75)',
+    color: '#f2f6fb',
     fontSize: '20px',
-    marginBottom: '16px',
   },
   statusSection: {
+    pointerEvents: 'auto',
     padding: '12px',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'rgba(245, 245, 245, 0.9)',
     borderRadius: '8px',
-    marginBottom: '16px',
   },
   info: {
     fontSize: '14px',
     marginBottom: '4px',
   },
   playerSection: {
-    marginBottom: '16px',
+    padding: '12px',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(255, 255, 255, 0.86)',
   },
   playerItem: {
     padding: '12px',
@@ -322,10 +387,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
   },
   myStatus: {
+    pointerEvents: 'auto',
     padding: '12px',
-    backgroundColor: '#fff3e0',
+    backgroundColor: 'rgba(255, 243, 224, 0.9)',
     borderRadius: '8px',
-    marginBottom: '16px',
   },
   statusGrid: {
     display: 'grid',
@@ -370,10 +435,12 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   actionSection: {
+    pointerEvents: 'auto',
     padding: '16px',
-    backgroundColor: '#e8f5e9',
+    backgroundColor: 'rgba(232, 245, 233, 0.96)',
     borderRadius: '8px',
     textAlign: 'center',
+    width: 'min(900px, calc(100vw - 24px))',
   },
   availableActions: {
     display: 'flex',
@@ -399,7 +466,17 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
     backgroundColor: '#fff9c4',
     borderRadius: '8px',
-    marginTop: '16px',
+    width: 'min(700px, calc(100vw - 40px))',
+    pointerEvents: 'auto',
+  },
+  decisionBackdrop: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'auto',
   },
   decisionOptions: {
     display: 'flex',
@@ -417,12 +494,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   turnSyncSection: {
     padding: '12px',
-    backgroundColor: '#e8eaf6',
+    backgroundColor: 'rgba(232, 234, 246, 0.9)',
     borderRadius: '8px',
-    marginTop: '16px',
   },
   logList: {
-    maxHeight: '200px',
+    maxHeight: '35vh',
     overflowY: 'auto',
   },
   logEntry: {
@@ -443,163 +519,6 @@ const styles: Record<string, React.CSSProperties> = {
   logSource: {
     color: '#999',
   },
-  // ========== 地图渲染样式 ==========
-  mapContainer: {
-    marginTop: '16px',
-    padding: '12px',
-    backgroundColor: '#fafafa',
-    borderRadius: '8px',
-    overflowX: 'auto',
-  },
-  mapTitle: {
-    fontSize: '16px',
-    fontWeight: 'bold',
-    marginBottom: '12px',
-    color: '#333',
-  },
-  mapGrid: {
-    display: 'flex',
-    gap: '4px',
-    minWidth: 'fit-content',
-    padding: '8px',
-  },
-  cell: {
-    width: '48px',
-    height: '48px',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '4px',
-    fontSize: '11px',
-    position: 'relative',
-    border: '2px solid transparent',
-  },
-  cellIndex: {
-    fontSize: '10px',
-    color: '#666',
-    position: 'absolute',
-    top: '2px',
-    left: '4px',
-  },
-  cellPlayers: {
-    display: 'flex',
-    gap: '2px',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  playerDot: {
-    width: '12px',
-    height: '12px',
-    borderRadius: '50%',
-    fontSize: '8px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'white',
-    fontWeight: 'bold',
-  },
-};
-
-// ========== 地图渲染组件 ==========
-
-interface MapRendererProps {
-  mapConfig: MapConfig;
-  players: Player[];
-}
-
-const MapRenderer: React.FC<MapRendererProps> = ({ mapConfig, players }) => {
-  // 格子类型到颜色的映射
-  const getCellColor = (cell: MapCellConfig): string => {
-    switch (cell.cell_type) {
-      case 'normal':
-        return '#e0e0e0';
-      case 'fragile':
-        return cell.is_broken ? '#9e9e9e' : '#fff9c4';
-      case 'fog':
-        return cell.fog_active ? '#90a4ae' : '#eceff1';
-      case 'checkpoint':
-        return '#c8e6c9';
-      case 'boss':
-        return '#ffcdd2';
-      case 'event':
-        return '#e1bee7';
-      default:
-        return '#eeeeee';
-    }
-  };
-
-  // 获取格子上的玩家
-  const getPlayersOnCell = (cellIndex: number): Player[] => {
-    return players.filter((p) => p.position === cellIndex);
-  };
-
-  // 获取玩家颜色
-  const getPlayerColor = (playerId: string): string => {
-    const player = players.find((p) => p.player_id === playerId);
-    if (!player) return '#9e9e9e';
-    switch (player.faction) {
-      case 'sword':
-        return '#f44336';
-      case 'shield':
-        return '#2196f3';
-      case 'bow':
-        return '#4caf50';
-      default:
-        return '#9e9e9e';
-    }
-  };
-
-  return (
-    <div style={styles.mapContainer}>
-      <h3 style={styles.mapTitle}>
-        地图 (共 {mapConfig.length} 格)
-      </h3>
-      <div style={styles.mapGrid}>
-        {mapConfig.cells.map((cell) => {
-          const cellPlayers = getPlayersOnCell(cell.index);
-          const isStart = cell.index === mapConfig.start_index;
-          const isEnd = cell.index === mapConfig.end_index;
-
-          return (
-            <div
-              key={cell.index}
-              style={{
-                ...styles.cell,
-                backgroundColor: getCellColor(cell),
-                border: isStart
-                  ? '2px solid #4caf50'
-                  : isEnd
-                    ? '2px solid #f44336'
-                    : '2px solid #bdbdbd',
-              }}
-              title={`${cell.cell_type}${cell.event_id ? ` (${cell.event_id})` : ''}`}
-            >
-              <span style={styles.cellIndex}>{cell.index}</span>
-              {cellPlayers.length > 0 && (
-                <div style={styles.cellPlayers}>
-                  {cellPlayers.map((p) => (
-                    <div
-                      key={p.player_id}
-                      style={{
-                        ...styles.playerDot,
-                        backgroundColor: getPlayerColor(p.player_id),
-                      }}
-                      title={p.display_name}
-                    >
-                      {p.display_name.charAt(0).toUpperCase()}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {isStart && <span style={{ fontSize: '8px', color: '#4caf50' }}>START</span>}
-              {isEnd && <span style={{ fontSize: '8px', color: '#f44336' }}>BOSS</span>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 };
 
 export default BoardScene;
