@@ -61,9 +61,18 @@ const CELL_COLORS: Record<string, number> = {
 
 const PLAYER_COLORS = [0x42a5f5, 0xef5350, 0xffca28, 0x66bb6a];
 
+// 摄像头可见范围
+// MainMap.json 当前 tile 是 32x32，因此这个值会让摄像头只显示人物周边几格。
+// 想看得更近就调小，想看得更远就调大。
+const CAMERA_VIEW_TILES_X = 30;
+const CAMERA_VIEW_TILES_Y = 20;
+
 export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
   private players: Player[] = [];
+  private followPlayerId?: string | null;
+  private mapTileWidth = 32;
+  private mapTileHeight = 32;
 
   private pathNodes = new Map<number, PathNode>();
   private cellViews = new Map<number, BoardCellView>();
@@ -77,9 +86,10 @@ export class ForestBoardScene extends Phaser.Scene {
     super('ForestBoardScene');
   }
 
-  init(data: { mapConfig: MapConfig; players: Player[] }) {
+  init(data: { mapConfig: MapConfig; players: Player[]; followPlayerId?: string | null }) {
     this.mapConfig = data.mapConfig;
     this.players = data.players ?? [];
+    this.followPlayerId = data.followPlayerId;
   }
 
   preload() {
@@ -92,6 +102,8 @@ export class ForestBoardScene extends Phaser.Scene {
 
   create() {
     const map = this.make.tilemap({ key: 'mainmap' });
+    this.mapTileWidth = map.tileWidth;
+    this.mapTileHeight = map.tileHeight;
 
     const tilesets = TILESET_IMAGES
       .map((tileset) => {
@@ -121,6 +133,7 @@ export class ForestBoardScene extends Phaser.Scene {
     });
 
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+    this.configureFollowCamera();
 
     this.extractPathNodes(map);
     this.rebuildCellsFromBackendConfig();
@@ -130,11 +143,13 @@ export class ForestBoardScene extends Phaser.Scene {
     this.ready = true;
   }
 
-  updateFromReact(mapConfig: MapConfig, players: Player[]) {
+  updateFromReact(mapConfig: MapConfig, players: Player[], followPlayerId?: string | null) {
     const mapChanged = this.mapConfig !== mapConfig;
+    const followChanged = this.followPlayerId !== followPlayerId;
 
     this.mapConfig = mapConfig;
     this.players = players ?? [];
+    this.followPlayerId = followPlayerId;
 
     if (!this.ready) return;
 
@@ -144,6 +159,32 @@ export class ForestBoardScene extends Phaser.Scene {
     }
 
     this.syncPlayers(this.players);
+
+    if (followChanged) {
+      this.followTargetPlayer();
+    }
+  }
+
+  private configureFollowCamera() {
+    const camera = this.cameras.main;
+    const zoomX = camera.width / (this.mapTileWidth * CAMERA_VIEW_TILES_X);
+    const zoomY = camera.height / (this.mapTileHeight * CAMERA_VIEW_TILES_Y);
+    const zoom = Math.min(zoomX, zoomY);
+
+    camera.setZoom(zoom);
+    camera.roundPixels = true;
+  }
+
+  private followTargetPlayer() {
+    const targetPlayerId = this.followPlayerId ?? this.players[0]?.player_id;
+
+    if (!targetPlayerId) return;
+
+    const marker = this.playerMarkers.get(targetPlayerId);
+
+    if (!marker) return;
+
+    this.cameras.main.startFollow(marker, true, 0.12, 0.12);
   }
 
   private extractPathNodes(map: Phaser.Tilemaps.Tilemap) {
@@ -262,6 +303,11 @@ export class ForestBoardScene extends Phaser.Scene {
         marker.setDepth(targetY + 100);
 
         this.playerMarkers.set(player.player_id, marker);
+
+        if (player.player_id === this.followPlayerId) {
+          this.followTargetPlayer();
+        }
+
         return;
       }
 
@@ -276,5 +322,7 @@ export class ForestBoardScene extends Phaser.Scene {
         },
       });
     });
+
+    this.followTargetPlayer();
   }
 }
