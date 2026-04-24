@@ -6,11 +6,14 @@ import { ForestBoardScene } from '../game/ForestBoardScene';
 type PhaserBoardProps = {
   mapConfig: MapConfig;
   players: Player[];
+  /** 摄像头跟随的玩家 ID；通常传当前客户端自己的 myPlayerId */
+  followPlayerId?: string | null;
 };
 
 export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   mapConfig,
   players,
+  followPlayerId,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -35,6 +38,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
     game.scene.add('ForestBoardScene', ForestBoardScene, true, {
       mapConfig,
       players,
+      followPlayerId,
     });
 
     gameRef.current = game;
@@ -50,8 +54,8 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       'ForestBoardScene'
     ) as ForestBoardScene | undefined;
 
-    scene?.updateFromReact(mapConfig, players);
-  }, [mapConfig, players]);
+    scene?.updateFromReact(mapConfig, players, followPlayerId);
+  }, [mapConfig, players, followPlayerId]);
 
   return (
     <div

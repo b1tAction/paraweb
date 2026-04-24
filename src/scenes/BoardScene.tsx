@@ -84,7 +84,11 @@ export const BoardScene: React.FC = () => {
     <div style={styles.sceneRoot}>
       <div style={styles.boardLayer}>
         {mapConfig ? (
-          <PhaserBoard mapConfig={mapConfig} players={players} />
+          <PhaserBoard
+            mapConfig={mapConfig}
+            players={players}
+            followPlayerId={myPlayerId || currentPlayerId}
+          />
         ) : (
           <div style={styles.mapMissing}>地图未加载 (mapConfig is null)</div>
         )}
