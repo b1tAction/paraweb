@@ -92,7 +92,7 @@ export const HomeScene: React.FC = () => {
 
   // 登录表单状态
   const [username, setUsername] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const[password, setPassword] = useState<string>('');
   const [isRegister, setIsRegister] = useState<boolean>(false);
 
   // 创建房间表单
@@ -100,7 +100,7 @@ export const HomeScene: React.FC = () => {
   const [maxPlayers, setMaxPlayers] = useState<number>(4);
 
   // 加入房间表单 (输入框的临时状态)
-  const [joinMatchId, setJoinMatchId] = useState<string>('');
+  const[joinMatchId, setJoinMatchId] = useState<string>('');
 
   // 错误信息
   const [error, setError] = useState<string>('');
@@ -172,128 +172,152 @@ export const HomeScene: React.FC = () => {
   // 已登录状态
   if (session) {
     return (
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h2 style={styles.title}>欢迎！</h2>
-          <button onClick={() => gameService.logout()} style={styles.logoutButton}>
-            登出
-          </button>
-        </div>
-        <p style={styles.info}>用户 ID: {myPlayerId || '加载中...'}</p>
-        <p style={styles.info}>用户名：{displayName}</p>
-
-        {matchId && (
-          <div style={styles.roomInfo}>
-            <h3>当前房间</h3>
-            <p style={styles.matchId}>房间 ID: {matchId}</p>
-            <button onClick={() => navigator.clipboard.writeText(matchId)} style={styles.copyButton}>
-              复制 ID
-            </button>
-          </div>
-        )}
-
-        <div style={styles.section}>
-          <h3>创建房间</h3>
-          <div style={styles.formGroup}>
-            <label>阵营：</label>
-            <select
-              value={faction}
-              onChange={(e) => setFaction(e.target.value)}
-              style={styles.select}
-            >
-              <option value="qing_long">青龙</option>
-              <option value="zhu_que">朱雀</option>
-              <option value="bai_hu">白虎</option>
-              <option value="xuan_wu">玄武</option>
-            </select>
-          </div>
-          <div style={styles.formGroup}>
-            <label>最大玩家数：</label>
-            <select
-              value={maxPlayers}
-              onChange={(e) => setMaxPlayers(Number(e.target.value))}
-              style={styles.select}
-            >
-              <option value={2}>2 人</option>
-              <option value={3}>3 人</option>
-              <option value={4}>4 人</option>
-            </select>
-          </div>
-          <button onClick={handleCreateRoom} style={styles.button}>
-            创建房间
-          </button>
-        </div>
-
-        <div style={styles.section}>
-          <h3>加入房间</h3>
-          <div style={styles.formGroup}>
-            <label>房间 ID：</label>
-            <input
-              type="text"
-              value={joinMatchId}
-              onChange={(e) => setJoinMatchId(e.target.value)}
-              placeholder="输入房间 ID"
-              style={styles.input}
+      <div style={styles.page}>
+        <div style={styles.mask}>
+          <div style={styles.container}>
+            <img
+              src="/assets/cover_logo.png"
+              alt="logo"
+              style={styles.logoImage}
+              onError={(e: any) => {
+                e.currentTarget.style.display = 'none';
+              }}
             />
-          </div>
-          <button onClick={handleJoinRoom} style={styles.button}>
-            加入房间
-          </button>
-        </div>
+            <div style={styles.header}>
+              <h2 style={styles.title}>欢迎！</h2>
+              <button onClick={() => gameService.logout()} style={styles.logoutButton}>
+                登出
+              </button>
+            </div>
+            <p style={styles.info}>用户 ID: {myPlayerId || '加载中...'}</p>
+            <p style={styles.info}>用户名：{displayName}</p>
 
-        {error && <p style={styles.error}>{error}</p>}
+            {matchId && (
+              <div style={styles.roomInfo}>
+                <h3>当前房间</h3>
+                <p style={styles.matchId}>房间 ID: {matchId}</p>
+                <button onClick={() => navigator.clipboard.writeText(matchId)} style={styles.copyButton}>
+                  复制 ID
+                </button>
+              </div>
+            )}
+
+            <div style={styles.section}>
+              <h3>创建房间</h3>
+              <div style={styles.formGroup}>
+                <label>阵营：</label>
+                <select
+                  value={faction}
+                  onChange={(e) => setFaction(e.target.value)}
+                  style={styles.select}
+                >
+                  <option value="qing_long">青龙</option>
+                  <option value="zhu_que">朱雀</option>
+                  <option value="bai_hu">白虎</option>
+                  <option value="xuan_wu">玄武</option>
+                </select>
+              </div>
+              <div style={styles.formGroup}>
+                <label>最大玩家数：</label>
+                <select
+                  value={maxPlayers}
+                  onChange={(e) => setMaxPlayers(Number(e.target.value))}
+                  style={styles.select}
+                >
+                  <option value={2}>2 人</option>
+                  <option value={3}>3 人</option>
+                  <option value={4}>4 人</option>
+                </select>
+              </div>
+              <button onClick={handleCreateRoom} style={styles.button}>
+                创建房间
+              </button>
+            </div>
+
+            <div style={styles.section}>
+              <h3>加入房间</h3>
+              <div style={styles.formGroup}>
+                <label>房间 ID：</label>
+                <input
+                  type="text"
+                  value={joinMatchId}
+                  onChange={(e) => setJoinMatchId(e.target.value)}
+                  placeholder="输入房间 ID"
+                  style={styles.input}
+                />
+              </div>
+              <button onClick={handleJoinRoom} style={styles.button}>
+                加入房间
+              </button>
+            </div>
+
+            {error && <p style={styles.error}>{error}</p>}
+          </div>
+        </div>
       </div>
     );
   }
 
   // 未登录状态
   return (
-    <div style={styles.container}>
-      <h2 style={styles.title}>ParaDiced 派乐代</h2>
-      <p style={styles.subtitle}>回合制派对游戏</p>
-
-      <div style={styles.section}>
-        <h3>{isRegister ? '注册账号' : '登录'}</h3>
-        <div style={styles.formGroup}>
-          <label>用户名：</label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="输入用户名"
-            style={styles.input}
-          />
-        </div>
-        <div style={styles.formGroup}>
-          <label>密码：</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="输入密码"
-            style={styles.input}
-          />
-        </div>
-        <button onClick={handleConnect} style={styles.button}>
-          {isRegister ? '注册' : '登录'}
-        </button>
-        <div style={styles.toggleContainer}>
-          <span style={styles.toggleText}>
-            {isRegister ? '已有账号？' : '没有账号？'}
-          </span>
-          <button
-            onClick={() => {
-              setIsRegister(!isRegister);
-              setError('');
+    <div style={styles.page}>
+      <div style={styles.mask}>
+        <div style={styles.container}>
+          {/* 将原本的 "ParaDiced 派乐代" 文字替换为 Logo 图 */}
+          <img
+            src="/assets/cover_logo.png"
+            alt="logo"
+            style={styles.logoImage}
+            onError={(e: any) => {
+              e.currentTarget.style.display = 'none';
             }}
-            style={styles.toggleButton}
-          >
-            {isRegister ? '去登录' : '去注册'}
-          </button>
+          />
+          <p style={styles.subtitle}>回合制派对游戏</p>
+
+          <div style={styles.section}>
+            <h3>{isRegister ? '注册账号' : '登录'}</h3>
+            <div style={styles.formGroup}>
+              <label>用户名：</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="输入用户名"
+                style={styles.input}
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label>密码：</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="输入密码"
+                style={styles.input}
+              />
+            </div>
+            <button onClick={handleConnect} style={styles.button}>
+              {isRegister ? '注册' : '登录'}
+            </button>
+            <div style={styles.toggleContainer}>
+              <span style={styles.toggleText}>
+                {isRegister ? '已有账号？' : '没有账号？'}
+              </span>
+              <button
+                onClick={() => {
+                  setIsRegister(!isRegister);
+                  setError('');
+                }}
+                style={styles.toggleButton}
+              >
+                {isRegister ? '去登录' : '去注册'}
+              </button>
+            </div>
+          </div>
+
+          {error && <p style={styles.error}>{error}</p>}
         </div>
       </div>
-
-      {error && <p style={styles.error}>{error}</p>}
     </div>
   );
 };
@@ -419,6 +443,38 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '4px',
     cursor: 'pointer',
     fontSize: '14px',
+  },
+  // 页面背景与蒙版样式
+  page: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundImage: "url('/assets/cover.png')",
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    padding: '40px',
+    boxSizing: 'border-box',
+  },
+  mask: {
+    maxWidth: '720px',
+    width: '100%',
+    background: 'rgba(255,255,255,0.85)',
+    borderRadius: '12px',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+    padding: '24px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  logoImage: {
+    width: '220px',
+    height: 'auto',
+    objectFit: 'contain',
+    display: 'block',
+    margin: '0 auto 8px auto', // 居中并增加底边距(替代原来h2留下的间隙)
   },
 };
 
