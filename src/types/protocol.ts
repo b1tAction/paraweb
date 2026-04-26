@@ -27,21 +27,8 @@ export interface StateSync {
   players: Player[];
   /** 地图信息 */
   map: MapInfo;
-}
-
-/**
- * TurnSync - 回合效果列表
- * 在执行效果后广播，客户端按顺序渲染
- */
-export interface TurnSync {
-  /** 当前轮次 */
-  round: number;
-  /** 当前回合索引 */
-  turn: number;
-  /** 当前回合玩家 ID */
-  current_player_id: string;
-  /** 日志条目列表 */
-  entries: LogEntry[];
+  /** 增量日志条目 (自上次 StateSync 后新增的动画数据，omitempty: 无新效果时不包含) */
+  entries?: LogEntry[];
 }
 
 /**

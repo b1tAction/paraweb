@@ -14,7 +14,7 @@ import type {
   MiniGameStart,
   MiniGameResult,
   GameOver,
-  TurnSync,
+  LogEntry,
   StartGameAck,
   MapConfig,
 } from '../types/protocol';
@@ -98,6 +98,10 @@ interface GameState {
   players: Player[];
   /** 当前回合玩家 ID */
   currentPlayerId: string;
+  /** 当前轮次 */
+  round: number;
+  /** 当前回合索引 */
+  turn: number;
   /** 决策请求 (如果有) */
   decisionRequest: Decision | null;
   /** 可用动作 (如果有) */
@@ -116,8 +120,10 @@ interface GameState {
   mapConfig: MapConfig | null;
   /** 当前房间 ID */
   matchId: string;
-  /** 当前回合同步数据 (TurnSync) */
-  turnSync: TurnSync | null;
+  /** 当前回合同步日志条目 (已播放完毕，显示在debug log中) */
+  playedEntries: LogEntry[];
+  /** 待播放的动画entries队列 */
+  pendingEntries: LogEntry[];
 
   /** 小游戏结果展示等待标记 — true 时阻止场景切换 */
   miniGameResultPending: boolean;
@@ -154,8 +160,12 @@ interface GameState {
   setMiniGameResult: (result: MiniGameResult | null) => void;
   /** 设置游戏结束 */
   setGameOver: (gameOver: GameOver | null) => void;
-  /** 设置回合同步数据 (TurnSync) */
-  setTurnSync: (turnSync: TurnSync | null) => void;
+  /** 将增量entries追加到播放队列 */
+  addPendingEntries: (entries: LogEntry[]) => void;
+  /** 从队列取第一条移到已播放列表 */
+  playNextEntry: () => void;
+  /** 清空所有entries (新回合开始时) */
+  clearAllEntries: () => void;
   /** 设置开始游戏确认 */
   setStartGameAck: (ack: StartGameAck | null) => void;
   /** 设置地图配置 */
@@ -170,6 +180,8 @@ interface GameState {
   setPlayers: (players: Player[]) => void;
   /** 设置当前回合玩家 */
   setCurrentPlayerId: (playerId: string) => void;
+  /** 设置轮次和回合 */
+  setRoundTurn: (round: number, turn: number) => void;
 
   /** 重置状态 (用于退出游戏) */
   reset: () => void;
@@ -191,6 +203,8 @@ export const useGameStore = create<GameState>((set) => ({
   myPlayerId: '',
   players: [],
   currentPlayerId: '',
+  round: 0,
+  turn: 0,
   decisionRequest: null,
   availableActions: null,
   waitingSync: null,
@@ -201,7 +215,8 @@ export const useGameStore = create<GameState>((set) => ({
   mapConfig: null,
   matchId: '',
   displayName: '',
-  turnSync: null,
+  playedEntries: [],
+  pendingEntries: [],
   miniGameResultPending: false,
   pendingScene: null,
 
@@ -234,7 +249,13 @@ export const useGameStore = create<GameState>((set) => ({
 
   setGameOver: (gameOver) => set({ gameOver }),
 
-  setTurnSync: (turnSync) => set({ turnSync }),
+  addPendingEntries: (entries) => set((state) => ({ pendingEntries: [...state.pendingEntries, ...entries] })),
+  playNextEntry: () => set((state) => {
+    if (state.pendingEntries.length === 0) return state;
+    const [first, ...rest] = state.pendingEntries;
+    return { pendingEntries: rest, playedEntries: [...state.playedEntries, first] };
+  }),
+  clearAllEntries: () => set({ playedEntries: [], pendingEntries: [] }),
   setStartGameAck: (ack) => set({ startGameAck: ack }),
 
   setMapConfig: (config) => set({ mapConfig: config }),
@@ -245,6 +266,7 @@ export const useGameStore = create<GameState>((set) => ({
   setPlayers: (players) => set({ players }),
 
   setCurrentPlayerId: (playerId) => set({ currentPlayerId: playerId }),
+  setRoundTurn: (round, turn) => set({ round, turn }),
 
   reset: () =>
     set({
@@ -259,13 +281,16 @@ export const useGameStore = create<GameState>((set) => ({
       matchId: '',
       players: [],
       currentPlayerId: '',
+      round: 0,
+      turn: 0,
       decisionRequest: null,
       availableActions: null,
       waitingSync: null,
       miniGameStart: null,
       miniGameResult: null,
       gameOver: null,
-      turnSync: null,
+      playedEntries: [],
+      pendingEntries: [],
       startGameAck: null,
       mapConfig: null,
       miniGameResultPending: false,

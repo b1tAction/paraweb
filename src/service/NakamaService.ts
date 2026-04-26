@@ -227,10 +227,6 @@ export class NakamaService {
           this.handleStateSync(data as protocol.StateSync);
           break;
 
-        case opcodes.OpTurnSync:
-          this.handleTurnSync(data as protocol.TurnSync);
-          break;
-
         case opcodes.OpWaitingSync:
           this.handleWaitingSync(data as protocol.WaitingSync);
           break;
@@ -299,6 +295,9 @@ export class NakamaService {
     // 更新当前回合玩家
     store.setCurrentPlayerId(data.current_player_id);
 
+    // 更新轮次和回合
+    store.setRoundTurn(data.round, data.turn);
+
     // 对齐 CLI：离开小游戏全局状态时清空本轮小游戏参与者缓存，避免下一轮沿用旧 participants
     // 但是如果正在展示 MiniGameSubmitRank 场景且小游戏结果待处理，则不清空，等结果显示完成后再清空
     if (data.global_state !== 'round_mini_game' && data.global_state !== 'RoundMiniGame') {
@@ -328,6 +327,16 @@ export class NakamaService {
       }
     }
 
+    // Update entries from incremental data - add to animation queue
+    if (data.entries && data.entries.length > 0) {
+      store.addPendingEntries(data.entries);
+
+      console.log('[Nakama] 状态同步 - 新增 entries', {
+        entriesCount: data.entries.length,
+        pendingCount: store.pendingEntries.length + data.entries.length,
+      });
+    }
+
     // 场景路由
     this.routeSceneByState(data.global_state);
 
@@ -335,17 +344,6 @@ export class NakamaService {
       global: data.global_state,
       turn: data.turn_state,
       scene: store.currentScene,
-    });
-  }
-
-  private handleTurnSync(data: protocol.TurnSync) {
-    const store = useGameStore.getState();
-    store.setTurnSync(data);
-
-    console.log('[Nakama] 回合同步', {
-      round: data.round,
-      turn: data.turn,
-      entries: data.entries.length,
     });
   }
 
@@ -426,24 +424,11 @@ export class NakamaService {
     });
   }
 
-  private handleFullSync(data: any) {
+  private handleFullSync(data: protocol.StateSync) {
     console.log('[Nakama] 完整同步', data);
 
-    // Handle RoundEndWait in FullSync (same as handleStateSync)
-    if (data && data.global_state) {
-      const normalized = data.global_state.trim();
-      if (normalized === 'round_end_wait' || normalized === 'RoundEndWait') {
-        if (this.roundReadyTimer) {
-          clearTimeout(this.roundReadyTimer);
-        }
-        this.roundReadyTimer = setTimeout(() => {
-          console.log('[Nakama] 3s delay elapsed (from FullSync), sending RoundReady');
-          this.sendRoundReady();
-          this.roundReadyTimer = null;
-        }, 3000);
-        console.log('[Nakama] RoundEndWait detected (from FullSync), will send RoundReady after 3s');
-      }
-    }
+    // Process as a normal StateSync (entries are full turn data for reconnecting player)
+    this.handleStateSync(data);
   }
 
   private handleStartGameAck(data: protocol.StartGameAck) {

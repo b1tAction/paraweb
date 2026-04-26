@@ -8,10 +8,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 import { PhaserBoard } from '../components/PhaserBoard';
-import type { Available, Player, TurnSync } from '../types/protocol';
+import type { Available, Player, LogEntry } from '../types/protocol';
+import { DebugLogEntry } from '../components/DebugLogEntry';
 
 const DICE_ROLL_MIN_MS = 600;
 const DICE_RESULT_DISPLAY_MS = 1200;
+const ANIMATION_DELAY_MS = 300; // per action entry
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgba(224, 240, 225, 0.96)' },
@@ -81,18 +83,18 @@ type DiceRollResult = {
   steps: number;
 };
 
-function getLatestDiceRollResult(turnSync: TurnSync | null): DiceRollResult | null {
-  if (!turnSync) return null;
+function getLatestDiceRollResult(entries: LogEntry[]): DiceRollResult | null {
+  if (!entries || entries.length === 0) return null;
 
-  for (let index = turnSync.entries.length - 1; index >= 0; index -= 1) {
-    const entry = turnSync.entries[index];
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
     if (entry.action_type !== 'dice_roll') continue;
 
     const steps = getMetadataNumber(entry.metadata, 'dice_steps');
     if (!steps) continue;
 
     return {
-      key: `${turnSync.round}:${turnSync.turn}:${index}:${entry.timestamp}`,
+      key: `${entry.timestamp}:${entry.target}:${steps}`,
       playerId: entry.target,
       diceType: getMetadataString(entry.metadata, 'dice_type') || 'wood',
       steps,
@@ -111,15 +113,19 @@ export const BoardScene: React.FC = () => {
     players,
     availableActions,
     decisionRequest,
-    turnSync,
+    playedEntries,
+    pendingEntries,
+    round: storeRound,
+    turn: storeTurn,
     mapConfig,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
   const [handledDiceResultKey, setHandledDiceResultKey] = useState(
-    () => getLatestDiceRollResult(turnSync)?.key || ''
+    () => getLatestDiceRollResult(playedEntries)?.key || ''
   );
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
   const latestPlayersRef = useRef(players);
+  const debugLogContentRef = useRef<HTMLDivElement>(null);
 
   // #region agent instrumentation - Hypothesis C
   useEffect(() => {
@@ -213,6 +219,29 @@ export const BoardScene: React.FC = () => {
     latestPlayersRef.current = players;
   }, [players]);
 
+  // Animation player - processes pending entries one at a time
+  // Action-type entries get animation delay, others skip immediately
+  useEffect(() => {
+    if (pendingEntries.length === 0) return;
+
+    const firstEntry = pendingEntries[0];
+    const isAction = firstEntry.type === 'action';
+    const delay = isAction ? ANIMATION_DELAY_MS : 0;
+
+    const timeoutId = window.setTimeout(() => {
+      useGameStore.getState().playNextEntry();
+    }, delay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pendingEntries.length]);
+
+  // Auto-scroll debug log when new entries appear
+  useEffect(() => {
+    if (debugLogContentRef.current) {
+      debugLogContentRef.current.scrollTop = debugLogContentRef.current.scrollHeight;
+    }
+  }, [playedEntries.length]);
+
   useEffect(() => {
     if (diceRollView.status !== 'idle') return;
     if (isTurnLoop && !isMainAction) return;
@@ -221,7 +250,7 @@ export const BoardScene: React.FC = () => {
   }, [diceRollView.status, isMainAction, isTurnLoop, players]);
 
   useEffect(() => {
-    const result = getLatestDiceRollResult(turnSync);
+    const result = getLatestDiceRollResult(playedEntries);
     if (!result || result.key === handledDiceResultKey) return;
 
     setHandledDiceResultKey(result.key);
@@ -239,7 +268,7 @@ export const BoardScene: React.FC = () => {
         pendingResult: result,
       };
     });
-  }, [handledDiceResultKey, turnSync]);
+  }, [handledDiceResultKey, playedEntries]);
 
   useEffect(() => {
     if (diceRollView.status !== 'rolling' || !diceRollView.pendingResult) return;
@@ -352,55 +381,38 @@ export const BoardScene: React.FC = () => {
         </div>
 
         <div style={styles.sidePanels}>
-          {((turnSync && turnSync.entries.length > 0) || bossPlayer) && (
+          {bossPlayer && (
             <div style={styles.rightPanel}>
-              {turnSync && turnSync.entries.length > 0 && (
-                <div style={styles.turnSyncSection}>
-                  <h3>回合日志 (R{turnSync.round}T{turnSync.turn})</h3>
-                  <div style={styles.logList}>
-                    {turnSync.entries.map((entry, index) => (
-                      <div key={index} style={styles.logEntry}>
-                        <span style={styles.logType}>{entry.action_type}</span>
-                        <span style={styles.logTarget}>目标: {entry.target || '-'}</span>
-                        <span style={styles.logSource}>来源: {entry.source || '-'}</span>
-                      </div>
-                    ))}
+              <div style={styles.bossSection}>
+                <div style={styles.bossHeader}>
+                  <div style={styles.bossAvatar} />
+                  <div style={styles.bossTitleGroup}>
+                    <strong style={styles.bossTitle}>Boss</strong>
+                    <span style={styles.bossId} title={bossPlayer.player_id}>
+                      {bossPlayer.player_id}
+                    </span>
                   </div>
                 </div>
-              )}
-
-              {bossPlayer && (
-                <div style={styles.bossSection}>
-                  <div style={styles.bossHeader}>
-                    <div style={styles.bossAvatar} />
-                    <div style={styles.bossTitleGroup}>
-                      <strong style={styles.bossTitle}>Boss</strong>
-                      <span style={styles.bossId} title={bossPlayer.player_id}>
-                        {bossPlayer.player_id}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={styles.bossStats}>
-                    <span>HP {bossPlayer.hp}</span>
-                    <span>LP {bossPlayer.lp}</span>
-                    <span>位置 {bossPlayer.position}</span>
-                  </div>
-                  <div style={styles.buffDots} aria-label="Boss Buffs">
-                    {bossPlayer.buffs.length > 0
-                      ? bossPlayer.buffs.map((buff, index) => (
-                          <span
-                            key={`${buff.type}-${index}`}
-                            title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
-                            style={{
-                              ...styles.buffDot,
-                              backgroundColor: getBuffColor(buff.type),
-                            }}
-                          />
-                        ))
-                      : null}
-                  </div>
+                <div style={styles.bossStats}>
+                  <span>HP {bossPlayer.hp}</span>
+                  <span>LP {bossPlayer.lp}</span>
+                  <span>位置 {bossPlayer.position}</span>
                 </div>
-              )}
+                <div style={styles.buffDots} aria-label="Boss Buffs">
+                  {bossPlayer.buffs.length > 0
+                    ? bossPlayer.buffs.map((buff, index) => (
+                        <span
+                          key={`${buff.type}-${index}`}
+                          title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
+                          style={{
+                            ...styles.buffDot,
+                            backgroundColor: getBuffColor(buff.type),
+                          }}
+                        />
+                      ))
+                    : null}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -497,6 +509,25 @@ export const BoardScene: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Debug Log Panel - bottom-left */}
+        <div style={styles.debugLogPanel}>
+          <div style={styles.debugLogHeader}>
+            Action Log R{storeRound}
+          </div>
+          <div ref={debugLogContentRef} style={styles.debugLogContent}>
+            {playedEntries
+              .filter(entry => entry.type === 'action')
+              .map((entry, index) => (
+                <DebugLogEntry key={index} entry={entry} players={players} />
+              ))}
+            {pendingEntries.length > 0 && (
+              <div style={styles.debugLogPending}>
+                +{pendingEntries.length} pending...
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -834,10 +865,38 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '4px',
     cursor: 'pointer',
   },
-  turnSyncSection: {
-    padding: '12px',
-    backgroundColor: 'rgba(232, 234, 246, 0.9)',
+  debugLogPanel: {
+    pointerEvents: 'auto',
+    position: 'absolute',
+    left: '12px',
+    bottom: '12px',
+    width: 'min(380px, 35vw)',
+    maxHeight: '40vh',
+    display: 'flex',
+    flexDirection: 'column',
     borderRadius: '8px',
+    backgroundColor: 'rgba(12, 18, 26, 0.80)',
+    backdropFilter: 'blur(8px)',
+    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.28)',
+    overflow: 'hidden',
+  },
+  debugLogHeader: {
+    padding: '6px 10px',
+    fontSize: '12px',
+    fontWeight: 800,
+    color: '#b0bec5',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+  },
+  debugLogContent: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '4px 0',
+  },
+  debugLogPending: {
+    padding: '4px 10px',
+    fontSize: '11px',
+    color: '#78909c',
+    fontFamily: 'monospace',
   },
   bossSection: {
     padding: '12px',
@@ -886,28 +945,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff3e0',
     fontSize: '13px',
     fontWeight: 700,
-  },
-  logList: {
-    maxHeight: '35vh',
-    overflowY: 'auto',
-  },
-  logEntry: {
-    display: 'flex',
-    gap: '12px',
-    padding: '8px',
-    borderBottom: '1px solid #c5cae9',
-    fontSize: '13px',
-  },
-  logType: {
-    fontWeight: 'bold',
-    color: '#3f51b5',
-    minWidth: '100px',
-  },
-  logTarget: {
-    color: '#666',
-  },
-  logSource: {
-    color: '#999',
   },
 };
 
