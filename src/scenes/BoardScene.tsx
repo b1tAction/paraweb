@@ -8,6 +8,48 @@ import React, { useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 import { PhaserBoard } from '../components/PhaserBoard';
+import type { Player } from '../types/protocol';
+
+const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
+  qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgba(224, 240, 225, 0.96)' },
+  zhu_que: { label: '朱雀', color: '#c62828', bgColor: 'rgba(255, 220, 220, 0.96)' },
+  bai_hu: { label: '白虎', color: '#f9c74f', bgColor: 'rgba(255, 243, 198, 0.96)' },
+  xuan_wu: { label: '玄武', color: '#82aee0', bgColor: 'rgba(218, 235, 255, 0.96)' },
+};
+
+const BUFF_EFFECTS: Record<string, string> = {
+  divine: '每回合 LP 加 1',
+  rain: '每两回合 HP 加 1',
+  exorcism: '免疫毒瘴事件',
+  fire: '每回合 LP 加 1',
+  curse: '每回合 LP 减 1',
+  lost: '移动方向反转',
+  corrupt: '每两回合 HP 减 1',
+  poison: '触发坏事件',
+  hidden: '免疫伤害和事件',
+};
+
+const BLUE_BUFFS = new Set(['divine', 'rain', 'exorcism', 'fire']);
+const RED_BUFFS = new Set(['curse', 'lost', 'corrupt', 'poison']);
+
+function getFactionMeta(faction: string) {
+  return FACTION_META[faction] ?? { label: faction || '未知', color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
+}
+
+function getBuffColor(type: string) {
+  if (BLUE_BUFFS.has(type)) return '#1976d2';
+  if (RED_BUFFS.has(type)) return '#d32f2f';
+  if (type === 'hidden') return '#757575';
+  return '#9e9e9e';
+}
+
+function formatBuffDuration(duration: number) {
+  return duration < 0 ? '永久' : `${duration}`;
+}
+
+function isBossPlayer(player: Player) {
+  return Boolean((player as Player & { is_boss?: boolean }).is_boss) || player.display_name === 'Boss';
+}
 
 export const BoardScene: React.FC = () => {
   const {
@@ -78,7 +120,8 @@ export const BoardScene: React.FC = () => {
 
   // 获取当前玩家对象
   const currentPlayer = players.find((p) => p.player_id === currentPlayerId);
-  const myPlayer = players.find((p) => p.player_id === myPlayerId);
+  const boardPlayers = players.filter((player) => !isBossPlayer(player));
+  const bossPlayer = players.find(isBossPlayer);
 
   return (
     <div style={styles.sceneRoot}>
@@ -97,6 +140,63 @@ export const BoardScene: React.FC = () => {
       <div style={styles.uiLayer}>
         <div style={styles.topHud}>
           <h2 style={styles.title}>主棋盘</h2>
+          <div style={styles.playerBar} aria-label="玩家状态">
+            {boardPlayers.map((player) => {
+              const faction = getFactionMeta(player.faction);
+              const isCurrentMainActionPlayer =
+                player.player_id === currentPlayerId &&
+                (turnState === 'main_action' || turnState === 'MainAction');
+
+              return (
+                <div
+                  key={player.player_id}
+                  style={{
+                    ...styles.playerCard,
+                    borderColor: faction.color,
+                    backgroundColor: faction.bgColor,
+                  }}
+                >
+                  <div style={styles.avatarWrap}>
+                    <div
+                      style={{
+                        ...styles.avatar,
+                        backgroundColor: faction.color,
+                        boxShadow: isCurrentMainActionPlayer
+                          ? `0 0 0 3px rgba(255, 255, 255, 0.95), 0 0 22px ${faction.color}`
+                          : styles.avatar.boxShadow,
+                      }}
+                    />
+                    {player.player_id === myPlayerId && <span style={styles.myAvatarBadge}>我</span>}
+                  </div>
+                  <div style={styles.playerCardBody}>
+                    <div style={styles.playerCardHeader}>
+                      <span title={player.player_id} style={styles.playerName}>
+                        {player.player_id}
+                      </span>
+                    </div>
+                    <div style={styles.playerStats}>
+                      <span>HP {player.hp}</span>
+                      <span>LP {player.lp}</span>
+                    </div>
+                    <div style={styles.buffDots} aria-label="Buffs">
+                      {player.buffs.length > 0 ? (
+                        player.buffs.map((buff, index) => (
+                          <span
+                            key={`${buff.type}-${index}`}
+                            title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
+                            style={{
+                              ...styles.buffDot,
+                              backgroundColor: getBuffColor(buff.type),
+                            }}
+                          />
+                        ))
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
           <div style={styles.statusSection}>
             <p style={styles.info}>全局状态：{globalState}</p>
             <p style={styles.info}>回合状态：{turnState}</p>
@@ -105,100 +205,55 @@ export const BoardScene: React.FC = () => {
         </div>
 
         <div style={styles.sidePanels}>
-          <div style={styles.leftPanel}>
-            <div style={styles.playerSection}>
-              <h3>玩家状态</h3>
-              {players.map((player) => (
-                <div
-                  key={player.player_id}
-                  style={{
-                    ...styles.playerItem,
-                    backgroundColor:
-                      player.player_id === myPlayerId ? 'rgba(227, 242, 253, 0.9)' : 'rgba(255, 255, 255, 0.82)',
-                  }}
-                >
-                  <div style={styles.playerInfo}>
-                    <span style={styles.playerName}>
-                      {player.display_name}
-                      {player.player_id === currentPlayerId && ' (当前)'}
-                      {player.player_id === myPlayerId && ' (你)'}
-                    </span>
-                    <span style={styles.playerFaction}>{player.faction}</span>
-                  </div>
-                  <div style={styles.playerStats}>
-                    <span>HP: {player.hp}</span>
-                    <span>LP: {player.lp}</span>
-                    <span>位置：{player.position}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {myPlayer && (
-              <div style={styles.myStatus}>
-                <h3>我的状态</h3>
-                <div style={styles.statusGrid}>
-                  <div style={styles.statItem}>
-                    <span>生命值</span>
-                    <span style={styles.statValue}>{myPlayer.hp}</span>
-                  </div>
-                  <div style={styles.statItem}>
-                    <span>幸运值</span>
-                    <span style={styles.statValue}>{myPlayer.lp}</span>
-                  </div>
-                  <div style={styles.statItem}>
-                    <span>充能</span>
-                    <span style={styles.statValue}>{myPlayer.charge}</span>
-                  </div>
-                  <div style={styles.statItem}>
-                    <span>位置</span>
-                    <span style={styles.statValue}>{myPlayer.position}</span>
-                  </div>
-                </div>
-
-                {myPlayer.buffs.length > 0 && (
-                  <div style={styles.buffList}>
-                    <h4>增益效果</h4>
-                    {myPlayer.buffs.map((buff, index) => (
-                      <span key={index} style={styles.buffTag}>
-                        {buff.name} ({buff.duration})
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {myPlayer.items.length > 0 && (
-                  <div style={styles.itemList}>
-                    <h4>道具</h4>
-                    {myPlayer.items.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleUseItem(item.id)}
-                        style={styles.itemButton}
-                      >
-                        {item.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {turnSync && turnSync.entries.length > 0 && (
+          {((turnSync && turnSync.entries.length > 0) || bossPlayer) && (
             <div style={styles.rightPanel}>
-              <div style={styles.turnSyncSection}>
-                <h3>回合日志 (R{turnSync.round}T{turnSync.turn})</h3>
-                <div style={styles.logList}>
-                  {turnSync.entries.map((entry, index) => (
-                    <div key={index} style={styles.logEntry}>
-                      <span style={styles.logType}>{entry.action_type}</span>
-                      <span style={styles.logTarget}>目标: {entry.target || '-'}</span>
-                      <span style={styles.logSource}>来源: {entry.source || '-'}</span>
-                    </div>
-                  ))}
+              {turnSync && turnSync.entries.length > 0 && (
+                <div style={styles.turnSyncSection}>
+                  <h3>回合日志 (R{turnSync.round}T{turnSync.turn})</h3>
+                  <div style={styles.logList}>
+                    {turnSync.entries.map((entry, index) => (
+                      <div key={index} style={styles.logEntry}>
+                        <span style={styles.logType}>{entry.action_type}</span>
+                        <span style={styles.logTarget}>目标: {entry.target || '-'}</span>
+                        <span style={styles.logSource}>来源: {entry.source || '-'}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {bossPlayer && (
+                <div style={styles.bossSection}>
+                  <div style={styles.bossHeader}>
+                    <div style={styles.bossAvatar} />
+                    <div style={styles.bossTitleGroup}>
+                      <strong style={styles.bossTitle}>Boss</strong>
+                      <span style={styles.bossId} title={bossPlayer.player_id}>
+                        {bossPlayer.player_id}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={styles.bossStats}>
+                    <span>HP {bossPlayer.hp}</span>
+                    <span>LP {bossPlayer.lp}</span>
+                    <span>位置 {bossPlayer.position}</span>
+                  </div>
+                  <div style={styles.buffDots} aria-label="Boss Buffs">
+                    {bossPlayer.buffs.length > 0
+                      ? bossPlayer.buffs.map((buff, index) => (
+                          <span
+                            key={`${buff.type}-${index}`}
+                            title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
+                            style={{
+                              ...styles.buffDot,
+                              backgroundColor: getBuffColor(buff.type),
+                            }}
+                          />
+                        ))
+                      : null}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -302,6 +357,71 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: '12px',
+    width: '100%',
+    minWidth: 0,
+  },
+  playerBar: {
+    pointerEvents: 'auto',
+    flex: 1,
+    minWidth: 0,
+    display: 'flex',
+    gap: '10px',
+    overflowX: 'auto',
+    paddingBottom: '4px',
+  },
+  playerCard: {
+    flex: '0 0 clamp(220px, 22vw, 300px)',
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '9px 10px',
+    border: '2px solid transparent',
+    borderRadius: '8px',
+    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.18)',
+    backdropFilter: 'blur(8px)',
+  },
+  avatar: {
+    flex: '0 0 38px',
+    width: '38px',
+    height: '38px',
+    borderRadius: '50%',
+    border: '2px solid rgba(255, 255, 255, 0.85)',
+  },
+  avatarWrap: {
+    position: 'relative',
+    flex: '0 0 48px',
+    width: '48px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  myAvatarBadge: {
+    position: 'absolute',
+    right: '-2px',
+    bottom: '-4px',
+    padding: '1px 5px',
+    borderRadius: '999px',
+    backgroundColor: '#17202a',
+    color: '#ffffff',
+    border: '1px solid rgba(255, 255, 255, 0.9)',
+    fontSize: '11px',
+    fontWeight: 800,
+    lineHeight: 1.35,
+  },
+  playerCardBody: {
+    minWidth: 0,
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '5px',
+  },
+  playerCardHeader: {
+    minWidth: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
   },
   sidePanels: {
     display: 'flex',
@@ -311,21 +431,15 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     minHeight: 0,
   },
-  leftPanel: {
-    pointerEvents: 'auto',
-    width: 'min(360px, 42vw)',
-    maxHeight: '100%',
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-  },
   rightPanel: {
     pointerEvents: 'auto',
     width: 'min(360px, 42vw)',
     marginLeft: 'auto',
     maxHeight: '100%',
     overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
   },
   bottomActionWrap: {
     pointerEvents: 'none',
@@ -353,6 +467,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statusSection: {
     pointerEvents: 'auto',
+    flex: '0 0 auto',
     padding: '12px',
     backgroundColor: 'rgba(245, 245, 245, 0.9)',
     borderRadius: '8px',
@@ -361,82 +476,39 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     marginBottom: '4px',
   },
-  playerSection: {
-    padding: '12px',
-    borderRadius: '8px',
-    backgroundColor: 'rgba(255, 255, 255, 0.86)',
-  },
-  playerItem: {
-    padding: '12px',
-    border: '1px solid #ddd',
-    borderRadius: '8px',
-    marginBottom: '8px',
-  },
-  playerInfo: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    marginBottom: '8px',
-  },
   playerName: {
-    fontSize: '16px',
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    display: 'block',
+    fontSize: '13px',
     fontWeight: 'bold',
-  },
-  playerFaction: {
-    fontSize: '14px',
-    color: '#666',
+    color: '#17202a',
   },
   playerStats: {
     display: 'flex',
-    gap: '16px',
-    fontSize: '14px',
+    gap: '10px',
+    fontSize: '13px',
+    fontWeight: 700,
+    color: '#263238',
   },
-  myStatus: {
-    pointerEvents: 'auto',
-    padding: '12px',
-    backgroundColor: 'rgba(255, 243, 224, 0.9)',
-    borderRadius: '8px',
-  },
-  statusGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: '8px',
-    marginTop: '8px',
-  },
-  statItem: {
+  buffDots: {
+    minHeight: '24px',
+    minWidth: '104px',
     display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
-    padding: '8px',
-    backgroundColor: 'white',
-    borderRadius: '4px',
+    gap: '6px',
+    padding: '4px 6px',
+    borderRadius: '5px',
+    backgroundColor: 'rgba(255, 255, 255, 0.58)',
   },
-  statValue: {
-    fontSize: '18px',
-    fontWeight: 'bold',
-    marginTop: '4px',
-  },
-  buffList: {
-    marginTop: '12px',
-  },
-  buffTag: {
-    display: 'inline-block',
-    padding: '4px 8px',
-    backgroundColor: '#e0e0e0',
-    borderRadius: '4px',
-    marginRight: '8px',
-    fontSize: '12px',
-  },
-  itemList: {
-    marginTop: '12px',
-  },
-  itemButton: {
-    padding: '8px 12px',
-    marginRight: '8px',
-    backgroundColor: '#2196F3',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
+  buffDot: {
+    width: '12px',
+    height: '12px',
+    borderRadius: '50%',
+    border: '1px solid rgba(255, 255, 255, 0.85)',
+    cursor: 'help',
   },
   actionSection: {
     pointerEvents: 'auto',
@@ -500,6 +572,54 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '12px',
     backgroundColor: 'rgba(232, 234, 246, 0.9)',
     borderRadius: '8px',
+  },
+  bossSection: {
+    padding: '12px',
+    backgroundColor: 'rgba(33, 37, 43, 0.9)',
+    border: '1px solid rgba(239, 83, 80, 0.75)',
+    borderRadius: '8px',
+    color: '#f5f7fa',
+  },
+  bossHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    marginBottom: '10px',
+  },
+  bossAvatar: {
+    flex: '0 0 38px',
+    width: '38px',
+    height: '38px',
+    borderRadius: '50%',
+    backgroundColor: '#ef5350',
+    border: '2px solid rgba(255, 255, 255, 0.85)',
+    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.28)',
+  },
+  bossTitleGroup: {
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
+  bossTitle: {
+    fontSize: '16px',
+    lineHeight: 1.2,
+  },
+  bossId: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    color: '#cfd8dc',
+    fontSize: '12px',
+  },
+  bossStats: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '10px',
+    marginBottom: '8px',
+    color: '#fff3e0',
+    fontSize: '13px',
+    fontWeight: 700,
   },
   logList: {
     maxHeight: '35vh',
