@@ -4,11 +4,14 @@
  * 显示游戏主界面，玩家可以进行回合操作
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 import { PhaserBoard } from '../components/PhaserBoard';
-import type { Player } from '../types/protocol';
+import type { Available, Player, TurnSync } from '../types/protocol';
+
+const DICE_ROLL_MIN_MS = 600;
+const DICE_RESULT_DISPLAY_MS = 1200;
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgba(224, 240, 225, 0.96)' },
@@ -51,6 +54,54 @@ function isBossPlayer(player: Player) {
   return Boolean((player as Player & { is_boss?: boolean }).is_boss) || player.display_name === 'Boss';
 }
 
+function getMetadataNumber(metadata: Record<string, any> | undefined, key: string) {
+  const value = metadata?.[key];
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function getMetadataString(metadata: Record<string, any> | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value : '';
+}
+
+type DiceRollView =
+  | { status: 'idle' }
+  | { status: 'rolling'; playerId: string; diceType: string; startedAt: number; pendingResult?: DiceRollResult }
+  | { status: 'result'; playerId: string; diceType: string; steps: number };
+
+type DiceRollResult = {
+  key: string;
+  playerId: string;
+  diceType: string;
+  steps: number;
+};
+
+function getLatestDiceRollResult(turnSync: TurnSync | null): DiceRollResult | null {
+  if (!turnSync) return null;
+
+  for (let index = turnSync.entries.length - 1; index >= 0; index -= 1) {
+    const entry = turnSync.entries[index];
+    if (entry.action_type !== 'dice_roll') continue;
+
+    const steps = getMetadataNumber(entry.metadata, 'dice_steps');
+    if (!steps) continue;
+
+    return {
+      key: `${turnSync.round}:${turnSync.turn}:${index}:${entry.timestamp}`,
+      playerId: entry.target,
+      diceType: getMetadataString(entry.metadata, 'dice_type') || 'wood',
+      steps,
+    };
+  }
+
+  return null;
+}
+
 export const BoardScene: React.FC = () => {
   const {
     globalState,
@@ -63,6 +114,12 @@ export const BoardScene: React.FC = () => {
     turnSync,
     mapConfig,
   } = useGameStore();
+  const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
+  const [handledDiceResultKey, setHandledDiceResultKey] = useState(
+    () => getLatestDiceRollResult(turnSync)?.key || ''
+  );
+  const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
+  const latestPlayersRef = useRef(players);
 
   // #region agent instrumentation - Hypothesis C
   useEffect(() => {
@@ -89,7 +146,16 @@ export const BoardScene: React.FC = () => {
    */
   const handleRollDice = () => {
     console.log('[BoardScene] 掷骰子');
-    gameService.sendRollDice();
+    setDiceRollView({
+      status: 'rolling',
+      playerId: currentPlayerId || myPlayerId,
+      diceType: availableActions?.dice_type || 'wood',
+      startedAt: Date.now(),
+    });
+    gameService.sendRollDice().catch((err) => {
+      console.error('[BoardScene] 掷骰子失败', err);
+      setDiceRollView({ status: 'idle' });
+    });
   };
 
   /**
@@ -122,6 +188,87 @@ export const BoardScene: React.FC = () => {
   const currentPlayer = players.find((p) => p.player_id === currentPlayerId);
   const boardPlayers = players.filter((player) => !isBossPlayer(player));
   const bossPlayer = players.find(isBossPlayer);
+  const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
+  const normalizedGlobalState = String(globalState);
+  const isTurnLoop = normalizedGlobalState === 'turn_loop' || normalizedGlobalState === 'TurnLoop';
+  const fallbackActions: Available | null =
+    isMainAction && currentPlayer
+      ? {
+          dice_type: 'dice',
+          items: currentPlayer.items || [],
+          can_use_skill:
+            (currentPlayer.faction === 'qing_long' || currentPlayer.faction === 'xuan_wu') &&
+            currentPlayer.charge > 0,
+        }
+      : null;
+  const actionView = availableActions || fallbackActions;
+  const canInteractWithActions = isMyTurn && Boolean(availableActions);
+  const shouldShowActionPanel =
+    Boolean(actionView) &&
+    isMainAction &&
+    diceRollView.status !== 'rolling';
+  const shouldShowDiceOverlay = diceRollView.status === 'rolling' || diceRollView.status === 'result';
+
+  useEffect(() => {
+    latestPlayersRef.current = players;
+  }, [players]);
+
+  useEffect(() => {
+    if (diceRollView.status !== 'idle') return;
+    if (isTurnLoop && !isMainAction) return;
+
+    setRenderedPlayers(players);
+  }, [diceRollView.status, isMainAction, isTurnLoop, players]);
+
+  useEffect(() => {
+    const result = getLatestDiceRollResult(turnSync);
+    if (!result || result.key === handledDiceResultKey) return;
+
+    setHandledDiceResultKey(result.key);
+
+    setDiceRollView((current) => {
+      if (current.status === 'rolling' && current.playerId === result.playerId) {
+        return { ...current, pendingResult: result };
+      }
+
+      return {
+        status: 'rolling',
+        playerId: result.playerId,
+        diceType: result.diceType,
+        startedAt: Date.now(),
+        pendingResult: result,
+      };
+    });
+  }, [handledDiceResultKey, turnSync]);
+
+  useEffect(() => {
+    if (diceRollView.status !== 'rolling' || !diceRollView.pendingResult) return;
+
+    const elapsed = Date.now() - diceRollView.startedAt;
+    const delay = Math.max(0, DICE_ROLL_MIN_MS - elapsed);
+    const result = diceRollView.pendingResult;
+    const timeoutId = window.setTimeout(() => {
+      setDiceRollView({
+        status: 'result',
+        playerId: result.playerId,
+        diceType: result.diceType,
+        steps: result.steps,
+      });
+    }, delay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diceRollView]);
+
+  useEffect(() => {
+    if (diceRollView.status !== 'result') return;
+
+    const timeoutId = window.setTimeout(() => {
+      setRenderedPlayers(latestPlayersRef.current);
+      setDiceRollView({ status: 'idle' });
+    }, DICE_RESULT_DISPLAY_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diceRollView]);
 
   return (
     <div style={styles.sceneRoot}>
@@ -129,7 +276,7 @@ export const BoardScene: React.FC = () => {
         {mapConfig ? (
           <PhaserBoard
             mapConfig={mapConfig}
-            players={players}
+            players={renderedPlayers}
             followPlayerId={myPlayerId || currentPlayerId}
           />
         ) : (
@@ -258,45 +405,75 @@ export const BoardScene: React.FC = () => {
           )}
         </div>
 
-        {(turnState === 'main_action' || turnState === 'MainAction') && (
-          <div style={styles.bottomActionWrap}>
-            <div style={styles.actionSection}>
-              {isMyTurn ? (
-                <>
-                  <h3>你的回合！</h3>
-                  {availableActions && (
-                    <div style={styles.availableActions}>
-                      <button
-                        onClick={handleRollDice}
-                        style={styles.actionButton}
-                      >
-                        掷骰子 ({availableActions.dice_type})
-                      </button>
+        {shouldShowActionPanel && actionView && (
+          <div style={styles.mapActionPanel}>
+            {!isMyTurn && (
+              <div style={styles.waitingActionText}>
+                等待玩家 {currentPlayer?.display_name || currentPlayerId} 操作
+              </div>
+            )}
+            <button
+              onClick={handleRollDice}
+              style={{
+                ...styles.actionTile,
+                ...styles.diceActionTile,
+                ...(!canInteractWithActions ? styles.disabledActionTile : null),
+              }}
+              title={`投 ${actionView.dice_type} 骰子`}
+              disabled={!canInteractWithActions}
+            >
+              <span style={styles.actionIcon}>◇</span>
+              <span style={styles.actionLabel}>投骰子</span>
+              <span style={styles.actionMeta}>{actionView.dice_type}</span>
+            </button>
 
-                      {availableActions.can_use_skill && (
-                        <button
-                          onClick={handleUseSkill}
-                          style={styles.actionButton}
-                        >
-                          使用技能
-                        </button>
-                      )}
+            {actionView.items.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => handleUseItem(item.id)}
+                style={{
+                  ...styles.actionTile,
+                  ...styles.itemActionTile,
+                  ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                }}
+                title={item.name}
+                disabled={!canInteractWithActions}
+              >
+                <span style={styles.actionIcon}>□</span>
+                <span style={styles.actionLabel}>{item.name}</span>
+                <span style={styles.actionMeta}>道具</span>
+              </button>
+            ))}
 
-                      {availableActions.items.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => handleUseItem(item.id)}
-                          style={styles.actionButton}
-                        >
-                          使用 {item.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p style={styles.waiting}>等待其他玩家行动...</p>
-              )}
+            {actionView.can_use_skill && (
+              <button
+                onClick={handleUseSkill}
+                style={{
+                  ...styles.actionTile,
+                  ...styles.skillActionTile,
+                  ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                }}
+                title="使用阵营技能"
+                disabled={!canInteractWithActions}
+              >
+                <span style={styles.actionIcon}>✦</span>
+                <span style={styles.actionLabel}>阵营技能</span>
+                <span style={styles.actionMeta}>技能</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {shouldShowDiceOverlay && (
+          <div style={styles.diceOverlay} aria-live="polite">
+            <div
+              className={diceRollView.status === 'rolling' ? 'paradice-dice-spinning' : undefined}
+              style={{
+                ...styles.diceCube,
+                ...(diceRollView.status === 'result' ? styles.diceCubeResult : null),
+              }}
+            >
+              {diceRollView.status === 'result' ? diceRollView.steps : '?'}
             </div>
           </div>
         )}
@@ -441,10 +618,30 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: '10px',
   },
-  bottomActionWrap: {
-    pointerEvents: 'none',
+  mapActionPanel: {
+    pointerEvents: 'auto',
+    position: 'absolute',
+    left: '50%',
+    bottom: '28px',
+    transform: 'translateX(-50%)',
     display: 'flex',
+    flexWrap: 'wrap',
     justifyContent: 'center',
+    gap: '10px',
+    width: 'min(760px, calc(100vw - 32px))',
+    padding: '12px',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(18, 24, 32, 0.72)',
+    backdropFilter: 'blur(8px)',
+    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.28)',
+  },
+  waitingActionText: {
+    flex: '1 0 100%',
+    textAlign: 'center',
+    color: '#ffffff',
+    fontSize: '15px',
+    fontWeight: 800,
+    textShadow: '0 2px 6px rgba(0, 0, 0, 0.38)',
   },
   mapMissing: {
     width: '100%',
@@ -510,29 +707,98 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid rgba(255, 255, 255, 0.85)',
     cursor: 'help',
   },
-  actionSection: {
-    pointerEvents: 'auto',
-    padding: '16px',
-    backgroundColor: 'rgba(232, 245, 233, 0.96)',
-    borderRadius: '8px',
-    textAlign: 'center',
-    width: 'min(900px, calc(100vw - 24px))',
-  },
-  availableActions: {
+  actionTile: {
+    width: '112px',
+    minHeight: '92px',
+    padding: '10px 8px',
     display: 'flex',
-    flexWrap: 'wrap',
-    gap: '8px',
+    flexDirection: 'column',
+    alignItems: 'center',
     justifyContent: 'center',
-    marginTop: '12px',
-  },
-  actionButton: {
-    padding: '12px 16px',
-    backgroundColor: '#4CAF50',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
+    gap: '5px',
+    border: '1px solid rgba(255, 255, 255, 0.58)',
+    borderRadius: '8px',
+    color: '#ffffff',
     cursor: 'pointer',
+    boxShadow: '0 5px 14px rgba(0, 0, 0, 0.22)',
+  },
+  disabledActionTile: {
+    opacity: 0.55,
+    cursor: 'not-allowed',
+    filter: 'grayscale(0.28)',
+  },
+  diceActionTile: {
+    backgroundColor: 'rgba(38, 132, 255, 0.92)',
+  },
+  itemActionTile: {
+    backgroundColor: 'rgba(95, 108, 125, 0.92)',
+  },
+  skillActionTile: {
+    backgroundColor: 'rgba(126, 87, 194, 0.92)',
+  },
+  actionIcon: {
+    width: '34px',
+    height: '34px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    fontSize: '25px',
+    lineHeight: 1,
+  },
+  actionLabel: {
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
     fontSize: '14px',
+    fontWeight: 800,
+  },
+  actionMeta: {
+    fontSize: '12px',
+    color: 'rgba(255, 255, 255, 0.82)',
+  },
+  diceOverlay: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    left: '50%',
+    top: '52%',
+    transform: 'translate(-50%, -50%)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '18px 22px',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(12, 18, 26, 0.74)',
+    backdropFilter: 'blur(6px)',
+    boxShadow: '0 18px 42px rgba(0, 0, 0, 0.36)',
+  },
+  diceCube: {
+    width: '86px',
+    height: '86px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '14px',
+    border: '3px solid rgba(255, 255, 255, 0.92)',
+    backgroundColor: '#f8fafc',
+    color: '#17202a',
+    fontSize: '42px',
+    fontWeight: 900,
+    boxShadow: 'inset 0 -8px 0 rgba(0, 0, 0, 0.08), 0 10px 24px rgba(0, 0, 0, 0.32)',
+  },
+  diceCubeResult: {
+    backgroundColor: '#fff3c4',
+    color: '#1f2933',
+    borderColor: '#f9c74f',
+  },
+  diceOverlayText: {
+    color: '#ffffff',
+    fontSize: '15px',
+    fontWeight: 800,
+    textShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
   },
   waiting: {
     fontSize: '16px',

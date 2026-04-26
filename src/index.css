@@ -31,3 +31,19 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+@keyframes paradice-dice-spin {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.08);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+.paradice-dice-spinning {
+  animation: paradice-dice-spin 0.42s linear infinite;
+}
