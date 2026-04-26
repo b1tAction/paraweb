@@ -28,6 +28,9 @@ export class NakamaService {
   private readonly STORAGE_KEY_TOKEN = 'paradiced_session_token';
   private readonly STORAGE_KEY_REFRESH_TOKEN = 'paradiced_refresh_token';
 
+  // RoundEndWait 3s delay timer ID (prevent duplicate triggers)
+  private roundReadyTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor() {
     // 注意：nakama-js 构造函数参数顺序 (serverkey, host, port, useSSL)
     this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
@@ -218,22 +221,6 @@ export class NakamaService {
 
       console.log(`[Nakama] 收到 OpCode: ${matchData.op_code} (${opcodes.getOpCodeName(matchData.op_code)})`, data);
 
-      // #region agent instrumentation - Hypothesis A: OpCode routing check
-      fetch('http://127.0.0.1:7649/ingest/fd570d88-3ae3-47ed-8ee1-493b444c6f23', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '31c30f' },
-        body: JSON.stringify({
-          sessionId: '31c30f',
-          location: 'NakamaService.ts:onmatchdata',
-          message: 'OpCode received in switch',
-          data: { opCode: matchData.op_code, opCodeName: opcodes.getOpCodeName(matchData.op_code) },
-          timestamp: Date.now(),
-          runId: 'debug',
-          hypothesisId: 'A'
-        })
-      }).catch(() => {});
-      // #endregion
-
       // 根据 OpCode 路由 (对齐 Go CLI)
       switch (matchData.op_code) {
         case opcodes.OpStateSync:
@@ -313,8 +300,29 @@ export class NakamaService {
     store.setCurrentPlayerId(data.current_player_id);
 
     // 对齐 CLI：离开小游戏全局状态时清空本轮小游戏参与者缓存，避免下一轮沿用旧 participants
-    if (data.global_state !== 'round_mini_game') {
+    if (data.global_state !== 'round_mini_game' && data.global_state !== 'RoundMiniGame') {
       store.setMiniGameStart(null);
+    }
+
+    // RoundEndWait: 延迟 3s 后发送 OpRoundReady (模拟客户端完成动画渲染)
+    const normalized = data.global_state.trim();
+    if (normalized === 'round_end_wait' || normalized === 'RoundEndWait') {
+      // Clear any existing timer to prevent duplicate sends
+      if (this.roundReadyTimer) {
+        clearTimeout(this.roundReadyTimer);
+      }
+      this.roundReadyTimer = setTimeout(() => {
+        console.log('[Nakama] 3s delay elapsed, sending RoundReady');
+        this.sendRoundReady();
+        this.roundReadyTimer = null;
+      }, 3000);
+      console.log('[Nakama] RoundEndWait detected, will send RoundReady after 3s');
+    } else {
+      // Clear timer if we transitioned away from RoundEndWait before it fired
+      if (this.roundReadyTimer) {
+        clearTimeout(this.roundReadyTimer);
+        this.roundReadyTimer = null;
+      }
     }
 
     // 场景路由
@@ -416,29 +424,28 @@ export class NakamaService {
 
   private handleFullSync(data: any) {
     console.log('[Nakama] 完整同步', data);
-    // 处理重连时的完整状态同步
+
+    // Handle RoundEndWait in FullSync (same as handleStateSync)
+    if (data && data.global_state) {
+      const normalized = data.global_state.trim();
+      if (normalized === 'round_end_wait' || normalized === 'RoundEndWait') {
+        if (this.roundReadyTimer) {
+          clearTimeout(this.roundReadyTimer);
+        }
+        this.roundReadyTimer = setTimeout(() => {
+          console.log('[Nakama] 3s delay elapsed (from FullSync), sending RoundReady');
+          this.sendRoundReady();
+          this.roundReadyTimer = null;
+        }, 3000);
+        console.log('[Nakama] RoundEndWait detected (from FullSync), will send RoundReady after 3s');
+      }
+    }
   }
 
   private handleStartGameAck(data: protocol.StartGameAck) {
     const store = useGameStore.getState();
     store.setStartGameAck(data);
     store.setMapConfig(data.map_config);
-
-    // #region agent instrumentation - Hypothesis A/B
-    fetch('http://127.0.0.1:7649/ingest/fd570d88-3ae3-47ed-8ee1-493b444c6f23', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '31c30f' },
-      body: JSON.stringify({
-        sessionId: '31c30f',
-        location: 'NakamaService.ts:handleStartGameAck',
-        message: 'OpStartGameAck received',
-        data: { mapLength: data.map_config.length, cells: data.map_config.cells.length },
-        timestamp: Date.now(),
-        runId: 'debug',
-        hypothesisId: 'A'
-      })
-    }).catch(() => {});
-    // #endregion
 
     console.log('[Nakama] 游戏开始确认', {
       mapLength: data.map_config.length,
@@ -468,6 +475,10 @@ export class NakamaService {
         break;
       case 'turn_loop':
       case 'TurnLoop':
+        setScene(Scene.Board);
+        break;
+      case 'round_end_wait':
+      case 'RoundEndWait':
         setScene(Scene.Board);
         break;
       case 'boss_battle':
@@ -601,6 +612,14 @@ export class NakamaService {
   async sendRollDice(): Promise<void> {
     console.log('[Nakama] 发送掷骰子请求');
     await this.sendOpCode(opcodes.OpRollDice, {});
+  }
+
+  /**
+   * 10.5 轮结束就绪信号 (RoundEndWait 3s延迟后自动发送)
+   */
+  async sendRoundReady(): Promise<void> {
+    console.log('[Nakama] 发送轮结束就绪信号');
+    await this.sendOpCode(opcodes.OpRoundReady, {});
   }
 
   /**

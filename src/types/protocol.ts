@@ -46,6 +46,25 @@ export interface TurnSync {
 
 /**
  * LogEntry - 游戏日志条目
+ *
+ * metadata 字段契约 (按 action_type 分类):
+ * - damage: hp_change, blocked_by?, piercing?
+ * - heal: hp_change
+ * - modify_lp: lp_change
+ * - move: steps, start_pos, end_pos, path
+ * - add_buff: buff_type, duration
+ * - remove_buff: buff_type
+ * - draw_event: event_type
+ * - draw_item: item_type
+ * - teleport: from_pos, to_pos
+ * - steal_buff: stolen_by, buff_type
+ * - fell_down: position, hp_change
+ * - respawn: checkpoint_pos
+ * - boss_damage: damage, is_crit, boss_remaining_hp
+ * - boss_attack: attack_type, damage
+ * - boss_skill: skill_type, targets
+ * - dice_roll: dice_type, dice_steps
+ * - state: from, to
  */
 export interface LogEntry {
   /** 时间戳 */
@@ -385,4 +404,12 @@ export interface MiniGameResultSubmit {
  */
 export interface StartGame {
   // 空对象
+}
+
+/**
+ * RoundReady - 轮结束就绪信号
+ * 客户端在 RoundEndWait 状态下，完成当前轮动画渲染后发送
+ */
+export interface RoundReady {
+  // 空对象，服务端检查所有客户端已发送就绪信号
 }
