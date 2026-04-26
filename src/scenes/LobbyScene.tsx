@@ -75,7 +75,7 @@ export const LobbyScene: React.FC = () => {
             return (
               <div key={player.user_id || index} style={styles.playerItem}>
                 <span style={styles.playerName}>
-                  {player.username || player.user_id}
+                  {player.display_name || player.user_id}
                   {isPlayerHost ? ' 👑(房主)' : ''}
                   {isMe ? ' (我)' : ''}
                 </span>

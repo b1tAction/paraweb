@@ -32,6 +32,10 @@ function getMetaBool(meta: Record<string, any> | undefined, key: string): boolea
   return false;
 }
 
+function formatDuration(duration: number): string {
+  return duration < 0 ? '永久' : `${duration}`;
+}
+
 // Resolve display name from player list
 function resolveDisplayName(target: string, players: Player[]): string {
   if (target === 'beeeeeef-beef-beef-beef-beeeeeeeeeef') return 'Boss';
@@ -43,10 +47,18 @@ function resolveDisplayName(target: string, players: Player[]): string {
   return target;
 }
 
+function resolveBuffDuration(targetPlayerId: string, buffType: string, players: Player[]): number | null {
+  if (!targetPlayerId || !buffType) return null;
+  const player = players.find((p) => p.player_id === targetPlayerId);
+  if (!player) return null;
+  const buff = player.buffs.find((b) => b.type === buffType);
+  return typeof buff?.duration === 'number' ? buff.duration : null;
+}
+
 // Format a single entry as a string (mirrors CLI displayLogEntry)
 function formatEntry(entry: LogEntry, players: Player[]): string {
   const targetName = resolveDisplayName(entry.target, players);
-  const source = entry.source;
+  const sourceName = resolveDisplayName(entry.source, players);
   const meta = entry.metadata || {};
 
   switch (entry.action_type) {
@@ -57,31 +69,34 @@ function formatEntry(entry: LogEntry, players: Player[]): string {
       let extra = '';
       if (blockedBy) extra += ` [blocked by ${blockedBy}]`;
       if (piercing) extra += ' [piercing]';
-      return `[damage] ${targetName} HP${hpChange} from ${source}${extra}`;
+      return `[damage] ${targetName} HP${hpChange} from ${sourceName}${extra}`;
     }
     case 'heal': {
       const hpChange = getMetaNum(meta, 'hp_change') ?? 0;
-      return `[heal] ${targetName} HP+${hpChange} from ${source}`;
+      return `[heal] ${targetName} HP+${hpChange} from ${sourceName}`;
     }
     case 'modify_lp': {
       const lpChange = getMetaNum(meta, 'lp_change') ?? 0;
       const sign = lpChange >= 0 ? '+' : '';
-      return `[modify_lp] ${targetName} LP${sign}${lpChange} from ${source}`;
+      return `[modify_lp] ${targetName} LP${sign}${lpChange} from ${sourceName}`;
     }
     case 'move': {
       const steps = getMetaNum(meta, 'steps') ?? 0;
       const startPos = getMetaNum(meta, 'start_pos') ?? 0;
       const endPos = getMetaNum(meta, 'end_pos') ?? 0;
-      return `[move] ${targetName} ${steps} steps (${startPos} -> ${endPos}) from ${source}`;
+      return `[move] ${targetName} ${steps} steps (${startPos} -> ${endPos}) from ${sourceName}`;
     }
     case 'add_buff': {
       const buffType = getMetaStr(meta, 'buff_type');
-      const duration = getMetaNum(meta, 'duration') ?? 0;
-      return `[add_buff] ${targetName} gained ${buffType} (${duration}) from ${source}`;
+      const durationFromMeta = getMetaNum(meta, 'duration');
+      const duration =
+        durationFromMeta ?? resolveBuffDuration(entry.target, buffType, players);
+      const durationText = duration !== null ? formatDuration(duration) : '?';
+      return `[add_buff] ${targetName} gained ${buffType} (${durationText}) from ${sourceName}`;
     }
     case 'remove_buff': {
       const buffType = getMetaStr(meta, 'buff_type');
-      return `[remove_buff] ${targetName} lost ${buffType} from ${source}`;
+      return `[remove_buff] ${targetName} lost ${buffType} from ${sourceName}`;
     }
     case 'draw_event': {
       const eventType = getMetaStr(meta, 'event_type');
@@ -99,18 +114,18 @@ function formatEntry(entry: LogEntry, players: Player[]): string {
     case 'fell_down': {
       const position = getMetaNum(meta, 'position') ?? 0;
       const hpChange = getMetaNum(meta, 'hp_change') ?? 0;
-      return `[fell_down] ${targetName} fell at pos ${position} HP${hpChange} from ${source}`;
+      return `[fell_down] ${targetName} fell at pos ${position} HP${hpChange} from ${sourceName}`;
     }
     case 'respawn': {
       const checkpointPos = getMetaNum(meta, 'checkpoint_pos') ?? 0;
-      return `[respawn] ${targetName} respawn at pos ${checkpointPos} from ${source}`;
+      return `[respawn] ${targetName} respawn at pos ${checkpointPos} from ${sourceName}`;
     }
     case 'boss_damage': {
       const damage = getMetaNum(meta, 'damage') ?? 0;
       const isCrit = getMetaBool(meta, 'is_crit');
       const bossHP = getMetaNum(meta, 'boss_remaining_hp') ?? 0;
       const critMark = isCrit ? ' [CRIT!]' : '';
-      return `[boss_damage] Boss HP-${damage}${critMark} (remaining: ${bossHP}) by ${source}`;
+      return `[boss_damage] Boss HP-${damage}${critMark} (remaining: ${bossHP}) by ${sourceName}`;
     }
     case 'boss_attack': {
       const attackType = getMetaStr(meta, 'attack_type');
@@ -119,13 +134,19 @@ function formatEntry(entry: LogEntry, players: Player[]): string {
     }
     case 'boss_skill': {
       const skillType = getMetaStr(meta, 'skill_type');
-      const targets = getMetaStr(meta, 'targets');
+      const targetsRaw = getMetaStr(meta, 'targets');
+      const targets = targetsRaw
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean)
+        .map((id) => resolveDisplayName(id, players))
+        .join(', ');
       return `[boss_skill] Boss used ${skillType} on ${targets}`;
     }
     case 'teleport': {
       const fromPos = getMetaNum(meta, 'from_pos') ?? 0;
       const toPos = getMetaNum(meta, 'to_pos') ?? 0;
-      return `[teleport] ${targetName} ${fromPos} -> ${toPos} from ${source}`;
+      return `[teleport] ${targetName} ${fromPos} -> ${toPos} from ${sourceName}`;
     }
     case 'steal_buff': {
       const stolenByName = resolveDisplayName(getMetaStr(meta, 'stolen_by'), players);
@@ -134,15 +155,15 @@ function formatEntry(entry: LogEntry, players: Player[]): string {
     }
     case 'use_item': {
       const itemType = getMetaStr(meta, 'item_type');
-      return `[use_item] ${targetName} used ${itemType} from ${source}`;
+      return `[use_item] ${targetName} used ${itemType} from ${sourceName}`;
     }
     case 'use_skill': {
       const skillType = getMetaStr(meta, 'skill_type');
-      return `[use_skill] ${targetName} used ${skillType} from ${source}`;
+      return `[use_skill] ${targetName} used ${skillType} from ${sourceName}`;
     }
     default: {
       const typeStr = entry.action_type || entry.type;
-      return `[${typeStr}] ${targetName} from ${source}`;
+      return `[${typeStr}] ${targetName} from ${sourceName}`;
     }
   }
 }

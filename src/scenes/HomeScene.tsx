@@ -189,8 +189,7 @@ export const HomeScene: React.FC = () => {
                 登出
               </button>
             </div>
-            <p style={styles.info}>用户 ID: {myPlayerId || '加载中...'}</p>
-            <p style={styles.info}>用户名：{displayName}</p>
+            <p style={styles.info} title={myPlayerId}>用户名：{displayName || '加载中...'}</p>
 
             {matchId && (
               <div style={styles.roomInfo}>

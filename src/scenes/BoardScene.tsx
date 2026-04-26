@@ -116,7 +116,6 @@ export const BoardScene: React.FC = () => {
     playedEntries,
     pendingEntries,
     round: storeRound,
-    turn: storeTurn,
     mapConfig,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
@@ -191,9 +190,9 @@ export const BoardScene: React.FC = () => {
   };
 
   // 获取当前玩家对象
-  const currentPlayer = players.find((p) => p.player_id === currentPlayerId);
-  const boardPlayers = players.filter((player) => !isBossPlayer(player));
-  const bossPlayer = players.find(isBossPlayer);
+  const currentPlayer = renderedPlayers.find((p) => p.player_id === currentPlayerId);
+  const boardPlayers = renderedPlayers.filter((player) => !isBossPlayer(player));
+  const bossPlayer = renderedPlayers.find(isBossPlayer);
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const normalizedGlobalState = String(globalState);
   const isTurnLoop = normalizedGlobalState === 'turn_loop' || normalizedGlobalState === 'TurnLoop';
@@ -214,10 +213,16 @@ export const BoardScene: React.FC = () => {
     isMainAction &&
     diceRollView.status !== 'rolling';
   const shouldShowDiceOverlay = diceRollView.status === 'rolling' || diceRollView.status === 'result';
+  const hasPendingAnimations = pendingEntries.length > 0 || diceRollView.status !== 'idle';
 
   useEffect(() => {
     latestPlayersRef.current = players;
-  }, [players]);
+    // 关键：只有当前批次动画（含骰子）都渲染完，才刷新玩家快照
+    // 避免 HP/LP/位置提前“跳变”。
+    if (!hasPendingAnimations) {
+      setRenderedPlayers(players);
+    }
+  }, [players, hasPendingAnimations]);
 
   // Animation player - processes pending entries one at a time
   // Action-type entries get animation delay, others skip immediately
@@ -225,8 +230,8 @@ export const BoardScene: React.FC = () => {
     if (pendingEntries.length === 0) return;
 
     const firstEntry = pendingEntries[0];
-    const isAction = firstEntry.type === 'action';
-    const delay = isAction ? ANIMATION_DELAY_MS : 0;
+    const isRenderableAction = firstEntry.type === 'action' || firstEntry.type === 'boss';
+    const delay = isRenderableAction ? ANIMATION_DELAY_MS : 0;
 
     const timeoutId = window.setTimeout(() => {
       useGameStore.getState().playNextEntry();
@@ -241,13 +246,6 @@ export const BoardScene: React.FC = () => {
       debugLogContentRef.current.scrollTop = debugLogContentRef.current.scrollHeight;
     }
   }, [playedEntries.length]);
-
-  useEffect(() => {
-    if (diceRollView.status !== 'idle') return;
-    if (isTurnLoop && !isMainAction) return;
-
-    setRenderedPlayers(players);
-  }, [diceRollView.status, isMainAction, isTurnLoop, players]);
 
   useEffect(() => {
     const result = getLatestDiceRollResult(playedEntries);
@@ -292,7 +290,6 @@ export const BoardScene: React.FC = () => {
     if (diceRollView.status !== 'result') return;
 
     const timeoutId = window.setTimeout(() => {
-      setRenderedPlayers(latestPlayersRef.current);
       setDiceRollView({ status: 'idle' });
     }, DICE_RESULT_DISPLAY_MS);
 
@@ -347,7 +344,7 @@ export const BoardScene: React.FC = () => {
                   <div style={styles.playerCardBody}>
                     <div style={styles.playerCardHeader}>
                       <span title={player.player_id} style={styles.playerName}>
-                        {player.player_id}
+                        {player.display_name || player.player_id}
                       </span>
                     </div>
                     <div style={styles.playerStats}>
@@ -389,7 +386,7 @@ export const BoardScene: React.FC = () => {
                   <div style={styles.bossTitleGroup}>
                     <strong style={styles.bossTitle}>Boss</strong>
                     <span style={styles.bossId} title={bossPlayer.player_id}>
-                      {bossPlayer.player_id}
+                      {bossPlayer.display_name || 'Boss'}
                     </span>
                   </div>
                 </div>
@@ -517,7 +514,7 @@ export const BoardScene: React.FC = () => {
           </div>
           <div ref={debugLogContentRef} style={styles.debugLogContent}>
             {playedEntries
-              .filter(entry => entry.type === 'action')
+              .filter(entry => entry.type === 'action' || entry.type === 'boss')
               .map((entry, index) => (
                 <DebugLogEntry key={index} entry={entry} players={players} />
               ))}
