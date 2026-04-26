@@ -37,6 +37,29 @@ export class NakamaService {
   }
 
   /**
+   * 构建 joinMatch metadata，确保 display_name 始终可用。
+   * - 优先使用调用方传入的 display_name
+   * - 其次使用 store.displayName
+   * - 最后回退到 session.username
+   */
+  private buildJoinMetadata(metadata?: Record<string, string>): Record<string, string> | undefined {
+    const store = useGameStore.getState();
+    const merged: Record<string, string> = { ...(metadata || {}) };
+
+    const candidateDisplayName =
+      merged.display_name?.trim() ||
+      store.displayName?.trim() ||
+      store.session?.username?.trim() ||
+      '';
+
+    if (candidateDisplayName) {
+      merged.display_name = candidateDisplayName;
+    }
+
+    return Object.keys(merged).length > 0 ? merged : undefined;
+  }
+
+  /**
    * 1. 用户名 + 密码认证 (推荐方式)
    *
    * 使用 Nakama 官方的邮箱密码认证体系
@@ -555,7 +578,9 @@ export class NakamaService {
     console.log('[Nakama] RPC 响应 - matchId:', matchId);
 
     // nakama-js: joinMatch 返回 Promise<Match>
-    const match = await socket!.joinMatch(matchId);
+    // 关键：携带 display_name metadata，避免服务端 waiting_sync 回退到 user_id
+    const joinMetadata = this.buildJoinMetadata();
+    const match = await socket!.joinMatch(matchId, undefined, joinMetadata);
 
     useGameStore.getState().setMatch(match);
     useGameStore.getState().setMatchId(match.match_id || matchId);
@@ -577,11 +602,13 @@ export class NakamaService {
       throw new Error('[Nakama] 没有有效的 socket');
     }
 
-    console.log('[Nakama] 加入房间', { matchIdOrToken, metadata });
+    const joinMetadata = this.buildJoinMetadata(metadata);
+
+    console.log('[Nakama] 加入房间', { matchIdOrToken, metadata: joinMetadata });
 
     // nakama-js: joinMatch 支持 match_id 或 token 方式
     // joinMatch(match_id?, token?, metadata?)
-    const match = await socket.joinMatch(matchIdOrToken, undefined, metadata);
+    const match = await socket.joinMatch(matchIdOrToken, undefined, joinMetadata);
 
     useGameStore.getState().setMatch(match);
     useGameStore.getState().setMatchId(match.match_id || matchIdOrToken);
