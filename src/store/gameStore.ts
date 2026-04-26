@@ -52,6 +52,8 @@ export type GlobalState =
   | 'round_mini_game'
   | 'round_prep'
   | 'turn_loop'
+  | 'round_end_wait'
+  | 'RoundEndWait'
   | 'boss_battle'
   | 'game_over';
 
