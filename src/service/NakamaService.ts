@@ -300,8 +300,11 @@ export class NakamaService {
     store.setCurrentPlayerId(data.current_player_id);
 
     // 对齐 CLI：离开小游戏全局状态时清空本轮小游戏参与者缓存，避免下一轮沿用旧 participants
+    // 但是如果正在展示 MiniGameSubmitRank 场景且小游戏结果待处理，则不清空，等结果显示完成后再清空
     if (data.global_state !== 'round_mini_game' && data.global_state !== 'RoundMiniGame') {
-      store.setMiniGameStart(null);
+      if (!(store.currentScene === Scene.MiniGameSubmitRank && store.miniGameResultPending)) {
+        store.setMiniGameStart(null);
+      }
     }
 
     // RoundEndWait: 延迟 3s 后发送 OpRoundReady (模拟客户端完成动画渲染)
@@ -397,6 +400,7 @@ export class NakamaService {
   private handleMiniGameResult(data: protocol.MiniGameResult) {
     const store = useGameStore.getState();
     store.setMiniGameResult(data);
+    store.setMiniGameResultPending(true);
 
     console.log('[Nakama] 小游戏结果', {
       rankings: data.rankings,
@@ -457,41 +461,59 @@ export class NakamaService {
    * 4. 场景路由 (对齐 Go CLI)
    */
   private routeSceneByState(globalState: string) {
-    const setScene = useGameStore.getState().setScene;
+    const store = useGameStore.getState();
     const normalized = globalState.trim();
+
+    // Determine target scene
+    let targetScene: Scene | null = null;
 
     switch (normalized) {
       case 'match_init':
       case 'MatchInit':
-        setScene(Scene.Loading);
+        targetScene = Scene.Loading;
         break;
       case 'round_mini_game':
       case 'RoundMiniGame':
-        setScene(Scene.MiniGameSubmitRank);
+        targetScene = Scene.MiniGameSubmitRank;
         break;
       case 'round_prep':
       case 'RoundPrep':
-        setScene(Scene.DiceAssign);
+        targetScene = Scene.DiceAssign;
         break;
       case 'turn_loop':
       case 'TurnLoop':
-        setScene(Scene.Board);
+        targetScene = Scene.Board;
         break;
       case 'round_end_wait':
       case 'RoundEndWait':
-        setScene(Scene.Board);
+        targetScene = Scene.Board;
         break;
       case 'boss_battle':
       case 'BossBattle':
-        setScene(Scene.BossBattle);
+        targetScene = Scene.BossBattle;
         break;
       case 'game_over':
       case 'GameOver':
-        setScene(Scene.GameOver);
+        targetScene = Scene.GameOver;
         break;
       default:
         console.warn(`[Nakama] 未知的全局状态：${globalState}`);
     }
+
+    if (!targetScene) return;
+
+    // If mini-game result is being displayed, defer scene transition
+    // until the result display timer clears the pending flag.
+    if (store.miniGameResultPending && store.currentScene === Scene.MiniGameSubmitRank) {
+      console.log('[Nakama] 小游戏结果展示中，暂缓场景切换', {
+        targetScene,
+        currentScene: store.currentScene,
+      });
+      store.setPendingScene(targetScene);
+      return;
+    }
+
+    store.setScene(targetScene);
   }
 
   /**
