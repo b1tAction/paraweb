@@ -7,11 +7,8 @@
 
 // ========== Server -> Client Messages ==========
 
-/** 完整状态同步 - 进入新状态时广播 */
+/** 完整状态同步 (含增量动画 entries) - 进入新状态时广播 */
 export const OpStateSync = 1;
-
-/** 回合效果列表 - 用于客户端渲染 */
-export const OpTurnSync = 2;
 
 /** 决策请求 - 请求用户输入 (掷骰子、道具选择等) */
 export const OpDecisionRequest = 3;
@@ -69,7 +66,6 @@ export const OpRoundReady = 106;
 export function getOpCodeName(opCode: number): string {
   const names: Record<number, string> = {
     [OpStateSync]: 'state_sync',
-    [OpTurnSync]: 'turn_sync',
     [OpDecisionRequest]: 'decision_request',
     [OpAvailable]: 'available',
     [OpMiniGameStart]: 'mini_game_start',
