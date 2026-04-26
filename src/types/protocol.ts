@@ -210,6 +210,20 @@ export interface MiniGameStart {
   game_type: string;
   /** 参与玩家 ID 列表 */
   players: string[];
+  /** 连接信息 (可选，用于 Colyseus 实时模式) */
+  connection?: MiniGameConn;
+}
+
+/**
+ * MiniGameConn - 小游戏实时连接信息 (用于 Colyseus 等)
+ */
+export interface MiniGameConn {
+  /** 服务器 URL */
+  url: string;
+  /** 房间 ID */
+  room_id: string;
+  /** 认证 Token */
+  token: string;
 }
 
 /**
@@ -392,11 +406,14 @@ export interface UserChoice {
 }
 
 /**
- * MiniGameResultSubmit - 小游戏结果提交 (已废弃)
+ * MiniGameDataSubmit - 小游戏数据提交
+ * 客户端提交 game_data，服务端根据 game_type 计算排名
  */
-export interface MiniGameResultSubmit {
-  /** 排名 */
-  rank: number;
+export interface MiniGameDataSubmit {
+  /** 小游戏类型 */
+  game_type: string;
+  /** 游戏数据 (不同 game_type 有不同结构) */
+  game_data: Record<string, any>;
 }
 
 /**
