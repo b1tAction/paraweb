@@ -54,8 +54,8 @@ export const OpUseSkill = 102;
 /** 决策选择响应 */
 export const OpUserChoice = 103;
 
-/** 小游戏排名提交 (已废弃 - 服务端计算) */
-export const OpMiniGameResultSubmit = 104;
+/** 小游戏数据提交 - 客户端提交 game_data，服务端计算排名 */
+export const OpMiniGameDataSubmit = 107;
 
 /** 房主开始游戏请求 */
 export const OpStartGame = 105;
@@ -83,7 +83,7 @@ export function getOpCodeName(opCode: number): string {
     [OpUseItem]: 'use_item',
     [OpUseSkill]: 'use_skill',
     [OpUserChoice]: 'user_choice',
-    [OpMiniGameResultSubmit]: 'mini_game_result_submit',
+    [OpMiniGameDataSubmit]: 'mini_game_data_submit',
     [OpStartGame]: 'start_game',
     [OpRoundReady]: 'round_ready',
   };

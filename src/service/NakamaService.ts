@@ -647,11 +647,14 @@ export class NakamaService {
   }
 
   /**
-   * 14. 提交小游戏结果 (已废弃，保留用于兼容)
+   * 14. 提交小游戏数据 (服务端计算排名)
    */
-  async sendMiniGameResult(rank: number): Promise<void> {
-    console.log('[Nakama] 提交小游戏结果', { rank });
-    await this.sendOpCode(opcodes.OpMiniGameResultSubmit, { rank });
+  async sendMiniGameDataSubmit(gameType: string, gameData: Record<string, any>): Promise<void> {
+    console.log('[Nakama] 提交小游戏数据', { gameType, gameData });
+    await this.sendOpCode(opcodes.OpMiniGameDataSubmit, {
+      game_type: gameType,
+      game_data: gameData,
+    });
   }
 }
 
