@@ -244,6 +244,8 @@ export interface RankingEntry {
   display_name: string;
   /** 排名 (1-4) */
   rank: number;
+  /** 小游戏原始数据 (不同 game_type 有不同结构) */
+  game_data?: Record<string, any>;
 }
 
 /**

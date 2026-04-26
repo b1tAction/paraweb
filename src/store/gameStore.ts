@@ -119,6 +119,11 @@ interface GameState {
   /** 当前回合同步数据 (TurnSync) */
   turnSync: TurnSync | null;
 
+  /** 小游戏结果展示等待标记 — true 时阻止场景切换 */
+  miniGameResultPending: boolean;
+  /** 等待切换的目标场景 (miniGameResultPending 为 true 时暂存) */
+  pendingScene: Scene | null;
+
   // ========== 状态 Actions ==========
 
   /** 设置连接实例 */
@@ -156,6 +161,11 @@ interface GameState {
   /** 设置地图配置 */
   setMapConfig: (config: MapConfig | null) => void;
 
+  /** 设置小游戏结果展示等待标记 */
+  setMiniGameResultPending: (pending: boolean) => void;
+  /** 设置等待切换的目标场景 */
+  setPendingScene: (scene: Scene | null) => void;
+
   /** 更新玩家列表 */
   setPlayers: (players: Player[]) => void;
   /** 设置当前回合玩家 */
@@ -192,6 +202,8 @@ export const useGameStore = create<GameState>((set) => ({
   matchId: '',
   displayName: '',
   turnSync: null,
+  miniGameResultPending: false,
+  pendingScene: null,
 
   // ========== Actions ==========
 
@@ -227,6 +239,9 @@ export const useGameStore = create<GameState>((set) => ({
 
   setMapConfig: (config) => set({ mapConfig: config }),
 
+  setMiniGameResultPending: (pending) => set({ miniGameResultPending: pending }),
+  setPendingScene: (scene) => set({ pendingScene: scene }),
+
   setPlayers: (players) => set({ players }),
 
   setCurrentPlayerId: (playerId) => set({ currentPlayerId: playerId }),
@@ -253,6 +268,8 @@ export const useGameStore = create<GameState>((set) => ({
       turnSync: null,
       startGameAck: null,
       mapConfig: null,
+      miniGameResultPending: false,
+      pendingScene: null,
     }),
 }));
 
