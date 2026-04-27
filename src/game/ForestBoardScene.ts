@@ -1,6 +1,13 @@
 import * as Phaser from 'phaser';
-import type { MapConfig, MapCellConfig, Player } from '../types/protocol';
+import type { LogEntry, MapConfig, MapCellConfig, Player } from '../types/protocol';
 import { getTiledProperty } from './tiledHelpers';
+import {
+  MOVE_STEP_MS,
+  describeLogEntryEffect,
+  describeSettlementChange,
+  getMetadataNumber,
+  getMetadataNumberArray,
+} from './logEntryPlayback';
 
 // 1. 加载并渲染 MainMap.json
 // 2. 读取 path_nodes 对象层
@@ -22,6 +29,13 @@ type TilesetImageConfig = {
   tiledNames: string[];
   key: string;
   url: string;
+};
+
+type SettlementStatusView = {
+  playerId: string;
+  container: Phaser.GameObjects.Container;
+  bg: Phaser.GameObjects.Graphics;
+  text: Phaser.GameObjects.Text;
 };
 
 const TILESET_IMAGES: TilesetImageConfig[] = [
@@ -71,6 +85,8 @@ export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
   private players: Player[] = [];
   private followPlayerId?: string | null;
+  private activeLogEntry?: LogEntry | null;
+  private settlementPlayer?: Player | null;
   private mapTileWidth = 32;
   private mapTileHeight = 32;
 
@@ -79,6 +95,9 @@ export class ForestBoardScene extends Phaser.Scene {
 
   private cellMarkers: Phaser.GameObjects.GameObject[] = [];
   private playerMarkers = new Map<string, Phaser.GameObjects.Arc>();
+  private logDrivenPositions = new Map<string, number>();
+  private settlementStatus?: SettlementStatusView;
+  private lastEffectKey = '';
 
   private ready = false;
 
@@ -86,10 +105,18 @@ export class ForestBoardScene extends Phaser.Scene {
     super('ForestBoardScene');
   }
 
-  init(data: { mapConfig: MapConfig; players: Player[]; followPlayerId?: string | null }) {
+  init(data: {
+    mapConfig: MapConfig;
+    players: Player[];
+    followPlayerId?: string | null;
+    activeLogEntry?: LogEntry | null;
+    settlementPlayer?: Player | null;
+  }) {
     this.mapConfig = data.mapConfig;
     this.players = data.players ?? [];
     this.followPlayerId = data.followPlayerId;
+    this.activeLogEntry = data.activeLogEntry;
+    this.settlementPlayer = data.settlementPlayer;
   }
 
   preload() {
@@ -139,19 +166,37 @@ export class ForestBoardScene extends Phaser.Scene {
     this.rebuildCellsFromBackendConfig();
     this.renderCellMarkers();
     this.syncPlayers(this.players);
+    this.syncSettlementStatus(this.settlementPlayer);
+    this.playLogEntryEffect(this.activeLogEntry);
 
     this.ready = true;
   }
 
-  updateFromReact(mapConfig: MapConfig, players: Player[], followPlayerId?: string | null) {
+  update() {
+    this.updateSettlementStatusPosition();
+  }
+
+  updateFromReact(
+    mapConfig: MapConfig,
+    players: Player[],
+    followPlayerId?: string | null,
+    activeLogEntry?: LogEntry | null,
+    settlementPlayer?: Player | null
+  ) {
     const mapChanged = this.mapConfig !== mapConfig;
     const followChanged = this.followPlayerId !== followPlayerId;
 
     this.mapConfig = mapConfig;
     this.players = players ?? [];
     this.followPlayerId = followPlayerId;
+    this.activeLogEntry = activeLogEntry;
+    this.settlementPlayer = settlementPlayer;
 
     if (!this.ready) return;
+
+    if (!activeLogEntry && !settlementPlayer) {
+      this.logDrivenPositions.clear();
+    }
 
     if (mapChanged) {
       this.rebuildCellsFromBackendConfig();
@@ -159,6 +204,8 @@ export class ForestBoardScene extends Phaser.Scene {
     }
 
     this.syncPlayers(this.players);
+    this.syncSettlementStatus(this.settlementPlayer);
+    this.playLogEntryEffect(this.activeLogEntry);
 
     if (followChanged) {
       this.followTargetPlayer();
@@ -280,7 +327,8 @@ export class ForestBoardScene extends Phaser.Scene {
 
   private syncPlayers(players: Player[]) {
     players.forEach((player, order) => {
-      const cell = this.cellViews.get(player.position);
+      const visualPosition = this.logDrivenPositions.get(player.player_id) ?? player.position;
+      const cell = this.cellViews.get(visualPosition);
 
       if (!cell) {
         console.warn(
@@ -325,4 +373,208 @@ export class ForestBoardScene extends Phaser.Scene {
 
     this.followTargetPlayer();
   }
+
+  private syncSettlementStatus(player?: Player | null) {
+    if (!player) {
+      this.settlementStatus?.container.destroy(true);
+      this.settlementStatus = undefined;
+      return;
+    }
+
+    const marker = this.playerMarkers.get(player.player_id);
+    if (!marker) return;
+
+    const buffText =
+      player.buffs.length > 0
+        ? player.buffs
+            .map((buff) => `${buff.name || buff.type}${buff.duration < 0 ? '' : `:${buff.duration}`}`)
+            .join('  ')
+        : '无 Buff';
+    const settlementChange = describeSettlementChange(player, this.activeLogEntry);
+    const content = `TurnEnd 结算\nHP ${player.hp}   LP ${player.lp}\n${buffText}${settlementChange ? `\n${settlementChange.label}` : ''}`;
+    const borderColor = settlementChange?.color ?? 0xfff176;
+    const textColor = settlementChange?.textColor ?? '#ffffff';
+
+    if (!this.settlementStatus || this.settlementStatus.playerId !== player.player_id) {
+      this.settlementStatus?.container.destroy(true);
+
+      const bg = this.add.graphics();
+      const text = this.add.text(0, 0, content, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '15px',
+        color: textColor,
+        align: 'left',
+        lineSpacing: 4,
+        stroke: '#111827',
+        strokeThickness: 4,
+      });
+      text.setOrigin(0.5, 0.5);
+
+      const container = this.add.container(marker.x, marker.y - 78, [bg, text]);
+      container.setDepth(marker.y + 240);
+      container.setAlpha(0);
+
+      this.settlementStatus = {
+        playerId: player.player_id,
+        container,
+        bg,
+        text,
+      };
+
+      this.tweens.add({
+        targets: container,
+        alpha: 1,
+        duration: 160,
+        ease: 'Sine.easeOut',
+      });
+    }
+
+    this.settlementStatus.text.setText(content);
+    this.settlementStatus.text.setColor(textColor);
+    this.drawSettlementStatusBackground(this.settlementStatus, borderColor);
+    this.updateSettlementStatusPosition();
+  }
+
+  private drawSettlementStatusBackground(view: SettlementStatusView, borderColor: number) {
+    const width = Math.max(180, view.text.width + 28);
+    const height = view.text.height + 22;
+
+    view.bg.clear();
+    view.bg.fillStyle(0x111827, 0.88);
+    view.bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
+    view.bg.lineStyle(2, borderColor, 0.95);
+    view.bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
+  }
+
+  private updateSettlementStatusPosition() {
+    if (!this.settlementStatus) return;
+
+    const marker = this.playerMarkers.get(this.settlementStatus.playerId);
+    if (!marker) return;
+
+    this.settlementStatus.container.setPosition(marker.x, marker.y - 78);
+    this.settlementStatus.container.setDepth(marker.y + 240);
+  }
+
+  private playLogEntryEffect(entry?: LogEntry | null) {
+    if (!entry || (entry.type !== 'action' && entry.type !== 'boss')) return;
+
+    const effectKey = `${entry.timestamp}:${entry.type}:${entry.action_type}:${entry.target}:${entry.source}`;
+    if (effectKey === this.lastEffectKey) return;
+    this.lastEffectKey = effectKey;
+
+    if (entry.action_type === 'dice_roll') return;
+
+    if (entry.action_type === 'move') {
+      this.playMoveAnimation(entry);
+      return;
+    }
+
+    if (this.settlementPlayer && describeSettlementChange(this.settlementPlayer, entry)) return;
+
+    const marker = this.playerMarkers.get(entry.target) ?? this.playerMarkers.get(this.followPlayerId || '');
+    if (!marker) return;
+
+    const effect = describeLogEntryEffect(entry);
+    const x = marker.x;
+    const y = marker.y;
+
+    const ring = this.add.circle(x, y, 24, effect.color, 0.12);
+    ring.setStrokeStyle(4, effect.color, 1);
+    ring.setDepth(y + 210);
+
+    const text = this.add.text(x, y - 42, effect.label, {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '22px',
+      fontStyle: 'bold',
+      color: effect.textColor,
+      align: 'center',
+      stroke: '#0b1020',
+      strokeThickness: 5,
+    });
+    text.setOrigin(0.5, 0.5);
+    text.setDepth(y + 230);
+
+    this.tweens.add({
+      targets: marker,
+      scale: 1.7,
+      duration: 140,
+      yoyo: true,
+      repeat: 1,
+      ease: 'Sine.easeInOut',
+    });
+
+    this.tweens.add({
+      targets: ring,
+      scale: 2.2,
+      alpha: 0,
+      duration: 900,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+
+    this.tweens.add({
+      targets: text,
+      y: y - 88,
+      alpha: 0,
+      scale: 1.15,
+      duration: 1050,
+      ease: 'Cubic.easeOut',
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  private playMoveAnimation(entry: LogEntry) {
+    const marker = this.playerMarkers.get(entry.target);
+    if (!marker) return;
+
+    const path = getMetadataNumberArray(entry.metadata, 'path');
+    if (path.length < 2) {
+      const endPos = entry.metadata && Object.prototype.hasOwnProperty.call(entry.metadata, 'end_pos')
+        ? getMetadataNumber(entry.metadata, 'end_pos')
+        : null;
+      if (endPos !== null) this.logDrivenPositions.set(entry.target, endPos);
+      return;
+    }
+
+    const startCell = this.cellViews.get(path[0]);
+    const currentOffsetX = startCell ? marker.x - startCell.x : 0;
+    const currentOffsetY = startCell ? marker.y - startCell.y : -10;
+    const points = path
+      .slice(1)
+      .map((cellIndex) => this.cellViews.get(cellIndex))
+      .filter((cell): cell is BoardCellView => Boolean(cell))
+      .map((cell) => ({
+        x: cell.x + currentOffsetX,
+        y: cell.y + currentOffsetY,
+        cellIndex: cell.index,
+      }));
+
+    if (points.length === 0) return;
+
+    let index = 0;
+    const runNext = () => {
+      const point = points[index];
+      if (!point) return;
+
+      this.tweens.add({
+        targets: marker,
+        x: point.x,
+        y: point.y,
+        duration: MOVE_STEP_MS,
+        ease: 'Sine.easeInOut',
+        onUpdate: () => {
+          marker.setDepth((marker.y ?? point.y) + 100);
+        },
+        onComplete: () => {
+          this.logDrivenPositions.set(entry.target, point.cellIndex);
+          index += 1;
+          runNext();
+        },
+      });
+    };
+
+    runNext();
+  }
+
 }

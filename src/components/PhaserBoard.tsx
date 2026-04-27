@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
-import type { MapConfig, Player } from '../types/protocol';
+import type { LogEntry, MapConfig, Player } from '../types/protocol';
 import { ForestBoardScene } from '../game/ForestBoardScene';
 
 type PhaserBoardProps = {
@@ -8,12 +8,18 @@ type PhaserBoardProps = {
   players: Player[];
   /** 摄像头跟随的玩家 ID；通常传当前客户端自己的 myPlayerId */
   followPlayerId?: string | null;
+  /** 当前正在播放的日志条目，用于棋盘上的特效提示 */
+  activeLogEntry?: LogEntry | null;
+  /** TurnEnd 结算时显示在当前玩家附近的状态快照 */
+  settlementPlayer?: Player | null;
 };
 
 export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   mapConfig,
   players,
   followPlayerId,
+  activeLogEntry,
+  settlementPlayer,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -39,6 +45,8 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       mapConfig,
       players,
       followPlayerId,
+      activeLogEntry,
+      settlementPlayer,
     });
 
     gameRef.current = game;
@@ -54,8 +62,8 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       'ForestBoardScene'
     ) as ForestBoardScene | undefined;
 
-    scene?.updateFromReact(mapConfig, players, followPlayerId);
-  }, [mapConfig, players, followPlayerId]);
+    scene?.updateFromReact(mapConfig, players, followPlayerId, activeLogEntry, settlementPlayer);
+  }, [mapConfig, players, followPlayerId, activeLogEntry, settlementPlayer]);
 
   return (
     <div
