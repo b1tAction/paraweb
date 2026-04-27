@@ -1,10 +1,10 @@
 /**
  * HomeScene - 主菜单场景
  *
- * 提供登录、创建房间和加入房间功能
+ * 提供用户名登录、创建房间和加入房间功能
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 
@@ -90,39 +90,44 @@ export const HomeScene: React.FC = () => {
     return '未知错误';
   };
 
-  // 登录表单状态
+  // Login form state (username only)
   const [username, setUsername] = useState<string>('');
-  const[password, setPassword] = useState<string>('');
-  const [isRegister, setIsRegister] = useState<boolean>(false);
 
-  // 创建房间表单
+  // Server config
+  const [serverHost, setServerHost] = useState<string>('');
+  const [serverPort, setServerPort] = useState<string>('');
+  const [serverSSL, setServerSSL] = useState<boolean>(false);
+  const [useCustomServerOptions, setUseCustomServerOptions] = useState<boolean>(false);
+
+  // Create room form
   const [faction, setFaction] = useState<string>('qing_long');
   const [maxPlayers, setMaxPlayers] = useState<number>(4);
 
-  // 加入房间表单 (输入框的临时状态)
-  const[joinMatchId, setJoinMatchId] = useState<string>('');
+  // Join room form
+  const [joinMatchId, setJoinMatchId] = useState<string>('');
 
-  // 错误信息
+  // Error message
   const [error, setError] = useState<string>('');
 
+  useEffect(() => {
+    const cfg = gameService.getServerConfig();
+    setServerHost(cfg.host);
+    setServerPort(cfg.port);
+    setServerSSL(cfg.useSSL);
+  }, []);
+
   /**
-   * 处理登录/注册
+   * Handle username-only login (no password required)
    */
   const handleConnect = async () => {
-    if (!username || !password) {
-      setError('请输入用户名和密码');
-      return;
-    }
-
-    if (password.length < 8) {
-      setError('密码至少需要 8 位');
+    if (!username.trim()) {
+      setError('请输入昵称');
       return;
     }
 
     try {
       setError('');
-      // 使用用户名 + 密码认证 (自动注册或登录)
-      const session = await gameService.loginWithPassword(username, password, isRegister);
+      const session = await gameService.loginByUsername(username.trim());
       if (session.user_id) {
         setMyPlayerId(session.user_id);
       }
@@ -131,6 +136,24 @@ export const HomeScene: React.FC = () => {
       const message = await getErrorMessage(err);
       setError(`登录失败：${message}`);
       console.error('[HomeScene] 登录失败', err);
+    }
+  };
+
+  const handleSaveServerConfig = () => {
+    try {
+      const current = gameService.getServerConfig();
+      const portToSave = useCustomServerOptions ? serverPort : current.port;
+      const sslToSave = useCustomServerOptions ? serverSSL : current.useSSL;
+
+      gameService.setServerConfig(serverHost, portToSave, sslToSave);
+      setError('');
+      console.log('[HomeScene] 服务器配置保存成功', {
+        host: serverHost,
+        port: portToSave,
+        ssl: sslToSave,
+      });
+    } catch (err: any) {
+      setError(`服务器配置无效：${err?.message || '未知错误'}`);
     }
   };
 
@@ -274,44 +297,71 @@ export const HomeScene: React.FC = () => {
           <p style={styles.subtitle}>回合制派对游戏</p>
 
           <div style={styles.section}>
-            <h3>{isRegister ? '注册账号' : '登录'}</h3>
+            <h3>服务器</h3>
             <div style={styles.formGroup}>
-              <label>用户名：</label>
+              <label>Host：</label>
+              <input
+                type="text"
+                value={serverHost}
+                onChange={(e) => setServerHost(e.target.value)}
+                placeholder="例如 127.0.0.1 或 your.server.com"
+                style={styles.input}
+              />
+            </div>
+            <div style={styles.formGroupInline}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={useCustomServerOptions}
+                  onChange={(e) => setUseCustomServerOptions(e.target.checked)}
+                />{' '}
+                自定义
+              </label>
+            </div>
+            {useCustomServerOptions && (
+              <>
+                <div style={styles.formGroup}>
+                  <label>Port：</label>
+                  <input
+                    type="text"
+                    value={serverPort}
+                    onChange={(e) => setServerPort(e.target.value)}
+                    placeholder="7350"
+                    style={styles.input}
+                  />
+                </div>
+                <div style={styles.formGroupInline}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={serverSSL}
+                      onChange={(e) => setServerSSL(e.target.checked)}
+                    />{' '}
+                    使用 SSL
+                  </label>
+                </div>
+              </>
+            )}
+            <button onClick={handleSaveServerConfig} style={styles.secondaryButton}>
+              保存服务器配置
+            </button>
+          </div>
+
+          <div style={styles.section}>
+            <h3>输入昵称开始游戏</h3>
+            <div style={styles.formGroup}>
+              <label>昵称：</label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="输入用户名"
-                style={styles.input}
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label>密码：</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="输入密码"
+                placeholder="输入昵称"
                 style={styles.input}
               />
             </div>
             <button onClick={handleConnect} style={styles.button}>
-              {isRegister ? '注册' : '登录'}
+              开始游戏
             </button>
-            <div style={styles.toggleContainer}>
-              <span style={styles.toggleText}>
-                {isRegister ? '已有账号？' : '没有账号？'}
-              </span>
-              <button
-                onClick={() => {
-                  setIsRegister(!isRegister);
-                  setError('');
-                }}
-                style={styles.toggleButton}
-              >
-                {isRegister ? '去登录' : '去注册'}
-              </button>
-            </div>
           </div>
 
           {error && <p style={styles.error}>{error}</p>}
@@ -321,7 +371,7 @@ export const HomeScene: React.FC = () => {
   );
 };
 
-// 简单样式
+// Styles
 const styles: Record<string, React.CSSProperties> = {
   container: {
     padding: '20px',
@@ -363,6 +413,12 @@ const styles: Record<string, React.CSSProperties> = {
   formGroup: {
     marginBottom: '12px',
   },
+  formGroupInline: {
+    marginBottom: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
   input: {
     width: '100%',
     padding: '8px',
@@ -388,6 +444,16 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '4px',
     cursor: 'pointer',
     fontSize: '16px',
+  },
+  secondaryButton: {
+    width: '100%',
+    padding: '10px',
+    backgroundColor: '#455A64',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
   },
   error: {
     color: 'red',
@@ -422,28 +488,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: '14px',
   },
-  toggleContainer: {
-    marginTop: '12px',
-    textAlign: 'center',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: '8px',
-  },
-  toggleText: {
-    fontSize: '14px',
-    color: '#666',
-  },
-  toggleButton: {
-    padding: '4px 8px',
-    backgroundColor: 'transparent',
-    color: '#2196F3',
-    border: '1px solid #2196F3',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-  },
-  // 页面背景与蒙版样式
+  // page background and mask styles
   page: {
     minHeight: '100vh',
     display: 'flex',
