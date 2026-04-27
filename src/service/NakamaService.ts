@@ -28,9 +28,6 @@ export class NakamaService {
   private readonly STORAGE_KEY_TOKEN = 'paradiced_session_token';
   private readonly STORAGE_KEY_REFRESH_TOKEN = 'paradiced_refresh_token';
 
-  // RoundEndWait 3s delay timer ID (prevent duplicate triggers)
-  private roundReadyTimer: ReturnType<typeof setTimeout> | null = null;
-
   constructor() {
     // 注意：nakama-js 构造函数参数顺序 (serverkey, host, port, useSSL)
     this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
@@ -329,25 +326,10 @@ export class NakamaService {
       }
     }
 
-    // RoundEndWait: 延迟 3s 后发送 OpRoundReady (模拟客户端完成动画渲染)
+    // RoundEndWait: BoardScene 会在动画队列真正播放完成后发送 OpRoundReady。
     const normalized = data.global_state.trim();
     if (normalized === 'round_end_wait' || normalized === 'RoundEndWait') {
-      // Clear any existing timer to prevent duplicate sends
-      if (this.roundReadyTimer) {
-        clearTimeout(this.roundReadyTimer);
-      }
-      this.roundReadyTimer = setTimeout(() => {
-        console.log('[Nakama] 3s delay elapsed, sending RoundReady');
-        this.sendRoundReady();
-        this.roundReadyTimer = null;
-      }, 3000);
-      console.log('[Nakama] RoundEndWait detected, will send RoundReady after 3s');
-    } else {
-      // Clear timer if we transitioned away from RoundEndWait before it fired
-      if (this.roundReadyTimer) {
-        clearTimeout(this.roundReadyTimer);
-        this.roundReadyTimer = null;
-      }
+      console.log('[Nakama] RoundEndWait detected, waiting for client animations before RoundReady');
     }
 
     // Update entries from incremental data - add to animation queue
@@ -649,7 +631,7 @@ export class NakamaService {
   }
 
   /**
-   * 10.5 轮结束就绪信号 (RoundEndWait 3s延迟后自动发送)
+   * 10.5 轮结束就绪信号 (RoundEndWait 动画播放完成后自动发送)
    */
   async sendRoundReady(): Promise<void> {
     console.log('[Nakama] 发送轮结束就绪信号');

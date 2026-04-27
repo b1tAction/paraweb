@@ -13,7 +13,8 @@ import { DebugLogEntry } from '../components/DebugLogEntry';
 
 const DICE_ROLL_MIN_MS = 600;
 const DICE_RESULT_DISPLAY_MS = 1200;
-const ANIMATION_DELAY_MS = 300; // per action entry
+const ANIMATION_DELAY_MS = 2000; // per action entry
+const MOVE_STEP_MS = 220;
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgba(224, 240, 225, 0.96)' },
@@ -71,6 +72,86 @@ function getMetadataString(metadata: Record<string, any> | undefined, key: strin
   return typeof value === 'string' ? value : '';
 }
 
+function getMetadataNumberArray(metadata: Record<string, any> | undefined, key: string) {
+  const value = metadata?.[key];
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (typeof item === 'number') return item;
+      if (typeof item === 'string') {
+        const parsed = Number(item);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+      return null;
+    })
+    .filter((item): item is number => item !== null);
+}
+
+function getLogEntryAnimationDelay(entry: LogEntry) {
+  if (entry.type !== 'action' && entry.type !== 'boss') return 0;
+
+  if (entry.action_type === 'dice_roll') {
+    return DICE_ROLL_MIN_MS + DICE_RESULT_DISPLAY_MS;
+  }
+
+  if (entry.action_type === 'move') {
+    const path = getMetadataNumberArray(entry.metadata, 'path');
+    return Math.max(700, Math.min(3200, Math.max(1, path.length - 1) * MOVE_STEP_MS + 250));
+  }
+
+  return ANIMATION_DELAY_MS;
+}
+
+function clonePlayer(player: Player): Player {
+  return {
+    ...player,
+    buffs: player.buffs.map((buff) => ({ ...buff })),
+    items: player.items.map((item) => ({ ...item })),
+  };
+}
+
+function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
+  if (entry.target !== player.player_id) return player;
+
+  const next = clonePlayer(player);
+  const hpChange = getMetadataNumber(entry.metadata, 'hp_change') ?? 0;
+  const lpChange = getMetadataNumber(entry.metadata, 'lp_change') ?? 0;
+  const buffType = getMetadataString(entry.metadata, 'buff_type');
+
+  switch (entry.action_type) {
+    case 'damage':
+    case 'heal':
+    case 'fell_down':
+      next.hp += hpChange;
+      break;
+    case 'modify_lp':
+      next.lp += lpChange;
+      break;
+    case 'add_buff': {
+      if (!buffType || next.buffs.some((buff) => buff.type === buffType)) break;
+      next.buffs = [
+        ...next.buffs,
+        {
+          type: buffType,
+          name: buffType,
+          duration: getMetadataNumber(entry.metadata, 'duration') ?? 0,
+        },
+      ];
+      break;
+    }
+    case 'remove_buff':
+      if (buffType) {
+        next.buffs = next.buffs.filter((buff) => buff.type !== buffType);
+      }
+      break;
+    default:
+      break;
+  }
+
+  return next;
+}
+
 type DiceRollView =
   | { status: 'idle' }
   | { status: 'rolling'; playerId: string; diceType: string; startedAt: number; pendingResult?: DiceRollResult }
@@ -123,7 +204,11 @@ export const BoardScene: React.FC = () => {
     () => getLatestDiceRollResult(playedEntries)?.key || ''
   );
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
+  const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
+  const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
   const latestPlayersRef = useRef(players);
+  const lastAppliedSettlementEntryRef = useRef('');
+  const roundReadySentKeyRef = useRef('');
   const debugLogContentRef = useRef<HTMLDivElement>(null);
 
   // #region agent instrumentation - Hypothesis C
@@ -194,8 +279,8 @@ export const BoardScene: React.FC = () => {
   const boardPlayers = renderedPlayers.filter((player) => !isBossPlayer(player));
   const bossPlayer = renderedPlayers.find(isBossPlayer);
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
-  const normalizedGlobalState = String(globalState);
-  const isTurnLoop = normalizedGlobalState === 'turn_loop' || normalizedGlobalState === 'TurnLoop';
+  const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
+  const isRoundEndWait = globalState === 'round_end_wait' || globalState === 'RoundEndWait';
   const fallbackActions: Available | null =
     isMainAction && currentPlayer
       ? {
@@ -214,6 +299,49 @@ export const BoardScene: React.FC = () => {
     diceRollView.status !== 'rolling';
   const shouldShowDiceOverlay = diceRollView.status === 'rolling' || diceRollView.status === 'result';
   const hasPendingAnimations = pendingEntries.length > 0 || diceRollView.status !== 'idle';
+  const activeLogEntry =
+    pendingEntries[0] && (pendingEntries[0].type === 'action' || pendingEntries[0].type === 'boss')
+      ? pendingEntries[0]
+      : null;
+  const settlementPlayer = settlementPlayerId
+    ? settlementPlayerSnapshot ||
+      renderedPlayers.find((player) => player.player_id === settlementPlayerId) ||
+      players.find((player) => player.player_id === settlementPlayerId) ||
+      null
+    : null;
+
+  useEffect(() => {
+    if (isTurnEndSettlement && currentPlayerId) {
+      setSettlementPlayerId(currentPlayerId);
+      setSettlementPlayerSnapshot((current) => {
+        if (current?.player_id === currentPlayerId) return current;
+        const base =
+          renderedPlayers.find((player) => player.player_id === currentPlayerId) ||
+          players.find((player) => player.player_id === currentPlayerId);
+        return base ? clonePlayer(base) : null;
+      });
+      return;
+    }
+
+    if (!hasPendingAnimations) {
+      setSettlementPlayerId(null);
+      setSettlementPlayerSnapshot(null);
+      lastAppliedSettlementEntryRef.current = '';
+    }
+  }, [currentPlayerId, hasPendingAnimations, isTurnEndSettlement, players, renderedPlayers]);
+
+  useEffect(() => {
+    if (!activeLogEntry || !settlementPlayerId || activeLogEntry.target !== settlementPlayerId) return;
+
+    const key = `${activeLogEntry.timestamp}:${activeLogEntry.action_type}:${activeLogEntry.target}:${activeLogEntry.source}`;
+    if (lastAppliedSettlementEntryRef.current === key) return;
+
+    setSettlementPlayerSnapshot((current) => {
+      if (!current) return current;
+      return applyLogEntryToPlayer(current, activeLogEntry);
+    });
+    lastAppliedSettlementEntryRef.current = key;
+  }, [activeLogEntry, settlementPlayerId]);
 
   useEffect(() => {
     latestPlayersRef.current = players;
@@ -224,21 +352,44 @@ export const BoardScene: React.FC = () => {
     }
   }, [players, hasPendingAnimations]);
 
+  useEffect(() => {
+    if (!isRoundEndWait) {
+      roundReadySentKeyRef.current = '';
+      return;
+    }
+
+    if (hasPendingAnimations) return;
+
+    const readyKey = `${storeRound}:${currentPlayerId || 'round_end'}`;
+    if (roundReadySentKeyRef.current === readyKey) return;
+
+    roundReadySentKeyRef.current = readyKey;
+    console.log('[BoardScene] 动画播放完成，发送 RoundReady', {
+      round: storeRound,
+      pendingEntries: pendingEntries.length,
+      diceStatus: diceRollView.status,
+    });
+
+    gameService.sendRoundReady().catch((err) => {
+      roundReadySentKeyRef.current = '';
+      console.error('[BoardScene] 发送 RoundReady 失败', err);
+    });
+  }, [currentPlayerId, diceRollView.status, hasPendingAnimations, isRoundEndWait, pendingEntries.length, storeRound]);
+
   // Animation player - processes pending entries one at a time
   // Action-type entries get animation delay, others skip immediately
   useEffect(() => {
     if (pendingEntries.length === 0) return;
 
     const firstEntry = pendingEntries[0];
-    const isRenderableAction = firstEntry.type === 'action' || firstEntry.type === 'boss';
-    const delay = isRenderableAction ? ANIMATION_DELAY_MS : 0;
+    const delay = getLogEntryAnimationDelay(firstEntry);
 
     const timeoutId = window.setTimeout(() => {
       useGameStore.getState().playNextEntry();
     }, delay);
 
     return () => window.clearTimeout(timeoutId);
-  }, [pendingEntries.length]);
+  }, [pendingEntries]);
 
   // Auto-scroll debug log when new entries appear
   useEffect(() => {
@@ -248,9 +399,19 @@ export const BoardScene: React.FC = () => {
   }, [playedEntries.length]);
 
   useEffect(() => {
-    const result = getLatestDiceRollResult(playedEntries);
-    if (!result || result.key === handledDiceResultKey) return;
+    if (!activeLogEntry || activeLogEntry.action_type !== 'dice_roll') return;
 
+    const steps = getMetadataNumber(activeLogEntry.metadata, 'dice_steps');
+    if (!steps) return;
+
+    const result: DiceRollResult = {
+      key: `${activeLogEntry.timestamp}:${activeLogEntry.target}:${steps}`,
+      playerId: activeLogEntry.target,
+      diceType: getMetadataString(activeLogEntry.metadata, 'dice_type') || 'wood',
+      steps,
+    };
+
+    if (result.key === handledDiceResultKey) return;
     setHandledDiceResultKey(result.key);
 
     setDiceRollView((current) => {
@@ -266,7 +427,7 @@ export const BoardScene: React.FC = () => {
         pendingResult: result,
       };
     });
-  }, [handledDiceResultKey, playedEntries]);
+  }, [activeLogEntry, handledDiceResultKey]);
 
   useEffect(() => {
     if (diceRollView.status !== 'rolling' || !diceRollView.pendingResult) return;
@@ -304,6 +465,8 @@ export const BoardScene: React.FC = () => {
             mapConfig={mapConfig}
             players={renderedPlayers}
             followPlayerId={myPlayerId || currentPlayerId}
+            activeLogEntry={activeLogEntry}
+            settlementPlayer={settlementPlayer}
           />
         ) : (
           <div style={styles.mapMissing}>地图未加载 (mapConfig is null)</div>
