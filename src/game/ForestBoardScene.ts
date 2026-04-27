@@ -9,10 +9,6 @@ import {
   getMetadataNumberArray,
 } from './logEntryPlayback';
 
-// 1. 加载并渲染 MainMap.json
-// 2. 读取 path_nodes 对象层
-// 3. 把后端 mapConfig.cells[].index 和 Tiled 点位 index 合并
-
 type PathNode = {
   index: number;
   x: number;
@@ -50,7 +46,7 @@ const TILESET_IMAGES: TilesetImageConfig[] = [
     url: '/assets/tilesets/forest/surface/Grass 2 layer.png',
   },
   {
-    tiledNames: [
+    tiledNames:[
       'pine tree',
       'assets/forest/trees/pixellab-one-tree--a-tall--green-pine-t-1776597824607.png',
     ],
@@ -73,17 +69,25 @@ const CELL_COLORS: Record<string, number> = {
   boss: 0xef5350,
 };
 
-const PLAYER_COLORS = [0x42a5f5, 0xef5350, 0xffca28, 0x66bb6a];
+const PLAYER_COLORS =[0x42a5f5, 0xef5350, 0xffca28, 0x66bb6a];
 
-// 摄像头可见范围
-// MainMap.json 当前 tile 是 32x32，因此这个值会让摄像头只显示人物周边几格。
-// 想看得更近就调小，想看得更远就调大。
+// 【新增】定义你所有可用的人物前缀（文件名）
+const AVAILABLE_CHARACTERS = ['red', 'green', 'white', 'black'];
+
+// 【新增】根据后端玩家数据里的 faction 字段，映射到具体的人物前缀
+const FACTION_TO_PREFIX: Record<string, string> = {
+  'zhu_que': 'red',     // 朱雀 -> red_idle.png
+  'qing_long': 'green',   // 青龙 -> green_idle.png
+  'bai_hu': 'white',    // 白虎 -> white_idle.png
+  'xuan_wu': 'black'    // 玄武 -> black_idle.png
+};
+
 const CAMERA_VIEW_TILES_X = 30;
 const CAMERA_VIEW_TILES_Y = 20;
 
 export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
-  private players: Player[] = [];
+  private players: Player[] =[];
   private followPlayerId?: string | null;
   private activeLogEntry?: LogEntry | null;
   private settlementPlayer?: Player | null;
@@ -93,8 +97,9 @@ export class ForestBoardScene extends Phaser.Scene {
   private pathNodes = new Map<number, PathNode>();
   private cellViews = new Map<number, BoardCellView>();
 
-  private cellMarkers: Phaser.GameObjects.GameObject[] = [];
-  private playerMarkers = new Map<string, Phaser.GameObjects.Arc>();
+  private cellMarkers: Phaser.GameObjects.GameObject[] =[];
+  // 【修改点 1】把 Arc 改成 Sprite
+  private playerMarkers = new Map<string, Phaser.GameObjects.Sprite>();
   private logDrivenPositions = new Map<string, number>();
   private settlementStatus?: SettlementStatusView;
   private lastEffectKey = '';
@@ -113,7 +118,7 @@ export class ForestBoardScene extends Phaser.Scene {
     settlementPlayer?: Player | null;
   }) {
     this.mapConfig = data.mapConfig;
-    this.players = data.players ?? [];
+    this.players = data.players ??[];
     this.followPlayerId = data.followPlayerId;
     this.activeLogEntry = data.activeLogEntry;
     this.settlementPlayer = data.settlementPlayer;
@@ -125,6 +130,18 @@ export class ForestBoardScene extends Phaser.Scene {
     for (const tileset of TILESET_IMAGES) {
       this.load.image(tileset.key, tileset.url);
     }
+
+    // 【修改】使用循环批量加载所有定义好的人物资源
+    AVAILABLE_CHARACTERS.forEach(prefix => {
+      this.load.spritesheet(`${prefix}_idle`, `/assets/figures/${prefix}_idle.png`, {
+        frameWidth: 68,
+        frameHeight: 68
+      });
+      this.load.spritesheet(`${prefix}_move`, `/assets/figures/${prefix}_move.png`, {
+        frameWidth: 68,
+        frameHeight: 68
+      });
+    });
   }
 
   create() {
@@ -149,14 +166,30 @@ export class ForestBoardScene extends Phaser.Scene {
       })
       .filter(Boolean) as Phaser.Tilemaps.Tileset[];
 
-    // 按 Tiled 文件中的 tile layer 顺序创建图层
     map.layers.forEach((layerData, layerIndex) => {
         const layer = map.createLayer(layerData.name, tilesets, 0, 0);
-
         if (layer) {
-            // 用 Tiled 图层在 map.layers 里的顺序控制深度
             layer.setDepth(layerIndex * 10);
         }
+    });
+
+     AVAILABLE_CHARACTERS.forEach(prefix => {
+      // 创建待机动画
+      this.anims.create({
+        key: `${prefix}_idle_anim`,
+        frames: this.anims.generateFrameNumbers(`${prefix}_idle`, { start: 0, end: 3 }),
+        frameRate: 6,
+        repeat: -1
+      });
+
+      // 创建移动动画
+      this.anims.create({
+        key: `${prefix}_move_anim`,
+        // ⚠️ 注意：这里假设所有移动动画都是6帧。如果有不同帧数的，需要额外处理。
+        frames: this.anims.generateFrameNumbers(`${prefix}_move`, { start: 0, end: 5 }),
+        frameRate: 10,
+        repeat: -1
+      });
     });
 
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
@@ -170,6 +203,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.playLogEntryEffect(this.activeLogEntry);
 
     this.ready = true;
+  
   }
 
   update() {
@@ -187,7 +221,7 @@ export class ForestBoardScene extends Phaser.Scene {
     const followChanged = this.followPlayerId !== followPlayerId;
 
     this.mapConfig = mapConfig;
-    this.players = players ?? [];
+    this.players = players ??[];
     this.followPlayerId = followPlayerId;
     this.activeLogEntry = activeLogEntry;
     this.settlementPlayer = settlementPlayer;
@@ -251,8 +285,6 @@ export class ForestBoardScene extends Phaser.Scene {
     objectLayer.objects.forEach((obj: any, fallbackIndex: number) => {
       if (obj.visible === false) return;
 
-      // 临时兼容：如果 Tiled 点位没写 index，则按对象顺序兜底。
-      // 正式版本必须在 Tiled 里显式写 index。
       const index = Number(
         getTiledProperty<number>(obj, 'index', fallbackIndex)
       );
@@ -303,7 +335,7 @@ export class ForestBoardScene extends Phaser.Scene {
       marker.destroy();
     }
 
-    this.cellMarkers = [];
+    this.cellMarkers =[];
 
     for (const cell of this.cellViews.values()) {
       const color = CELL_COLORS[cell.cell_type] ?? 0xffffff;
@@ -325,7 +357,11 @@ export class ForestBoardScene extends Phaser.Scene {
     }
   }
 
-  private syncPlayers(players: Player[]) {
+ private syncPlayers(players: Player[]) {
+    console.log('正在渲染的玩家数据:', players); 
+
+
+
     players.forEach((player, order) => {
       const visualPosition = this.logDrivenPositions.get(player.player_id) ?? player.position;
       const cell = this.cellViews.get(visualPosition);
@@ -339,16 +375,30 @@ export class ForestBoardScene extends Phaser.Scene {
 
       const offsetX = (order % 4) * 10 - 15;
       const targetX = cell.x + offsetX;
-      const targetY = cell.y - 10;
+      const targetY = cell.y - 16; 
 
       let marker = this.playerMarkers.get(player.player_id);
 
       if (!marker) {
-        const color = PLAYER_COLORS[order % PLAYER_COLORS.length];
+        // 【修改】核心逻辑：根据玩家数据动态决定使用哪个精灵
+        
+        // 1. 优先根据玩家的阵营(faction)去配置表里查找对应的人物前缀
+        let charPrefix = player.faction ? FACTION_TO_PREFIX[player.faction] : null;
 
-        marker = this.add.circle(targetX, targetY, 10, color, 1);
-        marker.setStrokeStyle(2, 0xffffff, 1);
+        // 2. 如果没找到（比如阵营名写错了或没传），则按玩家加入顺序轮流分配一个外观，保证不报错
+        if (!charPrefix || !AVAILABLE_CHARACTERS.includes(charPrefix)) {
+            charPrefix = AVAILABLE_CHARACTERS[order % AVAILABLE_CHARACTERS.length];
+            console.warn(`玩家 ${player.display_name} 阵营 ${player.faction} 未配置，已自动分配外观: ${charPrefix}`);
+        }
+
+        // 3. 使用动态获取的前缀来创建精灵和播放动画
+        marker = this.add.sprite(targetX, targetY, `${charPrefix}_idle`);
+        marker.setScale(0.65);
+        marker.play(`${charPrefix}_idle_anim`);
         marker.setDepth(targetY + 100);
+        
+        // 4. 【关键】把这个人物的前缀存起来，方便移动时知道该播放哪个移动动画
+        marker.setData('charPrefix', charPrefix);
 
         this.playerMarkers.set(player.player_id, marker);
 
@@ -359,6 +409,7 @@ export class ForestBoardScene extends Phaser.Scene {
         return;
       }
 
+      // 这部分移动逻辑保持不变
       this.tweens.add({
         targets: marker,
         x: targetX,
@@ -495,9 +546,10 @@ export class ForestBoardScene extends Phaser.Scene {
     text.setOrigin(0.5, 0.5);
     text.setDepth(y + 230);
 
+    // 【修改点 5】缩放特效调低，因为原图已经缩放过了
     this.tweens.add({
       targets: marker,
-      scale: 1.7,
+      scale: 0.9, 
       duration: 140,
       yoyo: true,
       repeat: 1,
@@ -524,7 +576,7 @@ export class ForestBoardScene extends Phaser.Scene {
     });
   }
 
-  private playMoveAnimation(entry: LogEntry) {
+ private playMoveAnimation(entry: LogEntry) {
     const marker = this.playerMarkers.get(entry.target);
     if (!marker) return;
 
@@ -539,7 +591,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
     const startCell = this.cellViews.get(path[0]);
     const currentOffsetX = startCell ? marker.x - startCell.x : 0;
-    const currentOffsetY = startCell ? marker.y - startCell.y : -10;
+    const currentOffsetY = startCell ? marker.y - startCell.y : -16;
     const points = path
       .slice(1)
       .map((cellIndex) => this.cellViews.get(cellIndex))
@@ -551,18 +603,38 @@ export class ForestBoardScene extends Phaser.Scene {
       }));
 
     if (points.length === 0) return;
+    
+    // 1. 从移动的 Sprite 身上，读取它自己的外观前缀 (我们在 syncPlayers 里存好的)
+    const charPrefix = marker.getData('charPrefix') || 'red'; // 如果没读到，默认用 'red'
 
     let index = 0;
+    
+    // 2. 开始移动前，播放对应外观的 move 动画
+    marker.play(`${charPrefix}_move_anim`, true);
+
     const runNext = () => {
       const point = points[index];
-      if (!point) return;
+      
+      // 3. 如果没有下一个点了（抵达终点）
+      if (!point) {
+        // 恢复到对应外观的 idle 动画
+        marker.play(`${charPrefix}_idle_anim`, true); 
+        return;
+      }
+
+      // 4. 自动判断朝向 (向左走翻转，向右走恢复)
+      if (point.x < marker.x) {
+        marker.setFlipX(true);
+      } else if (point.x > marker.x) {
+        marker.setFlipX(false);
+      }
 
       this.tweens.add({
         targets: marker,
         x: point.x,
         y: point.y,
         duration: MOVE_STEP_MS,
-        ease: 'Sine.easeInOut',
+        ease: 'Linear',
         onUpdate: () => {
           marker.setDepth((marker.y ?? point.y) + 100);
         },
@@ -575,6 +647,7 @@ export class ForestBoardScene extends Phaser.Scene {
     };
 
     runNext();
+  
   }
 
 }

@@ -28,18 +28,22 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
     if (!containerRef.current || gameRef.current) return;
 
     const game = new Phaser.Game({
-      type: Phaser.WEBGL,
-      parent: containerRef.current,
-      width: 1280,
-      height: 960,
-      backgroundColor: '#1b1b1b',
-      pixelArt: true,
-      scale: {
-        mode: Phaser.Scale.ENVELOP,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-      },
-      scene: [],
-    });
+  type: Phaser.WEBGL,
+  parent: containerRef.current,
+  width: 1280,
+  height: 960,
+  pixelArt: true,
+  scale: { mode: Phaser.Scale.ENVELOP, autoCenter: Phaser.Scale.CENTER_BOTH },
+  // 添加 preload 配置
+  scene: {
+    preload: function(this: Phaser.Scene) {
+      this.load.spritesheet('red_idle', 'assets/figures/red_idle.png', {
+        frameWidth: 68,
+        frameHeight: 68
+      });
+    }
+  },
+});
 
     game.scene.add('ForestBoardScene', ForestBoardScene, true, {
       mapConfig,
