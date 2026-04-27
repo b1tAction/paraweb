@@ -1,4 +1,5 @@
 import type { LogEntry, Player } from '../types/protocol';
+import { getEventEffectConfig } from './eventAnimations';
 
 export const DICE_ROLL_MIN_MS = 600;
 export const DICE_RESULT_DISPLAY_MS = 1200;
@@ -151,8 +152,11 @@ export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
       return { label: `+${str('buff_type') || 'Buff'}`, color: 0x7e57c2, textColor: '#f3e5f5' };
     case 'remove_buff':
       return { label: `-${str('buff_type') || 'Buff'}`, color: 0xff7043, textColor: '#fff3e0' };
-    case 'draw_event':
-      return { label: `事件 ${str('event_type') || ''}`, color: 0x26a69a, textColor: '#e0f2f1' };
+    case 'draw_event': {
+      const eventType = str('event_type');
+      const effect = getEventEffectConfig(eventType);
+      return { label: effect.label, color: effect.color, textColor: effect.textColor };
+    }
     case 'draw_item':
       return { label: `道具 ${str('item_type') || ''}`, color: 0xffca28, textColor: '#fffde7' };
     case 'move':

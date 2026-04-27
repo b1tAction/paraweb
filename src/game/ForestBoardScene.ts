@@ -8,6 +8,7 @@ import {
   getMetadataNumber,
   getMetadataNumberArray,
 } from './logEntryPlayback';
+import { getEventEffectConfig, getEventTypeFromEntry } from './eventAnimations';
 
 type PathNode = {
   index: number;
@@ -68,8 +69,6 @@ const CELL_COLORS: Record<string, number> = {
   event: 0x81c784,
   boss: 0xef5350,
 };
-
-const PLAYER_COLORS =[0x42a5f5, 0xef5350, 0xffca28, 0x66bb6a];
 
 // 【新增】定义你所有可用的人物前缀（文件名）
 const AVAILABLE_CHARACTERS = ['red', 'green', 'white', 'black'];
@@ -521,6 +520,11 @@ export class ForestBoardScene extends Phaser.Scene {
       return;
     }
 
+    if (entry.action_type === 'draw_event') {
+      this.playDrawEventAnimation(entry);
+      return;
+    }
+
     if (this.settlementPlayer && describeSettlementChange(this.settlementPlayer, entry)) return;
 
     const marker = this.playerMarkers.get(entry.target) ?? this.playerMarkers.get(this.followPlayerId || '');
@@ -549,7 +553,7 @@ export class ForestBoardScene extends Phaser.Scene {
     // 【修改点 5】缩放特效调低，因为原图已经缩放过了
     this.tweens.add({
       targets: marker,
-      scale: 0.9, 
+      scale: 0.9,
       duration: 140,
       yoyo: true,
       repeat: 1,
@@ -585,7 +589,10 @@ export class ForestBoardScene extends Phaser.Scene {
       const endPos = entry.metadata && Object.prototype.hasOwnProperty.call(entry.metadata, 'end_pos')
         ? getMetadataNumber(entry.metadata, 'end_pos')
         : null;
-      if (endPos !== null) this.logDrivenPositions.set(entry.target, endPos);
+      if (endPos !== null) {
+        console.log('📍 [ForestBoardScene] 直接设置玩家位置:', endPos);
+        this.logDrivenPositions.set(entry.target, endPos);
+      }
       return;
     }
 
@@ -647,7 +654,577 @@ export class ForestBoardScene extends Phaser.Scene {
     };
 
     runNext();
-  
+  }
+
+  private playDrawEventAnimation(entry: LogEntry) {
+    const marker = this.playerMarkers.get(entry.target);
+    if (!marker) return;
+
+    const eventType = getEventTypeFromEntry(entry);
+    const effect = getEventEffectConfig(eventType);
+
+    const x = marker.x;
+    const y = marker.y;
+
+    // 创建主文本显示
+    const text = this.add.text(x, y - 42, effect.label, {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '24px',
+      fontStyle: 'bold',
+      color: effect.textColor,
+      align: 'center',
+      stroke: '#0b1020',
+      strokeThickness: 5,
+    });
+    text.setOrigin(0.5, 0.5);
+    text.setDepth(y + 230);
+
+    // 如果有 emoji，单独创建一个 emoji 文本
+    let emojiText: Phaser.GameObjects.Text | null = null;
+    if (effect.iconEmoji) {
+      emojiText = this.add.text(x - text.width / 2 - 30, y - 42, effect.iconEmoji, {
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '28px',
+        color: effect.textColor,
+        align: 'center',
+      });
+      emojiText.setOrigin(0.5, 0.5);
+      emojiText.setDepth(y + 231);
+    }
+
+    // 根据动画类型调用不同的动画
+    switch (effect.animationType) {
+      case 'heal_pop':
+        this.playHealPopAnimation(marker, text, emojiText, effect);
+        break;
+      case 'damage_flash':
+        this.playDamageFlashAnimation(marker, text, emojiText, effect);
+        break;
+      case 'buff_glow':
+        this.playBuffGlowAnimation(marker, text, emojiText, effect);
+        break;
+      case 'debuff_spin':
+        this.playDebuffSpinAnimation(marker, text, emojiText, effect);
+        break;
+      case 'item_sparkle':
+        this.playItemSparkleAnimation(marker, text, emojiText, effect);
+        break;
+      case 'teleport_swap':
+        this.playTeleportSwapAnimation(marker, text, emojiText, effect);
+        break;
+      case 'curse_cloud':
+        this.playCurseCloudAnimation(marker, text, emojiText, effect);
+        break;
+      case 'lightning_strike':
+        this.playLightningStrikeAnimation(marker, text, emojiText, effect);
+        break;
+      case 'ghost_attack':
+        this.playGhostAttackAnimation(marker, text, emojiText, effect);
+        break;
+      case 'steal_flash':
+        this.playStealFlashAnimation(marker, text, emojiText, effect);
+        break;
+      case 'neutral_pulse':
+      default:
+        this.playNeutralPulseAnimation(marker, text, emojiText, effect);
+        break;
+    }
+  }
+
+  private playHealPopAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 绿色治疗粒子效果
+    const particles = this.add.particles(x, y, 'particle', {
+      speed: { min: 50, max: 150 },
+      scale: { start: 0.8, end: 0 },
+      lifespan: 800,
+      quantity: effect.particleCount || 8,
+      tint: effect.color,
+      alpha: { start: 0.8, end: 0 },
+      blendMode: 'ADD'
+    });
+    particles.setDepth(y + 220);
+
+    // 弹出动画
+    this.tweens.add({
+      targets: marker,
+      scale: 1.3,
+      duration: 200,
+      yoyo: true,
+      ease: 'Back.easeOut',
+    });
+
+    // 文本动画
+    this.tweens.add({
+      targets: text,
+      y: y - 88,
+      alpha: 0,
+      scale: 1.2,
+      duration: effect.duration || 1800,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        text.destroy();
+        particles.destroy();
+        if (emojiText) emojiText.destroy();
+      },
+    });
+  }
+
+  private playDamageFlashAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 红色伤害闪烁
+    const flash = this.add.circle(x, y, 35, effect.color, 0.3);
+    flash.setDepth(y + 200);
+
+    // 闪烁动画
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scale: 1.5,
+      duration: 400,
+      ease: 'Power2.easeOut',
+      onComplete: () => flash.destroy(),
+    });
+
+    // 玩家抖动
+    this.tweens.add({
+      targets: marker,
+      x: x + Phaser.Math.Between(-3, 3),
+      y: y + Phaser.Math.Between(-3, 3),
+      duration: 50,
+      yoyo: true,
+      repeat: 5,
+      ease: 'Sine.easeInOut',
+    });
+
+    // 文本动画
+    const textTargets = emojiText ? [text, emojiText] : [text];
+    this.tweens.add({
+      targets: textTargets,
+      y: y - 88,
+      alpha: 0,
+      scale: 1.1,
+      duration: effect.duration || 1200,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        text.destroy();
+        if (emojiText) emojiText.destroy();
+      },
+    });
+  }
+
+  private playBuffGlowAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 金色发光效果
+    const glow = this.add.circle(x, y, 40, effect.color, 0.2);
+    glow.setDepth(y + 190);
+
+    // 粒子效果
+    const particles = this.add.particles(x, y, 'particle', {
+      speed: { min: 30, max: 80 },
+      scale: { start: 1, end: 0 },
+      lifespan: 1200,
+      quantity: effect.particleCount || 15,
+      tint: effect.color,
+      alpha: { start: 0.6, end: 0 },
+      blendMode: 'ADD'
+    });
+    particles.setDepth(y + 210);
+
+    // 发光脉冲
+    this.tweens.add({
+      targets: glow,
+      scale: 2,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2.easeOut',
+      onComplete: () => glow.destroy(),
+    });
+
+    // 玩家微微发光
+    this.tweens.add({
+      targets: marker,
+      alpha: 0.8,
+      duration: 300,
+      yoyo: true,
+      repeat: 2,
+    });
+
+    // 文本动画
+    const textTargets = emojiText ? [text, emojiText] : [text];
+    this.tweens.add({
+      targets: textTargets,
+      y: y - 88,
+      alpha: 0,
+      scale: 1.3,
+      duration: effect.duration || 2500,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        text.destroy();
+        particles.destroy();
+        if (emojiText) emojiText.destroy();
+      },
+    });
+  }
+
+  // 辅助函数：播放文本动画（包括 emoji）
+  private playTextAnimation(text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, targetY: number, effect: any, onComplete?: () => void) {
+    const textTargets = emojiText ? [text, emojiText] : [text];
+    this.tweens.add({
+      targets: textTargets,
+      y: targetY,
+      alpha: 0,
+      scale: 1.2,
+      duration: effect.duration || 1500,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        text.destroy();
+        if (emojiText) emojiText.destroy();
+        if (onComplete) onComplete();
+      },
+    });
+  }
+
+  private playDebuffSpinAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 紫色诅咒云雾
+    const cloud = this.add.circle(x, y, 30, effect.color, 0.4);
+    cloud.setDepth(y + 200);
+
+    // 旋转动画
+    this.tweens.add({
+      targets: cloud,
+      rotation: Math.PI * 2,
+      scale: 1.5,
+      alpha: 0,
+      duration: 1200,
+      ease: 'Power2.easeOut',
+      onComplete: () => cloud.destroy(),
+    });
+
+    // 玩家旋转
+    this.tweens.add({
+      targets: marker,
+      rotation: Math.PI * 0.1,
+      duration: 150,
+      yoyo: true,
+      repeat: 3,
+      ease: 'Sine.easeInOut',
+    });
+
+    // 文本动画
+    this.playTextAnimation(text, emojiText, y - 88, effect);
+  }
+
+  private playItemSparkleAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 金色闪烁粒子
+    const particles = this.add.particles(x, y, 'particle', {
+      speed: { min: 20, max: 100 },
+      scale: { start: 1.2, end: 0 },
+      lifespan: 1000,
+      quantity: effect.particleCount || 12,
+      tint: effect.color,
+      alpha: { start: 1, end: 0 },
+      blendMode: 'ADD'
+    });
+    particles.setDepth(y + 220);
+
+    // 星星形状的闪烁
+    for (let i = 0; i < 5; i++) {
+      const star = this.add.circle(
+        x + Math.cos(i * Math.PI * 0.4) * 25,
+        y + Math.sin(i * Math.PI * 0.4) * 25,
+        3,
+        effect.color,
+        1
+      );
+      star.setDepth(y + 210);
+
+      this.tweens.add({
+        targets: star,
+        scale: 2,
+        alpha: 0,
+        duration: 600,
+        delay: i * 100,
+        ease: 'Power2.easeOut',
+        onComplete: () => star.destroy(),
+      });
+    }
+
+    // 玩家跳跃
+    this.tweens.add({
+      targets: marker,
+      y: y - 8,
+      duration: 200,
+      yoyo: true,
+      ease: 'Quad.easeOut',
+    });
+
+    // 文本动画
+    this.playTextAnimation(text, emojiText, y - 88, effect, () => particles.destroy());
+  }
+
+  private playTeleportSwapAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 蓝色传送效果
+    const portal1 = this.add.circle(x, y, 20, effect.color, 0.5);
+    const portal2 = this.add.circle(x, y, 15, effect.color, 0.7);
+    portal1.setDepth(y + 190);
+    portal2.setDepth(y + 195);
+
+    // 传送粒子
+    const particles = this.add.particles(x, y, 'particle', {
+      speed: { min: 40, max: 120 },
+      scale: { start: 0.8, end: 0 },
+      lifespan: 800,
+      quantity: effect.particleCount || 10,
+      tint: effect.color,
+      alpha: { start: 0.8, end: 0 },
+      blendMode: 'ADD'
+    });
+    particles.setDepth(y + 200);
+
+    // 传送门动画
+    this.tweens.add({
+      targets: [portal1, portal2],
+      scale: 3,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2.easeOut',
+      onComplete: () => {
+        portal1.destroy();
+        portal2.destroy();
+        particles.destroy();
+      },
+    });
+
+    // 玩家闪烁
+    this.tweens.add({
+      targets: marker,
+      alpha: 0.3,
+      duration: 100,
+      yoyo: true,
+      repeat: 4,
+      ease: 'Power2.easeInOut',
+    });
+
+    // 文本动画
+    this.playTextAnimation(text, emojiText, y - 88, effect);
+  }
+
+  private playCurseCloudAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 黑色诅咒云雾
+    const clouds: Phaser.GameObjects.Graphics[] = [];
+    for (let i = 0; i < 3; i++) {
+      const cloud = this.add.graphics();
+      cloud.fillStyle(effect.color, 0.6);
+      cloud.fillCircle(0, 0, 15 + i * 5);
+      cloud.setPosition(x + Phaser.Math.Between(-10, 10), y - 20 + i * 8);
+      cloud.setDepth(y + 180 + i * 10);
+      clouds.push(cloud);
+    }
+
+    // 云雾飘散动画
+    clouds.forEach((cloud, index) => {
+      this.tweens.add({
+        targets: cloud,
+        y: cloud.y - 30,
+        alpha: 0,
+        duration: 1500,
+        delay: index * 200,
+        ease: 'Power2.easeOut',
+        onComplete: () => cloud.destroy(),
+      });
+    });
+
+    // 玩家颤抖
+    this.tweens.add({
+      targets: marker,
+      x: x + Phaser.Math.Between(-2, 2),
+      y: y + Phaser.Math.Between(-2, 2),
+      duration: 80,
+      yoyo: true,
+      repeat: 8,
+      ease: 'Sine.easeInOut',
+    });
+
+    // 文本动画
+    this.playTextAnimation(text, emojiText, y - 88, effect);
+  }
+
+  private playLightningStrikeAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 雷击效果 - 多段闪电
+    const lightningBolts: Phaser.GameObjects.Graphics[] = [];
+    for (let i = 0; i < 3; i++) {
+      const bolt = this.add.graphics();
+      bolt.lineStyle(3, effect.color, 1);
+      // 简单的闪电形状
+      bolt.moveTo(x, y - 50);
+      bolt.lineTo(x + 5, y - 30);
+      bolt.lineTo(x - 3, y - 10);
+      bolt.lineTo(x + 2, y + 10);
+      bolt.setDepth(y + 250);
+      lightningBolts.push(bolt);
+    }
+
+    // 雷击粒子
+    const particles = this.add.particles(x, y, 'particle', {
+      speed: { min: 100, max: 200 },
+      scale: { start: 1, end: 0 },
+      lifespan: 600,
+      quantity: effect.particleCount || 20,
+      tint: effect.color,
+      alpha: { start: 1, end: 0 },
+      blendMode: 'ADD'
+    });
+    particles.setDepth(y + 220);
+
+    // 闪电闪烁
+    lightningBolts.forEach((bolt, index) => {
+      this.tweens.add({
+        targets: bolt,
+        alpha: 0,
+        duration: 100,
+        delay: index * 50,
+        yoyo: true,
+        repeat: 2,
+        ease: 'Power2.easeInOut',
+        onComplete: () => bolt.destroy(),
+      });
+    });
+
+    // 屏幕震动效果
+    this.cameras.main.shake(300, 0.01);
+
+    // 玩家被击退
+    this.tweens.add({
+      targets: marker,
+      y: y + 5,
+      duration: 100,
+      yoyo: true,
+      ease: 'Power2.easeOut',
+    });
+
+    // 文本动画
+    this.playTextAnimation(text, emojiText, y - 88, effect, () => particles.destroy());
+  }
+
+  private playGhostAttackAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 幽灵形状
+    const ghost = this.add.graphics();
+    ghost.fillStyle(effect.color, 0.7);
+    ghost.fillCircle(0, 0, 12);
+    ghost.fillRect(-8, -8, 16, 16);
+    ghost.setPosition(x, y - 25);
+    ghost.setDepth(y + 200);
+
+    // 幽灵飘动
+    this.tweens.add({
+      targets: ghost,
+      x: x + 20,
+      y: y - 35,
+      alpha: 0,
+      duration: 800,
+      ease: 'Power2.easeOut',
+      onComplete: () => ghost.destroy(),
+    });
+
+    // 玩家惊吓抖动
+    this.tweens.add({
+      targets: marker,
+      scale: 0.9,
+      duration: 150,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Back.easeOut',
+    });
+
+    // 文本动画
+    this.playTextAnimation(text, emojiText, y - 88, effect);
+  }
+
+  private playStealFlashAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 橙色偷窃闪光
+    const flash = this.add.circle(x, y, 30, effect.color, 0.4);
+    flash.setDepth(y + 200);
+
+    // 快速闪烁
+    this.tweens.add({
+      targets: flash,
+      scale: 2,
+      alpha: 0,
+      duration: 300,
+      ease: 'Power2.easeOut',
+      onComplete: () => flash.destroy(),
+    });
+
+    // 玩家物品消失效果（缩小）
+    this.tweens.add({
+      targets: marker,
+      scale: 0.8,
+      duration: 200,
+      yoyo: true,
+      ease: 'Back.easeOut',
+    });
+
+    // 文本动画
+    this.playTextAnimation(text, emojiText, y - 88, effect);
+  }
+
+  private playNeutralPulseAnimation(marker: Phaser.GameObjects.Sprite, text: Phaser.GameObjects.Text, emojiText: Phaser.GameObjects.Text | null, effect: any) {
+    const x = marker.x;
+    const y = marker.y;
+
+    // 白色中性脉冲
+    const pulse = this.add.circle(x, y, 25, effect.color, 0.3);
+    pulse.setDepth(y + 200);
+
+    // 脉冲扩散
+    this.tweens.add({
+      targets: pulse,
+      scale: 2.5,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power2.easeOut',
+      onComplete: () => pulse.destroy(),
+    });
+
+    // 玩家轻微脉冲
+    this.tweens.add({
+      targets: marker,
+      scale: 1.1,
+      duration: 300,
+      yoyo: true,
+      ease: 'Sine.easeInOut',
+    });
+
+    // 文本动画
+    this.playTextAnimation(text, emojiText, y - 88, effect);
   }
 
 }
