@@ -18,19 +18,78 @@ import * as protocol from '../types/protocol';
 export class NakamaService {
   private client: Client;
   private serverKey: string = 'defaultkey';
-  private host: string = '127.0.0.1';
-  private port: string = '7350';
+  private host: string = '';
+  private port: string = '';
   private useSSL: boolean = false;
 
-  // 虚拟邮箱后缀 (用于将用户名转换为邮箱格式)
-  private readonly EMAIL_SUFFIX = '@paradiced.local';
+  private readonly DEFAULT_HOST: string =
+    (import.meta as any).env?.VITE_NAKAMA_HOST ||
+    (typeof window !== 'undefined' && window.location?.hostname && window.location.hostname !== 'localhost'
+      ? window.location.hostname
+      : '127.0.0.1');
+  private readonly DEFAULT_PORT: string = (import.meta as any).env?.VITE_NAKAMA_PORT || '7350';
+  private readonly DEFAULT_USE_SSL: boolean = String((import.meta as any).env?.VITE_NAKAMA_SSL || 'false').toLowerCase() === 'true';
+
+  // Device ID prefix for username-based authentication
+  private readonly DEVICE_ID_PREFIX = 'paradiced_';
   // LocalStorage keys
   private readonly STORAGE_KEY_TOKEN = 'paradiced_session_token';
   private readonly STORAGE_KEY_REFRESH_TOKEN = 'paradiced_refresh_token';
+  private readonly STORAGE_KEY_USERNAME = 'paradiced_username';
+  private readonly STORAGE_KEY_NAKAMA_HOST = 'paradiced_nakama_host';
+  private readonly STORAGE_KEY_NAKAMA_PORT = 'paradiced_nakama_port';
+  private readonly STORAGE_KEY_NAKAMA_SSL = 'paradiced_nakama_ssl';
 
   constructor() {
+    this.loadServerConfig();
     // 注意：nakama-js 构造函数参数顺序 (serverkey, host, port, useSSL)
     this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
+  }
+
+  private loadServerConfig() {
+    const host = localStorage.getItem(this.STORAGE_KEY_NAKAMA_HOST)?.trim();
+    const port = localStorage.getItem(this.STORAGE_KEY_NAKAMA_PORT)?.trim();
+    const sslStr = localStorage.getItem(this.STORAGE_KEY_NAKAMA_SSL);
+
+    this.host = host || this.DEFAULT_HOST;
+    this.port = port || this.DEFAULT_PORT;
+    this.useSSL = sslStr == null ? this.DEFAULT_USE_SSL : sslStr === 'true';
+  }
+
+  private rebuildClient() {
+    this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
+  }
+
+  getServerConfig(): { host: string; port: string; useSSL: boolean } {
+    return { host: this.host, port: this.port, useSSL: this.useSSL };
+  }
+
+  setServerConfig(host: string, port: string, useSSL: boolean) {
+    const normalizedHost = host.trim();
+    const normalizedPort = port.trim();
+
+    if (!normalizedHost) {
+      throw new Error('服务器地址不能为空');
+    }
+    if (!normalizedPort || !/^\d+$/.test(normalizedPort)) {
+      throw new Error('端口必须是数字');
+    }
+
+    this.host = normalizedHost;
+    this.port = normalizedPort;
+    this.useSSL = useSSL;
+
+    localStorage.setItem(this.STORAGE_KEY_NAKAMA_HOST, this.host);
+    localStorage.setItem(this.STORAGE_KEY_NAKAMA_PORT, this.port);
+    localStorage.setItem(this.STORAGE_KEY_NAKAMA_SSL, String(this.useSSL));
+
+    this.rebuildClient();
+
+    console.log('[Nakama] 服务器配置已更新', {
+      host: this.host,
+      port: this.port,
+      useSSL: this.useSSL,
+    });
   }
 
   /**
@@ -57,20 +116,61 @@ export class NakamaService {
   }
 
   /**
-   * 1. 用户名 + 密码认证 (推荐方式)
+   * 1. Username-only authentication (recommended)
    *
-   * 使用 Nakama 官方的邮箱密码认证体系
-   * 前端将用户名伪装成邮箱格式：username@paradiced.local
+   * Uses Nakama's device authentication with a deterministic deviceId
+   * derived from the username. This eliminates the need for passwords
+   * and registration - just enter a username and start playing.
    *
-   * @param username 用户名
-   * @param password 密码
-   * @param isRegister true=注册新账号，false=登录现有账号
+   * @param username The display name / nickname to use
+   */
+  async loginByUsername(username: string): Promise<Session> {
+    console.log('[Nakama] 开始认证...', { username });
+
+    // Generate a deterministic deviceId from username
+    const deviceId = `${this.DEVICE_ID_PREFIX}${username}`;
+
+    // authenticateDevice: create=true auto-creates account if not exists
+    const session = await this.client.authenticateDevice(
+      deviceId,
+      true,      // create = true, auto-register if not exists
+      username   // username as display name
+    );
+
+    console.log('[Nakama] 认证成功', {
+      userId: session.user_id,
+      username: session.username,
+    });
+
+    // Save session tokens and username to localStorage (for restore)
+    localStorage.setItem(this.STORAGE_KEY_TOKEN, session.token);
+    localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
+    localStorage.setItem(this.STORAGE_KEY_USERNAME, username);
+
+    // Create and connect socket
+    const socket = this.client.createSocket();
+    await socket.connect(session, false);
+
+    console.log('[Nakama] WebSocket 连接已建立');
+
+    useGameStore.getState().setConnection(session, socket);
+    useGameStore.getState().setMyPlayerId(session.user_id || '');
+    useGameStore.getState().setDisplayName(username);
+
+    this.setupListeners(socket);
+
+    return session;
+  }
+
+  /**
+   * 1b. Email + Password authentication (legacy)
+   * @deprecated Use loginByUsername instead for passwordless flow
    */
   async loginWithPassword(username: string, password: string, isRegister: boolean = false): Promise<Session> {
     console.log('[Nakama] 开始认证...', { username, isRegister });
 
-    // 将用户名转换为虚拟邮箱格式
-    const dummyEmail = `${username}${this.EMAIL_SUFFIX}`;
+    // Convert username to virtual email format (legacy)
+    const dummyEmail = `${username}@paradiced.local`;
 
     // 使用 authenticateEmail 进行服务器端密码验证
     const session = await this.client.authenticateEmail(
@@ -160,7 +260,9 @@ export class NakamaService {
 
       useGameStore.getState().setConnection(session, socket);
       useGameStore.getState().setMyPlayerId(session.user_id || '');
-      useGameStore.getState().setDisplayName(session.username || 'Unknown');
+      // Restore displayName from saved username (more reliable than session.username)
+      const savedUsername = localStorage.getItem(this.STORAGE_KEY_USERNAME);
+      useGameStore.getState().setDisplayName(savedUsername || session.username || 'Unknown');
 
       this.setupListeners(socket);
 
@@ -182,6 +284,7 @@ export class NakamaService {
   async logout(): Promise<void> {
     localStorage.removeItem(this.STORAGE_KEY_TOKEN);
     localStorage.removeItem(this.STORAGE_KEY_REFRESH_TOKEN);
+    localStorage.removeItem(this.STORAGE_KEY_USERNAME);
 
     const { socket, match } = useGameStore.getState();
 
