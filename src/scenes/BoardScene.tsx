@@ -8,13 +8,19 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 import { PhaserBoard } from '../components/PhaserBoard';
-import type { Available, Player, LogEntry } from '../types/protocol';
+import type { Available, Player } from '../types/protocol';
 import { DebugLogEntry } from '../components/DebugLogEntry';
-
-const DICE_ROLL_MIN_MS = 600;
-const DICE_RESULT_DISPLAY_MS = 1200;
-const ANIMATION_DELAY_MS = 2000; // per action entry
-const MOVE_STEP_MS = 220;
+import {
+  DICE_RESULT_DISPLAY_MS,
+  DICE_ROLL_MIN_MS,
+  applyLogEntryToPlayer,
+  clonePlayer,
+  getLatestDiceRollResult,
+  getLogEntryAnimationDelay,
+  getMetadataNumber,
+  getMetadataString,
+  type DiceRollResult,
+} from '../game/logEntryPlayback';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgba(224, 240, 225, 0.96)' },
@@ -57,133 +63,10 @@ function isBossPlayer(player: Player) {
   return Boolean((player as Player & { is_boss?: boolean }).is_boss) || player.display_name === 'Boss';
 }
 
-function getMetadataNumber(metadata: Record<string, any> | undefined, key: string) {
-  const value = metadata?.[key];
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function getMetadataString(metadata: Record<string, any> | undefined, key: string) {
-  const value = metadata?.[key];
-  return typeof value === 'string' ? value : '';
-}
-
-function getMetadataNumberArray(metadata: Record<string, any> | undefined, key: string) {
-  const value = metadata?.[key];
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map((item) => {
-      if (typeof item === 'number') return item;
-      if (typeof item === 'string') {
-        const parsed = Number(item);
-        return Number.isFinite(parsed) ? parsed : null;
-      }
-      return null;
-    })
-    .filter((item): item is number => item !== null);
-}
-
-function getLogEntryAnimationDelay(entry: LogEntry) {
-  if (entry.type !== 'action' && entry.type !== 'boss') return 0;
-
-  if (entry.action_type === 'dice_roll') {
-    return DICE_ROLL_MIN_MS + DICE_RESULT_DISPLAY_MS;
-  }
-
-  if (entry.action_type === 'move') {
-    const path = getMetadataNumberArray(entry.metadata, 'path');
-    return Math.max(700, Math.min(3200, Math.max(1, path.length - 1) * MOVE_STEP_MS + 250));
-  }
-
-  return ANIMATION_DELAY_MS;
-}
-
-function clonePlayer(player: Player): Player {
-  return {
-    ...player,
-    buffs: player.buffs.map((buff) => ({ ...buff })),
-    items: player.items.map((item) => ({ ...item })),
-  };
-}
-
-function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
-  if (entry.target !== player.player_id) return player;
-
-  const next = clonePlayer(player);
-  const hpChange = getMetadataNumber(entry.metadata, 'hp_change') ?? 0;
-  const lpChange = getMetadataNumber(entry.metadata, 'lp_change') ?? 0;
-  const buffType = getMetadataString(entry.metadata, 'buff_type');
-
-  switch (entry.action_type) {
-    case 'damage':
-    case 'heal':
-    case 'fell_down':
-      next.hp += hpChange;
-      break;
-    case 'modify_lp':
-      next.lp += lpChange;
-      break;
-    case 'add_buff': {
-      if (!buffType || next.buffs.some((buff) => buff.type === buffType)) break;
-      next.buffs = [
-        ...next.buffs,
-        {
-          type: buffType,
-          name: buffType,
-          duration: getMetadataNumber(entry.metadata, 'duration') ?? 0,
-        },
-      ];
-      break;
-    }
-    case 'remove_buff':
-      if (buffType) {
-        next.buffs = next.buffs.filter((buff) => buff.type !== buffType);
-      }
-      break;
-    default:
-      break;
-  }
-
-  return next;
-}
-
 type DiceRollView =
   | { status: 'idle' }
   | { status: 'rolling'; playerId: string; diceType: string; startedAt: number; pendingResult?: DiceRollResult }
   | { status: 'result'; playerId: string; diceType: string; steps: number };
-
-type DiceRollResult = {
-  key: string;
-  playerId: string;
-  diceType: string;
-  steps: number;
-};
-
-function getLatestDiceRollResult(entries: LogEntry[]): DiceRollResult | null {
-  if (!entries || entries.length === 0) return null;
-
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    if (entry.action_type !== 'dice_roll') continue;
-
-    const steps = getMetadataNumber(entry.metadata, 'dice_steps');
-    if (!steps) continue;
-
-    return {
-      key: `${entry.timestamp}:${entry.target}:${steps}`,
-      playerId: entry.target,
-      diceType: getMetadataString(entry.metadata, 'dice_type') || 'wood',
-      steps,
-    };
-  }
-
-  return null;
-}
 
 export const BoardScene: React.FC = () => {
   const {

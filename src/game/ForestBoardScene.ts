@@ -1,6 +1,13 @@
 import * as Phaser from 'phaser';
 import type { LogEntry, MapConfig, MapCellConfig, Player } from '../types/protocol';
 import { getTiledProperty } from './tiledHelpers';
+import {
+  MOVE_STEP_MS,
+  describeLogEntryEffect,
+  describeSettlementChange,
+  getMetadataNumber,
+  getMetadataNumberArray,
+} from './logEntryPlayback';
 
 // 1. 加载并渲染 MainMap.json
 // 2. 读取 path_nodes 对象层
@@ -67,7 +74,6 @@ const CELL_COLORS: Record<string, number> = {
 };
 
 const PLAYER_COLORS = [0x42a5f5, 0xef5350, 0xffca28, 0x66bb6a];
-const MOVE_STEP_MS = 220;
 
 // 摄像头可见范围
 // MainMap.json 当前 tile 是 32x32，因此这个值会让摄像头只显示人物周边几格。
@@ -384,7 +390,7 @@ export class ForestBoardScene extends Phaser.Scene {
             .map((buff) => `${buff.name || buff.type}${buff.duration < 0 ? '' : `:${buff.duration}`}`)
             .join('  ')
         : '无 Buff';
-    const settlementChange = this.describeSettlementChange(player, this.activeLogEntry);
+    const settlementChange = describeSettlementChange(player, this.activeLogEntry);
     const content = `TurnEnd 结算\nHP ${player.hp}   LP ${player.lp}\n${buffText}${settlementChange ? `\n${settlementChange.label}` : ''}`;
     const borderColor = settlementChange?.color ?? 0xfff176;
     const textColor = settlementChange?.textColor ?? '#ffffff';
@@ -464,12 +470,12 @@ export class ForestBoardScene extends Phaser.Scene {
       return;
     }
 
-    if (this.settlementPlayer && this.describeSettlementChange(this.settlementPlayer, entry)) return;
+    if (this.settlementPlayer && describeSettlementChange(this.settlementPlayer, entry)) return;
 
     const marker = this.playerMarkers.get(entry.target) ?? this.playerMarkers.get(this.followPlayerId || '');
     if (!marker) return;
 
-    const effect = this.describeLogEntryEffect(entry);
+    const effect = describeLogEntryEffect(entry);
     const x = marker.x;
     const y = marker.y;
 
@@ -522,10 +528,10 @@ export class ForestBoardScene extends Phaser.Scene {
     const marker = this.playerMarkers.get(entry.target);
     if (!marker) return;
 
-    const path = this.getMetaNumArray(entry.metadata, 'path');
+    const path = getMetadataNumberArray(entry.metadata, 'path');
     if (path.length < 2) {
       const endPos = entry.metadata && Object.prototype.hasOwnProperty.call(entry.metadata, 'end_pos')
-        ? this.getMetaNum(entry.metadata, 'end_pos')
+        ? getMetadataNumber(entry.metadata, 'end_pos')
         : null;
       if (endPos !== null) this.logDrivenPositions.set(entry.target, endPos);
       return;
@@ -571,147 +577,4 @@ export class ForestBoardScene extends Phaser.Scene {
     runNext();
   }
 
-  private describeLogEntryEffect(entry: LogEntry) {
-    const num = (key: string) => this.getMetaNum(entry.metadata, key);
-    const str = (key: string) => this.getMetaStr(entry.metadata, key);
-    const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
-
-    switch (entry.action_type) {
-      case 'damage':
-      case 'fell_down':
-        return { label: `HP ${signed(num('hp_change'))}`, color: 0xef5350, textColor: '#ffebee' };
-      case 'heal':
-        return { label: `HP +${Math.abs(num('hp_change'))}`, color: 0x66bb6a, textColor: '#e8f5e9' };
-      case 'modify_lp':
-        return { label: `LP ${signed(num('lp_change'))}`, color: 0x42a5f5, textColor: '#e3f2fd' };
-      case 'add_buff':
-        return { label: `+${str('buff_type') || 'Buff'}`, color: 0x7e57c2, textColor: '#f3e5f5' };
-      case 'remove_buff':
-        return { label: `-${str('buff_type') || 'Buff'}`, color: 0xff7043, textColor: '#fff3e0' };
-      case 'draw_event':
-        return { label: `事件 ${str('event_type') || ''}`, color: 0x26a69a, textColor: '#e0f2f1' };
-      case 'draw_item':
-        return { label: `道具 ${str('item_type') || ''}`, color: 0xffca28, textColor: '#fffde7' };
-      case 'move':
-        return { label: `移动 ${num('steps')}`, color: 0xffa726, textColor: '#fff8e1' };
-      case 'dice_roll':
-        return { label: `${str('dice_type') || 'dice'} ${num('dice_steps')}`, color: 0xffffff, textColor: '#ffffff' };
-      case 'respawn':
-        return { label: '复活', color: 0x4fc3f7, textColor: '#e1f5fe' };
-      case 'boss_damage':
-        return { label: `Boss -${num('damage')}`, color: 0xef5350, textColor: '#ffebee' };
-      case 'boss_attack':
-        return { label: `HP -${num('damage')}`, color: 0xd32f2f, textColor: '#ffebee' };
-      case 'teleport':
-        return { label: `${num('from_pos')} -> ${num('to_pos')}`, color: 0x29b6f6, textColor: '#e1f5fe' };
-      case 'use_item':
-        return { label: `使用 ${str('item_type') || '道具'}`, color: 0xffca28, textColor: '#fffde7' };
-      case 'use_skill':
-        return { label: `技能 ${str('skill_type') || ''}`, color: 0xab47bc, textColor: '#f3e5f5' };
-      default:
-        return { label: entry.action_type || entry.type, color: 0xffffff, textColor: '#ffffff' };
-    }
-  }
-
-  private describeSettlementChange(player: Player, entry?: LogEntry | null) {
-    if (!entry || entry.target !== player.player_id) return null;
-
-    const num = (key: string) => this.getMetaNum(entry.metadata, key);
-    const str = (key: string) => this.getMetaStr(entry.metadata, key);
-    const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
-    const reason = this.formatChangeReason(entry);
-
-    switch (entry.action_type) {
-      case 'damage':
-      case 'fell_down': {
-        const hpChange = num('hp_change');
-        return {
-          label: `HP ${signed(hpChange)}  ·  原因：${reason}`,
-          color: 0xef5350,
-          textColor: '#ffebee',
-        };
-      }
-      case 'heal': {
-        const hpChange = Math.abs(num('hp_change'));
-        return {
-          label: `HP +${hpChange}  ·  原因：${reason}`,
-          color: 0x66bb6a,
-          textColor: '#e8f5e9',
-        };
-      }
-      case 'modify_lp': {
-        const lpChange = num('lp_change');
-        return {
-          label: `LP ${signed(lpChange)}  ·  原因：${reason}`,
-          color: lpChange >= 0 ? 0x42a5f5 : 0xef5350,
-          textColor: lpChange >= 0 ? '#e3f2fd' : '#ffebee',
-        };
-      }
-      case 'add_buff': {
-        return {
-          label: `Buff +${str('buff_type') || '未知'}  ·  原因：${reason}`,
-          color: 0x7e57c2,
-          textColor: '#f3e5f5',
-        };
-      }
-      case 'remove_buff': {
-        return {
-          label: `Buff -${str('buff_type') || '未知'}  ·  原因：${reason}`,
-          color: 0xff7043,
-          textColor: '#fff3e0',
-        };
-      }
-      default:
-        return null;
-    }
-  }
-
-  private formatChangeReason(entry: LogEntry) {
-    const source = entry.source || entry.action_type || '系统';
-    const labels: Record<string, string> = {
-      Buff_Expiry: 'Buff 到期',
-      TurnEndRespawn: '回合结束复活',
-      FragileCell: '脆弱格',
-      DiceRollFellDown: '移动跌落',
-    };
-
-    if (labels[source]) return labels[source];
-    if (source.startsWith('Buff_')) return source.replace(/^Buff_/, 'Buff ');
-    if (source.startsWith('Event_')) return source.replace(/^Event_/, '事件 ');
-    if (source.startsWith('Item_')) return source.replace(/^Item_/, '道具 ');
-    if (source.startsWith('Cell')) return source.replace(/^Cell/, '格子 ');
-
-    return source;
-  }
-
-  private getMetaNum(metadata: Record<string, any> | undefined, key: string) {
-    const value = metadata?.[key];
-    if (typeof value === 'number') return value;
-    if (typeof value === 'string') {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? parsed : 0;
-    }
-    return 0;
-  }
-
-  private getMetaStr(metadata: Record<string, any> | undefined, key: string) {
-    const value = metadata?.[key];
-    return typeof value === 'string' ? value : '';
-  }
-
-  private getMetaNumArray(metadata: Record<string, any> | undefined, key: string) {
-    const value = metadata?.[key];
-    if (!Array.isArray(value)) return [];
-
-    return value
-      .map((item) => {
-        if (typeof item === 'number') return item;
-        if (typeof item === 'string') {
-          const parsed = Number(item);
-          return Number.isFinite(parsed) ? parsed : null;
-        }
-        return null;
-      })
-      .filter((item): item is number => item !== null);
-  }
 }
