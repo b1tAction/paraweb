@@ -27,128 +27,128 @@ export type EventEffectConfig = {
 // 事件类型到动画效果的映射
 export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
   // 🥰 良性事件
-  '采集到草药': {
-    label: '草药 +HP',
+  'herb': {
+    label: '采集到草药',
     color: 0x66bb6a,
     textColor: '#e8f5e9',
     animationType: 'heal_pop',
     iconEmoji: '🌿',
     particleCount: 8,
-    duration: 1800
+    duration: 2500
   },
-  '捡到勇士的圣遗物': {
-    label: '圣遗物',
-    color: 0xffd700,
-    textColor: '#fff9c4',
-    animationType: 'item_sparkle',
-    iconEmoji: '⚔️',
-    particleCount: 12,
-    duration: 2200
-  },
-  '捡到奶茶，一口就吃到了猪猪欸': {
-    label: '奶茶 +LP',
+  'milk_tea': {
+    label: '捡到奶茶，一口就吃到了猪猪欸',
     color: 0xffca28,
     textColor: '#fffde7',
     animationType: 'heal_pop',
     iconEmoji: '🧋',
     particleCount: 6,
-    duration: 1600
+    duration: 2500
   },
-  '受到天使眷顾': {
-    label: '神眷',
+  'relic': {
+    label: '捡到勇士的圣遗物',
+    color: 0xffd700,
+    textColor: '#fff9c4',
+    animationType: 'item_sparkle',
+    iconEmoji: '⚔️',
+    particleCount: 12,
+    duration: 2500
+  },
+  'divine_bless': {
+    label: '受到天使眷顾',
     color: 0x42a5f5,
     textColor: '#e3f2fd',
     animationType: 'buff_glow',
-    iconEmoji: '👼',
+    iconEmoji: '😇',
     particleCount: 15,
     duration: 2500
   },
 
   // 🫥 中性事件
-  '麻了': {
-    label: '隐匿',
+  'hidden_buff': {
+    label: '麻了',
     color: 0x757575,
     textColor: '#f5f5f5',
     animationType: 'neutral_pulse',
     iconEmoji: '😵',
     particleCount: 4,
-    duration: 1400
+    duration: 2500
   },
-  '交换': {
+  'exchange': {
     label: '位置交换',
     color: 0x29b6f6,
     textColor: '#e1f5fe',
     animationType: 'teleport_swap',
     iconEmoji: '🔄',
     particleCount: 10,
-    duration: 2000
+    duration: 2500
   },
-  '这是什么？尝一口': {
-    label: '神秘饮料',
+  'taste_test': {
+    label: '这是什么？尝一口',
     color: 0x8d6e63,
     textColor: '#efebe9',
     animationType: 'neutral_pulse',
     iconEmoji: '🥤',
     particleCount: 5,
-    duration: 1600
+    duration: 2500
   },
 
   // 🤮 恶性事件
-  '被蚊虫叮咬': {
-    label: '叮咬 -HP',
+  'mosquito': {
+    label: '被蚊虫叮咬',
     color: 0xef5350,
     textColor: '#ffebee',
     animationType: 'damage_flash',
     iconEmoji: '🐛',
     particleCount: 3,
-    duration: 1200
+    duration: 2500
   },
-  '偶遇孤魂野鬼': {
-    label: '野鬼攻击',
+  'ghost_hit': {
+    label: '偶遇孤魂野鬼',
     color: 0x616161,
     textColor: '#f5f5f5',
     animationType: 'ghost_attack',
     iconEmoji: '👻',
     particleCount: 7,
-    duration: 1800
+    duration: 2500
   },
-  '踩到了狗屎': {
-    label: '踩到狗屎 -LP',
+  'dog_poop': {
+    label: '踩到了狗屎',
     color: 0x8d6e63,
     textColor: '#efebe9',
     animationType: 'damage_flash',
     iconEmoji: '💩',
     particleCount: 2,
-    duration: 1000
+    duration: 2500
   },
-  '啊？！贼': {
-    label: '被盗',
+  'thief': {
+    label: '啊？！贼',
     color: 0xff7043,
     textColor: '#fff3e0',
     animationType: 'steal_flash',
     iconEmoji: '🦹',
     particleCount: 6,
-    duration: 1500
+    duration: 2500
   },
-  '虔诚拜三拜': {
-    label: '诅咒',
+  'curse_buddha': {
+    label: '虔诚拜三拜路边野佛',
     color: 0x7b1fa2,
     textColor: '#f3e5f5',
     animationType: 'curse_cloud',
     iconEmoji: '🙏',
     particleCount: 9,
-    duration: 2000
+    duration: 2500
   },
-  '迷途': {
+  'lost_way': {
     label: '迷途',
     color: 0xbf360c,
     textColor: '#ffebee',
     animationType: 'debuff_spin',
     iconEmoji: '🌀',
     particleCount: 8,
-    duration: 1700
+    duration: 2500
   },
-  '雷劫': {
+  'thunder': {
     label: '雷劫',
     color: 0xffd600,
     textColor: '#fffde7',
@@ -157,7 +157,7 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     particleCount: 20,
     duration: 2800
   }
-};
+}
 
 /**
  * 获取事件动画配置
