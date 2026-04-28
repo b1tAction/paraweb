@@ -8,6 +8,7 @@ import {
   getMetadataNumber,
   getMetadataNumberArray,
 } from './logEntryPlayback';
+import { getEventEffectConfig, getEventTypeFromEntry } from './eventAnimations';
 
 type PathNode = {
   index: number;
@@ -68,8 +69,6 @@ const CELL_COLORS: Record<string, number> = {
   event: 0x81c784,
   boss: 0xef5350,
 };
-
-const PLAYER_COLORS =[0x42a5f5, 0xef5350, 0xffca28, 0x66bb6a];
 
 // 【新增】定义你所有可用的人物前缀（文件名）
 const AVAILABLE_CHARACTERS = ['red', 'green', 'white', 'black'];
@@ -497,15 +496,15 @@ export class ForestBoardScene extends Phaser.Scene {
     view.bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
   }
 
-  private updateSettlementStatusPosition() {
+private updateSettlementStatusPosition() {
     if (!this.settlementStatus) return;
-
     const marker = this.playerMarkers.get(this.settlementStatus.playerId);
     if (!marker) return;
 
-    this.settlementStatus.container.setPosition(marker.x, marker.y - 78);
+    // 将位置改得更高
+    this.settlementStatus.container.setPosition(marker.x, marker.y - 150); 
     this.settlementStatus.container.setDepth(marker.y + 240);
-  }
+}
 
   private playLogEntryEffect(entry?: LogEntry | null) {
     if (!entry || (entry.type !== 'action' && entry.type !== 'boss')) return;
@@ -518,6 +517,11 @@ export class ForestBoardScene extends Phaser.Scene {
 
     if (entry.action_type === 'move') {
       this.playMoveAnimation(entry);
+      return;
+    }
+
+    if (entry.action_type === 'draw_event') {
+      this.playDrawEventAnimation(entry);
       return;
     }
 
@@ -549,7 +553,7 @@ export class ForestBoardScene extends Phaser.Scene {
     // 【修改点 5】缩放特效调低，因为原图已经缩放过了
     this.tweens.add({
       targets: marker,
-      scale: 0.9, 
+      scale: 0.9,
       duration: 140,
       yoyo: true,
       repeat: 1,
@@ -585,7 +589,10 @@ export class ForestBoardScene extends Phaser.Scene {
       const endPos = entry.metadata && Object.prototype.hasOwnProperty.call(entry.metadata, 'end_pos')
         ? getMetadataNumber(entry.metadata, 'end_pos')
         : null;
-      if (endPos !== null) this.logDrivenPositions.set(entry.target, endPos);
+      if (endPos !== null) {
+        console.log('📍 [ForestBoardScene] 直接设置玩家位置:', endPos);
+        this.logDrivenPositions.set(entry.target, endPos);
+      }
       return;
     }
 
@@ -647,7 +654,67 @@ export class ForestBoardScene extends Phaser.Scene {
     };
 
     runNext();
-  
   }
+
+ private playDrawEventAnimation(entry: LogEntry) {
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const eventType = getEventTypeFromEntry(entry);
+  const effect = getEventEffectConfig(eventType);
+
+  const x = marker.x;
+  const y = marker.y;
+  const duration = effect.duration || 2500;
+
+  // 1. 创建文本对象（初始状态：透明且稍微偏下）
+  let emojiText: Phaser.GameObjects.Text | null = null;
+  if (effect.iconEmoji) {
+    emojiText = this.add.text(x - 50, y - 20, effect.iconEmoji, { fontSize: '28px' });
+    emojiText.setOrigin(0.5, 0.5);
+    emojiText.setDepth(y + 231);
+    emojiText.setAlpha(0); // 初始透明
+  }
+
+  const textX = emojiText ? x + 15 : x;
+  const text = this.add.text(textX, y - 20, effect.label, {
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '24px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+  text.setAlpha(0); // 初始透明
+
+  // 2. 动画效果：自然地飘出
+  const targets = emojiText ? [text, emojiText] : [text];
+
+  // 统一执行浮现动画
+  this.tweens.add({
+    targets: targets,
+    alpha: { from: 0, to: 1 },        // 渐显
+    y: y - 60,                       // 从下方缓慢滑入上方
+    scale: { from: 0.8, to: 1 },     // 稍微放大一点点
+    duration: 600,                   // 出现的过程要平滑
+    ease: 'Back.easeOut',            // Back.easeOut 会带来轻微的“弹跳”感，非常自然
+  });
+
+  // 3. 停留并淡出
+  this.tweens.add({
+    targets: targets,
+    alpha: { from: 1, to: 0 },       // 渐隐
+    delay: duration - 600,           // 在 duration 结束前 600ms 开始消失
+    duration: 600,
+    ease: 'Power2.easeOut',
+    onComplete: () => {
+      text.destroy();
+      if (emojiText) emojiText.destroy();
+    }
+  });
+}
 
 }
