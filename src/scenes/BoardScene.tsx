@@ -23,10 +23,10 @@ import {
 } from '../game/logEntryPlayback';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
-  qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgba(224, 240, 225, 0.96)' },
-  zhu_que: { label: '朱雀', color: '#c62828', bgColor: 'rgba(255, 220, 220, 0.96)' },
-  bai_hu: { label: '白虎', color: '#f9c74f', bgColor: 'rgba(255, 243, 198, 0.96)' },
-  xuan_wu: { label: '玄武', color: '#82aee0', bgColor: 'rgba(218, 235, 255, 0.96)' },
+  qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
+  zhu_que: { label: '朱雀', color: '#c62828', bgColor: 'rgba(246, 226, 226, 0.85)' },
+  bai_hu: { label: '白虎', color: '#ffffff', bgColor: 'rgba(252, 251, 200, 0.96)' },
+  xuan_wu: { label: '玄武', color: '#113151', bgColor: 'rgba(208, 232, 255, 0.96)' },
 };
 
 const BUFF_EFFECTS: Record<string, string> = {
@@ -49,9 +49,9 @@ function getFactionMeta(faction: string) {
 }
 
 function getBuffColor(type: string) {
-  if (BLUE_BUFFS.has(type)) return '#1976d2';
+  if (BLUE_BUFFS.has(type)) return '#1994d2';
   if (RED_BUFFS.has(type)) return '#d32f2f';
-  if (type === 'hidden') return '#757575';
+  if (type === 'hidden') return '#f5ad40';
   return '#9e9e9e';
 }
 
@@ -425,21 +425,46 @@ export const BoardScene: React.FC = () => {
                         {player.display_name || player.player_id}
                       </span>
                     </div>
+                    
+                    {/* 1. 生命值与幸运值：转换为文字和图标 */}
                     <div style={styles.playerStats}>
-                      <span>HP {player.hp}</span>
-                      <span>LP {player.lp}</span>
+                      <div style={styles.statRow} title={`生命值: ${player.hp}`}>
+                        <span style={styles.statLabel}>生命值</span>
+                        <span style={styles.statIcons}>
+                          {'❤️'.repeat(Math.max(0, player.hp || 0))}
+                        </span>
+                      </div>
+                      <div style={styles.statRow} title={`幸运值: ${player.lp}`}>
+                        <span style={styles.statLabel}>幸运值</span>
+                        <span style={styles.statIcons}>
+                          {'🍀'.repeat(Math.max(0, player.lp || 0))}
+                        </span>
+                      </div>
                     </div>
-                    <div style={styles.buffDots} aria-label="Buffs">
-                      {player.buffs.length > 0 ? (
+
+                    {/* 2. Buff：一行一行列出详细效果 */}
+                    <div style={styles.buffList} aria-label="Buffs">
+                      {player.buffs && player.buffs.length > 0 ? (
                         player.buffs.map((buff, index) => (
-                          <span
-                            key={`${buff.type}-${index}`}
-                            title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
-                            style={{
-                              ...styles.buffDot,
-                              backgroundColor: getBuffColor(buff.type),
-                            }}
-                          />
+                          <div key={`${buff.type}-${index}`} style={styles.buffRow}>
+                            {/* 左侧颜色小圆点 */}
+                            <span
+                              style={{
+                                ...styles.buffIndicator,
+                                backgroundColor: getBuffColor(buff.type),
+                              }}
+                            />
+                            {/* Buff 名称 */}
+                            <span style={styles.buffName}>{buff.name}</span>
+                            {/* Buff 效果描述 */}
+                            <span style={styles.buffEffect}>
+                              {BUFF_EFFECTS[buff.type] || '暂无效果说明'}
+                            </span>
+                            {/* 剩余回合 */}
+                            <span style={styles.buffDuration}>
+                              {formatBuffDuration(buff.duration)}
+                            </span>
+                          </div>
                         ))
                       ) : null}
                     </div>
@@ -656,7 +681,8 @@ const styles: Record<string, React.CSSProperties> = {
     flex: '0 0 clamp(220px, 22vw, 300px)',
     minWidth: 0,
     display: 'flex',
-    alignItems: 'center',
+    // 将原本的 'center' 改为 'flex-start'，让头像和文字都从顶部开始对齐
+    alignItems: 'flex-start', 
     gap: '10px',
     padding: '9px 10px',
     border: '2px solid transparent',
@@ -665,9 +691,9 @@ const styles: Record<string, React.CSSProperties> = {
     backdropFilter: 'blur(8px)',
   },
   avatar: {
-    flex: '0 0 38px',
-    width: '38px',
-    height: '38px',
+    flex: '0 0 50px',
+    width: '50px',
+    height: '50px',
     borderRadius: '50%',
     border: '2px solid rgba(255, 255, 255, 0.85)',
   },
@@ -678,6 +704,8 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    // 如果改成 flex-start 后觉得头像太靠上了，可以稍微加一点上边距把它往下压一点
+    marginTop: '2px', 
   },
   myAvatarBadge: {
     position: 'absolute',
@@ -789,29 +817,73 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 'bold',
     color: '#17202a',
   },
+  // 修改原有的 playerStats
   playerStats: {
     display: 'flex',
-    gap: '10px',
-    fontSize: '13px',
-    fontWeight: 700,
-    color: '#263238',
+    flexDirection: 'column', // 改为纵向排列
+    gap: '4px',
+    marginTop: '2px',
   },
-  buffDots: {
-    minHeight: '24px',
-    minWidth: '104px',
+  
+  // ================= 新增以下样式 =================
+  statRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  },
+  statLabel: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#333',
+    whiteSpace: 'nowrap',
+  },
+  statIcons: {
+    fontSize: '12px',
+    letterSpacing: '1px', // 让心心和四叶草之间留一点空隙
+    wordBreak: 'break-word', // 如果心心太多会自动换行，不会撑破卡片
+  },
+   buffList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    marginTop: '4px',
+    // 设置最大高度，超出部分自动滚动
+    maxHeight: '66px', // 差不多刚好显示 2 行半的高度
+    overflowY: 'auto', // 超出自动出现滚动条
+    paddingRight: '4px', // 给滚动条留一点点呼吸空间
+  },
+  buffRow: {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
     padding: '4px 6px',
-    borderRadius: '5px',
-    backgroundColor: 'rgba(255, 255, 255, 0.58)',
+    backgroundColor: 'rgba(255, 255, 255, 0.45)', // 给每行 Buff 加一点半透明底色区分
+    borderRadius: '4px',
+    fontSize: '11px',
   },
-  buffDot: {
-    width: '12px',
-    height: '12px',
+  buffIndicator: {
+    width: '8px',
+    height: '8px',
     borderRadius: '50%',
-    border: '1px solid rgba(255, 255, 255, 0.85)',
-    cursor: 'help',
+    flexShrink: 0,
+  },
+  buffName: {
+    fontWeight: 'bold',
+    color: '#1f2937',
+    whiteSpace: 'nowrap',
+  },
+  buffEffect: {
+    color: '#4b5563',
+    flex: 1, // 让效果说明占据中间剩余空间
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis', // 如果效果文字太长，末尾显示省略号
+  },
+  buffDuration: {
+    color: '#6b7280',
+    fontWeight: 500,
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   },
   actionTile: {
     width: '112px',
