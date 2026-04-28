@@ -92,7 +92,6 @@ export class ForestBoardScene extends Phaser.Scene {
   // 【修改点 1】把 Arc 改成 Sprite
   private playerMarkers = new Map<string, Phaser.GameObjects.Sprite>();
   private playerNames = new Map<string, Phaser.GameObjects.Text>();
-  private playerAvatars = new Map<string, Phaser.GameObjects.Sprite>();
 
   private logDrivenPositions = new Map<string, number>();
   private lastEffectKey = '';
