@@ -84,12 +84,41 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
   switch (entry.action_type) {
     case 'damage':
     case 'heal':
-    case 'fell_down':
       next.hp += hpChange;
       break;
+    case 'fell_down': {
+      next.hp += hpChange;
+      const fellPosition = getMetadataNumber(entry.metadata, 'position');
+      if (fellPosition !== null) {
+        next.position = fellPosition;
+      }
+      break;
+    }
     case 'modify_lp':
       next.lp += lpChange;
       break;
+    case 'move': {
+      const endPos = getMetadataNumber(entry.metadata, 'end_pos');
+      if (endPos !== null) {
+        next.position = endPos;
+      }
+      break;
+    }
+    case 'teleport': {
+      const toPos = getMetadataNumber(entry.metadata, 'to_pos');
+      if (toPos !== null) {
+        next.position = toPos;
+      }
+      break;
+    }
+    case 'respawn': {
+      const checkpointPos = getMetadataNumber(entry.metadata, 'checkpoint_pos');
+      if (checkpointPos !== null) {
+        next.position = checkpointPos;
+      }
+      next.is_dead = false;
+      break;
+    }
     case 'add_buff': {
       if (!buffType || next.buffs.some((buff) => buff.type === buffType)) break;
       next.buffs = [
