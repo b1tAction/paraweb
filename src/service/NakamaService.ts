@@ -417,17 +417,8 @@ export class NakamaService {
   private handleStateSync(data: protocol.StateSync) {
     const store = useGameStore.getState();
 
-    // 更新游戏状态
-    store.updateGameState(data.global_state as any, data.turn_state as any);
-
-    // 更新玩家列表
-    store.setPlayers(data.players);
-
-    // 更新当前回合玩家
-    store.setCurrentPlayerId(data.current_player_id);
-
-    // 更新轮次和回合
-    store.setRoundTurn(data.round, data.turn);
+    // 压入状态等待队列
+    store.enqueueStateSync(data);
 
     // 对齐 CLI：离开小游戏全局状态时清空本轮小游戏参与者缓存，避免下一轮沿用旧 participants
     // 但是如果正在展示 MiniGameSubmitRank 场景且小游戏结果待处理，则不清空，等结果显示完成后再清空
@@ -443,24 +434,19 @@ export class NakamaService {
       console.log('[Nakama] RoundEndWait detected, waiting for client animations before RoundReady');
     }
 
-    // Update entries from incremental data - add to animation queue
-    if (data.entries && data.entries.length > 0) {
-      store.addPendingEntries(data.entries);
-
-      console.log('[Nakama] 状态同步 - 新增 entries', {
-        entriesCount: data.entries.length,
-        pendingCount: store.pendingEntries.length + data.entries.length,
-      });
+    // 判断是否需要立即应用：如果在主棋盘并且有队列积压，我们不能立刻更新
+    // 如果不在棋盘内（例如刚登录、还在等待房间里等），可以直接强制执行下一次的 StateSync
+    if (
+      store.currentScene !== Scene.Board &&
+      store.currentScene !== Scene.DiceAssign &&
+      store.stateSyncQueue.length > 0
+    ) {
+      store.applyNextStateSync();
+      // 这里可以安全地再次获取更新后的状态进行路由
+      this.routeSceneByState(useGameStore.getState().globalState);
+    } else {
+      console.log('[Nakama] 状态同步加入队列，当前队列长度：', store.stateSyncQueue.length);
     }
-
-    // 场景路由
-    this.routeSceneByState(data.global_state);
-
-    console.log('[Nakama] 状态同步完成', {
-      global: data.global_state,
-      turn: data.turn_state,
-      scene: store.currentScene,
-    });
   }
 
   private handleWaitingSync(data: protocol.WaitingSync) {
@@ -532,6 +518,9 @@ export class NakamaService {
   }
 
   private handleActionRejected(data: protocol.ActionRejected) {
+    if (data.op_code === opcodes.OpRollDice && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('board:dice-roll-rejected'));
+    }
     console.warn('[Nakama] 动作被拒绝', {
       opCode: data.op_code,
       errorCode: data.error_code,

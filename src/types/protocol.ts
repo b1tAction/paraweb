@@ -19,17 +19,18 @@ export interface StateSync {
   current_player_id: string;
   /** 当前轮次 */
   round: number;
-  /** 当前回合索引 */
+  /** 当前回合 */
   turn: number;
-  /** 是否暂停 (等待决策) */
-  paused: boolean;
-  /** 所有玩家状态 */
+  /** 玩家列表 */
   players: Player[];
-  /** 地图信息 */
-  map: MapInfo;
-  /** 增量日志条目 (自上次 StateSync 后新增的动画数据，omitempty: 无新效果时不包含) */
+  /** 回合效果日志 */
   entries?: LogEntry[];
 }
+  /** 当前回合索引 */
+  /** 是否暂停 (等待决策) */
+  /** 所有玩家状态 */
+  /** 地图信息 */
+  /** 增量日志条目 (自上次 StateSync 后新增的动画数据，omitempty: 无新效果时不包含) */
 
 /**
  * LogEntry - 游戏日志条目

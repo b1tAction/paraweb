@@ -10,6 +10,7 @@ import type {
   Player,
   Decision,
   Available,
+  StateSync,
   WaitingSync,
   MiniGameStart,
   MiniGameResult,
@@ -122,6 +123,8 @@ interface GameState {
   mapConfig: MapConfig | null;
   /** 当前房间 ID */
   matchId: string;
+  /** StateSync 等待队列：暂存接收到的状态，等待动画完成后再应用 */
+  stateSyncQueue: StateSync[];
   /** 当前回合同步日志条目 (已播放完毕，显示在debug log中) */
   playedEntries: LogEntry[];
   /** 待播放的动画entries队列 */
@@ -180,6 +183,11 @@ interface GameState {
   /** 设置等待切换的目标场景 */
   setPendingScene: (scene: Scene | null) => void;
 
+  /** 将 StateSync 压入等待队列 */
+  enqueueStateSync: (stateSync: StateSync) => void;
+  /** 将队列里的下一个 StateSync 应用于全局变量并清出队列 */
+  applyNextStateSync: () => void;
+
   /** 更新玩家列表 */
   setPlayers: (players: Player[]) => void;
   /** 设置当前回合玩家 */
@@ -219,6 +227,7 @@ export const useGameStore = create<GameState>((set) => ({
   mapConfig: null,
   matchId: '',
   displayName: '',
+  stateSyncQueue: [],
   faction: '',
   playedEntries: [],
   pendingEntries: [],
@@ -269,6 +278,31 @@ export const useGameStore = create<GameState>((set) => ({
   setMiniGameResultPending: (pending) => set({ miniGameResultPending: pending }),
   setPendingScene: (scene) => set({ pendingScene: scene }),
 
+  enqueueStateSync: (stateSync) => set((state) => ({ stateSyncQueue: [...state.stateSyncQueue, stateSync] })),
+  
+  applyNextStateSync: () => set((state) => {
+    if (state.stateSyncQueue.length === 0) return state;
+    
+    // 取出最早的一个 StateSync
+    const [nextSync, ...restQueue] = state.stateSyncQueue;
+    
+    // 我们将其应用到当前状态，并将相关 entries 转入 pendingEntries 开始动画播放
+    const newPendingEntries = nextSync.entries && nextSync.entries.length > 0 
+      ? [...state.pendingEntries, ...nextSync.entries] 
+      : state.pendingEntries;
+
+    return {
+      stateSyncQueue: restQueue,
+      globalState: nextSync.global_state as GlobalState,
+      turnState: nextSync.turn_state as TurnState,
+      players: nextSync.players || state.players,
+      currentPlayerId: nextSync.current_player_id,
+      round: nextSync.round ?? state.round,
+      turn: nextSync.turn ?? state.turn,
+      pendingEntries: newPendingEntries
+    };
+  }),
+
   setPlayers: (players) => set({ players }),
 
   setCurrentPlayerId: (playerId) => set({ currentPlayerId: playerId }),
@@ -293,6 +327,7 @@ export const useGameStore = create<GameState>((set) => ({
       decisionRequest: null,
       availableActions: null,
       waitingSync: null,
+      stateSyncQueue: [],
       miniGameStart: null,
       miniGameResult: null,
       gameOver: null,
