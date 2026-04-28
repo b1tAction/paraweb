@@ -203,6 +203,8 @@ export const BoardScene: React.FC = () => {
   const currentPlayer = renderedPlayers.find((p) => p.player_id === currentPlayerId);
   const boardPlayers = renderedPlayers.filter((player) => !isBossPlayer(player));
   const bossPlayer = renderedPlayers.find(isBossPlayer);
+  const myPlayer = renderedPlayers.find((player) => player.player_id === myPlayerId);
+  const myBuffs = myPlayer?.buffs ?? [];
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
   const isRoundEndWait = globalState === 'round_end_wait' || globalState === 'RoundEndWait';
@@ -566,6 +568,25 @@ export const BoardScene: React.FC = () => {
           )}
         </div>
 
+        {myBuffs.length > 0 && (
+          <div style={styles.selfBuffPanel} aria-label="我的 Buff">
+            {myBuffs.map((buff, index) => (
+              <div
+                key={`${buff.type}-${index}`}
+                style={styles.selfBuffFrame}
+                title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
+              >
+                <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
+                <img
+                  src={`/assets/buff/${buff.type}.png`}
+                  alt={buff.name}
+                  style={styles.selfBuffIcon}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
         {shouldShowActionPanel && actionView && (
           <div style={styles.mapActionPanel}>
             {!isMyTurn && (
@@ -925,6 +946,84 @@ const styles: Record<string, React.CSSProperties> = {
   info: {
     fontSize: '14px',
     marginBottom: '4px',
+  },
+  playerName: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    display: 'block',
+    fontSize: '13px',
+    fontWeight: 'bold',
+    color: '#17202a',
+  },
+  // 修改原有的 playerStats
+  playerStats: {
+    display: 'flex',
+    flexDirection: 'column', // 改为纵向排列
+    gap: '4px',
+    marginTop: '2px',
+  },
+  
+  // ================= 新增以下样式 =================
+  statRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  },
+  statLabel: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#333',
+    whiteSpace: 'nowrap',
+  },
+  statIcons: {
+    fontSize: '12px',
+    letterSpacing: '1px', // 让心心和四叶草之间留一点空隙
+    wordBreak: 'break-word', // 如果心心太多会自动换行，不会撑破卡片
+  },
+  selfBuffPanel: {
+    pointerEvents: 'auto',
+    position: 'absolute',
+    left: '14px',
+    top: '130px',
+    maxHeight: 'calc(100vh - 340px)',
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    paddingRight: '4px',
+  },
+  selfBuffFrame: {
+    width: '144px',
+    height: '60px',
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '9px 19px 9px 22px',
+    backgroundImage: 'url("/assets/buff/frame.png")',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+    backgroundSize: '100% 100%',
+    filter: 'drop-shadow(0 5px 10px rgba(0, 0, 0, 0.36))',
+    boxSizing: 'border-box',
+  },
+  selfBuffDuration: {
+    minWidth: '34px',
+    color: '#e9e1c8',
+    fontSize: '21px',
+    fontWeight: 900,
+    lineHeight: 1,
+    textAlign: 'center',
+    textShadow: '0 2px 2px rgba(0, 0, 0, 0.8)',
+  },
+  selfBuffIcon: {
+    width: '39px',
+    height: '39px',
+    objectFit: 'contain',
+    imageRendering: 'auto',
+    filter: 'drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55))',
   },
   actionTile: {
     width: '112px',
