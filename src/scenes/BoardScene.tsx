@@ -43,6 +43,18 @@ const BUFF_EFFECTS: Record<string, string> = {
 
 const BLUE_BUFFS = new Set(['divine', 'rain', 'exorcism', 'fire']);
 const RED_BUFFS = new Set(['curse', 'lost', 'corrupt', 'poison']);
+const PLAYER_CARD_SCALE = 3;
+const PLAYER_CARD_SIZE = {
+  width: 80 * PLAYER_CARD_SCALE,
+  height: 32 * PLAYER_CARD_SCALE,
+};
+const PLAYER_CARD_IMAGES: Record<string, string> = {
+  qing_long: '/assets/ui/player_card_qinglong.png',
+  zhu_que: '/assets/ui/player_card_zhuque.png',
+  bai_hu: '/assets/ui/player_card_baihu.png',
+  xuan_wu: '/assets/ui/player_card_xuanwu.png',
+};
+const PLAYER_STAT_MAX = 8;
 
 function getFactionMeta(faction: string) {
   return FACTION_META[faction] ?? { label: faction || '未知', color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
@@ -57,6 +69,14 @@ function getBuffColor(type: string) {
 
 function formatBuffDuration(duration: number) {
   return duration < 0 ? '永久' : `${duration}`;
+}
+
+function getFillPercent(value: number, maxValue: number) {
+  return `${Math.max(0, Math.min(100, (value / maxValue) * 100))}%`;
+}
+
+function getPlayerCardImage(faction: string) {
+  return PLAYER_CARD_IMAGES[faction] ?? PLAYER_CARD_IMAGES.qing_long;
 }
 
 function isBossPlayer(player: Player) {
@@ -391,88 +411,59 @@ export const BoardScene: React.FC = () => {
                 <div
                   key={player.player_id}
                   style={{
-                    ...styles.playerCard,
-                    borderColor: faction.color,
-                    backgroundColor: faction.bgColor,
+                    ...styles.pixelPlayerCard,
+                    backgroundImage: `url(${getPlayerCardImage(player.faction)})`,
+                    filter: isCurrentMainActionPlayer
+                      ? `drop-shadow(0 0 8px ${faction.color}) drop-shadow(0 0 2px #ffffff)`
+                      : styles.pixelPlayerCard.filter,
                   }}
+                  title={`${player.display_name || player.player_id}\nHP ${player.hp}/${PLAYER_STAT_MAX}\nLP ${player.lp}/${PLAYER_STAT_MAX}`}
                 >
-                  <div style={styles.avatarWrap}>
-                    {avatars[player.player_id] ? (
-                      <img
-                        src={avatars[player.player_id]}
-                        alt={player.display_name}
-                        style={{
-                          ...styles.avatar, // 复用你原有的圆形边框样式
-                          backgroundColor: faction.color, // 垫底背景色
-                          objectFit: 'cover',         // 填满圆形
-                          objectPosition: 'center 15%', // 核心：向上偏移裁切，只保留头部和上半身！
-                          boxShadow: isCurrentMainActionPlayer
-                            ? `0 0 0 3px rgba(255, 255, 255, 0.95), 0 0 22px ${faction.color}`
-                            : styles.avatar.boxShadow,
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          ...styles.avatar,
-                          backgroundColor: faction.color,
-                          boxShadow: isCurrentMainActionPlayer
-                            ? `0 0 0 3px rgba(255, 255, 255, 0.95), 0 0 22px ${faction.color}`
-                            : styles.avatar.boxShadow,
-                        }}
-                      />
-                    )}
-                    {player.player_id === myPlayerId && <span style={styles.myAvatarBadge}>我</span>}
+                  {avatars[player.player_id] && (
+                    <img
+                      src={avatars[player.player_id]}
+                      alt={player.display_name || player.player_id}
+                      style={styles.pixelPlayerAvatar}
+                    />
+                  )}
+                  {player.player_id === myPlayerId && <span style={styles.pixelMyBadge}>我</span>}
+                  <span
+                    style={{
+                      ...styles.pixelPlayerName,
+                      backgroundColor: faction.bgColor,
+                      borderColor: faction.color,
+                      color: faction.color,
+                    }}
+                  >
+                    {player.display_name || player.player_id}
+                  </span>
+                  <div style={styles.pixelHpTrack}>
+                    <div
+                      style={{
+                        ...styles.pixelHpFill,
+                        width: getFillPercent(player.hp, PLAYER_STAT_MAX),
+                      }}
+                    />
                   </div>
-                  <div style={styles.playerCardBody}>
-                    <div style={styles.playerCardHeader}>
-                      <span title={player.player_id} style={styles.playerName}>
-                        {player.display_name || player.player_id}
-                      </span>
-                    </div>
-                    
-                    {/* 1. 生命值与幸运值：转换为文字和图标 */}
-                    <div style={styles.playerStats}>
-                      <div style={styles.statRow} title={`生命值: ${player.hp}`}>
-                        <span style={styles.statLabel}>生命值</span>
-                        <span style={styles.statIcons}>
-                          {'❤️'.repeat(Math.max(0, player.hp || 0))}
-                        </span>
-                      </div>
-                      <div style={styles.statRow} title={`幸运值: ${player.lp}`}>
-                        <span style={styles.statLabel}>幸运值</span>
-                        <span style={styles.statIcons}>
-                          {'🍀'.repeat(Math.max(0, player.lp || 0))}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 2. Buff：一行一行列出详细效果 */}
-                    <div style={styles.buffList} aria-label="Buffs">
-                      {player.buffs && player.buffs.length > 0 ? (
-                        player.buffs.map((buff, index) => (
-                          <div key={`${buff.type}-${index}`} style={styles.buffRow}>
-                            {/* 左侧颜色小圆点 */}
-                            <span
-                              style={{
-                                ...styles.buffIndicator,
-                                backgroundColor: getBuffColor(buff.type),
-                              }}
-                            />
-                            {/* Buff 名称 */}
-                            <span style={styles.buffName}>{buff.name}</span>
-                            {/* Buff 效果描述 */}
-                            <span style={styles.buffEffect}>
-                              {BUFF_EFFECTS[buff.type] || '暂无效果说明'}
-                            </span>
-                            {/* 剩余回合 */}
-                            <span style={styles.buffDuration}>
-                              {formatBuffDuration(buff.duration)}
-                            </span>
-                          </div>
-                        ))
-                      ) : null}
-                    </div>
+                  <div style={styles.pixelLpTrack}>
+                    <div
+                      style={{
+                        ...styles.pixelLpFill,
+                        width: getFillPercent(player.lp, PLAYER_STAT_MAX),
+                      }}
+                    />
+                  </div>
+                  <div style={styles.pixelBuffRow} aria-label="Buffs">
+                    {player.buffs?.slice(0, 10).map((buff, index) => (
+                      <span
+                        key={`${buff.type}-${index}`}
+                        title={`${buff.name || buff.type}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
+                        style={{
+                          ...styles.pixelBuffDot,
+                          backgroundColor: getBuffColor(buff.type),
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
               );
@@ -712,66 +703,102 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     minWidth: 0,
     display: 'flex',
-    gap: '10px',
+    alignItems: 'flex-start',
+    gap: '12px',
     overflowX: 'auto',
-    paddingBottom: '4px',
+    paddingBottom: '8px',
   },
-  playerCard: {
-    flex: '0 0 clamp(220px, 22vw, 300px)',
-    minWidth: 0,
-    display: 'flex',
-    // 将原本的 'center' 改为 'flex-start'，让头像和文字都从顶部开始对齐
-    alignItems: 'flex-start', 
-    gap: '10px',
-    padding: '9px 10px',
-    border: '2px solid transparent',
-    borderRadius: '8px',
-    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.18)',
-    backdropFilter: 'blur(8px)',
-  },
-  avatar: {
-    flex: '0 0 50px',
-    width: '50px',
-    height: '50px',
-    borderRadius: '50%',
-    border: '2px solid rgba(255, 255, 255, 0.85)',
-  },
-  avatarWrap: {
+  pixelPlayerCard: {
     position: 'relative',
-    flex: '0 0 48px',
-    width: '48px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    // 如果改成 flex-start 后觉得头像太靠上了，可以稍微加一点上边距把它往下压一点
-    marginTop: '2px', 
+    flex: `0 0 ${PLAYER_CARD_SIZE.width}px`,
+    width: `${PLAYER_CARD_SIZE.width}px`,
+    height: `${PLAYER_CARD_SIZE.height}px`,
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: `${PLAYER_CARD_SIZE.width}px ${PLAYER_CARD_SIZE.height}px`,
+    imageRendering: 'pixelated',
+    filter: 'drop-shadow(0 5px 0 rgba(0, 0, 0, 0.38))',
   },
-  myAvatarBadge: {
+  pixelPlayerAvatar: {
     position: 'absolute',
-    right: '-2px',
-    bottom: '-4px',
-    padding: '1px 5px',
-    borderRadius: '999px',
-    backgroundColor: '#17202a',
-    color: '#ffffff',
-    border: '1px solid rgba(255, 255, 255, 0.9)',
-    fontSize: '11px',
-    fontWeight: 800,
-    lineHeight: 1.35,
+    left: `${4 * PLAYER_CARD_SCALE}px`,
+    top: `${4 * PLAYER_CARD_SCALE}px`,
+    width: `${16 * PLAYER_CARD_SCALE}px`,
+    height: `${18 * PLAYER_CARD_SCALE}px`,
+    objectFit: 'cover',
+    objectPosition: 'center 18%',
+    imageRendering: 'pixelated',
   },
-  playerCardBody: {
-    minWidth: 0,
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px',
+  pixelHpTrack: {
+    position: 'absolute',
+    left: `${31 * PLAYER_CARD_SCALE}px`,
+    top: `${5.5 * PLAYER_CARD_SCALE}px`,
+    width: `${46 * PLAYER_CARD_SCALE}px`,
+    height: `${4 * PLAYER_CARD_SCALE}px`,
+    overflow: 'hidden',
   },
-  playerCardHeader: {
-    minWidth: 0,
+  pixelLpTrack: {
+    position: 'absolute',
+    left: `${31 * PLAYER_CARD_SCALE}px`,
+    top: `${11.5 * PLAYER_CARD_SCALE}px`,   // 虽然有点怪, 但是 11.5px 刚刚好捏
+    width: `${46 * PLAYER_CARD_SCALE}px`,
+    height: `${4 * PLAYER_CARD_SCALE}px`,
+    overflow: 'hidden',
+  },
+  pixelHpFill: {
+    height: '100%',
+    backgroundColor: '#d93a32',
+    boxShadow: 'inset 0 -3px 0 rgba(0, 0, 0, 0.22)',
+  },
+  pixelLpFill: {
+    height: '100%',
+    backgroundColor: '#f2d94e',
+    boxShadow: 'inset 0 -3px 0 rgba(0, 0, 0, 0.2)',
+  },
+  pixelBuffRow: {
+    position: 'absolute',
+    left: `${31 * PLAYER_CARD_SCALE}px`,
+    right: `${5 * PLAYER_CARD_SCALE}px`,
+    top: `${20 * PLAYER_CARD_SCALE}px`,
+    height: `${4 * PLAYER_CARD_SCALE}px`,
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '8px',
+    gap: `${2 * PLAYER_CARD_SCALE}px`,
+    overflow: 'hidden',
+  },
+  pixelBuffDot: {
+    width: `${4 * PLAYER_CARD_SCALE}px`,
+    height: `${4 * PLAYER_CARD_SCALE}px`,
+    flex: '0 0 auto',
+    boxShadow: 'inset 0 -3px 0 rgba(0, 0, 0, 0.25)',
+  },
+  pixelMyBadge: {
+    position: 'absolute',
+    left: `${17 * PLAYER_CARD_SCALE}px`,
+    top: `${2 * PLAYER_CARD_SCALE}px`,
+    padding: '1px 3px',
+    backgroundColor: '#111827',
+    color: '#fff4a8',
+    border: '1px solid #fff4a8',
+    fontSize: '10px',
+    fontWeight: 900,
+    lineHeight: 1,
+  },
+  pixelPlayerName: {
+    position: 'absolute',
+    left: `${3 * PLAYER_CARD_SCALE}px`,
+    top: `${28 * PLAYER_CARD_SCALE}px`,
+    width: `${24 * PLAYER_CARD_SCALE}px`,
+    overflow: 'hidden',
+    padding: '1px 3px',
+    border: '1px solid',
+    borderRadius: '4px',
+    textAlign: 'center',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '10px',
+    fontWeight: 900,
+    lineHeight: 1,
+    boxShadow: '0 2px 0 rgba(0, 0, 0, 0.24)',
   },
   sidePanels: {
     display: 'flex',
@@ -845,84 +872,6 @@ const styles: Record<string, React.CSSProperties> = {
   info: {
     fontSize: '14px',
     marginBottom: '4px',
-  },
-  playerName: {
-    minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    display: 'block',
-    fontSize: '13px',
-    fontWeight: 'bold',
-    color: '#17202a',
-  },
-  // 修改原有的 playerStats
-  playerStats: {
-    display: 'flex',
-    flexDirection: 'column', // 改为纵向排列
-    gap: '4px',
-    marginTop: '2px',
-  },
-  
-  // ================= 新增以下样式 =================
-  statRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-  },
-  statLabel: {
-    fontSize: '12px',
-    fontWeight: 600,
-    color: '#333',
-    whiteSpace: 'nowrap',
-  },
-  statIcons: {
-    fontSize: '12px',
-    letterSpacing: '1px', // 让心心和四叶草之间留一点空隙
-    wordBreak: 'break-word', // 如果心心太多会自动换行，不会撑破卡片
-  },
-   buffList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-    marginTop: '4px',
-    // 设置最大高度，超出部分自动滚动
-    maxHeight: '66px', // 差不多刚好显示 2 行半的高度
-    overflowY: 'auto', // 超出自动出现滚动条
-    paddingRight: '4px', // 给滚动条留一点点呼吸空间
-  },
-  buffRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '4px 6px',
-    backgroundColor: 'rgba(255, 255, 255, 0.45)', // 给每行 Buff 加一点半透明底色区分
-    borderRadius: '4px',
-    fontSize: '11px',
-  },
-  buffIndicator: {
-    width: '8px',
-    height: '8px',
-    borderRadius: '50%',
-    flexShrink: 0,
-  },
-  buffName: {
-    fontWeight: 'bold',
-    color: '#1f2937',
-    whiteSpace: 'nowrap',
-  },
-  buffEffect: {
-    color: '#4b5563',
-    flex: 1, // 让效果说明占据中间剩余空间
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis', // 如果效果文字太长，末尾显示省略号
-  },
-  buffDuration: {
-    color: '#6b7280',
-    fontWeight: 500,
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
   },
   actionTile: {
     width: '112px',
