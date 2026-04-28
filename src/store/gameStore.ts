@@ -94,6 +94,8 @@ interface GameState {
   myPlayerId: string;
   /** 显示名称 */
   displayName: string;
+  /** 阵营选择 */
+  faction: string;
   /** 所有玩家状态 */
   players: Player[];
   /** 当前回合玩家 ID */
@@ -140,6 +142,8 @@ interface GameState {
   setMyPlayerId: (playerId: string) => void;
   /** 设置显示名称 */
   setDisplayName: (name: string) => void;
+  /** 设置阵营 */
+  setFaction: (faction: string) => void;
   /** 设置房间 ID */
   setMatchId: (id: string) => void;
 
@@ -215,6 +219,7 @@ export const useGameStore = create<GameState>((set) => ({
   mapConfig: null,
   matchId: '',
   displayName: '',
+  faction: '',
   playedEntries: [],
   pendingEntries: [],
   miniGameResultPending: false,
@@ -229,6 +234,7 @@ export const useGameStore = create<GameState>((set) => ({
   setMyPlayerId: (playerId) => set({ myPlayerId: playerId }),
 
   setDisplayName: (name) => set({ displayName: name }),
+  setFaction: (faction) => set({ faction }),
 
   setMatchId: (id) => set({ matchId: id }),
 
@@ -278,6 +284,7 @@ export const useGameStore = create<GameState>((set) => ({
       turnState: '',
       myPlayerId: '',
       displayName: '',
+      faction: '',
       matchId: '',
       players: [],
       currentPlayerId: '',
