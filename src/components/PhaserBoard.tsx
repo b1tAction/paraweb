@@ -10,7 +10,7 @@ type PhaserBoardProps = {
   followPlayerId?: string | null;
   /** 当前正在播放的日志条目，用于棋盘上的特效提示 */
   activeLogEntry?: LogEntry | null;
-  /** TurnEnd 结算时显示在当前玩家附近的状态快照 */
+  /** TurnEnd 结算目标；用于抑制当前玩家附近的 HP/LP/Buff 提示 */
   settlementPlayer?: Player | null;
 };
 
