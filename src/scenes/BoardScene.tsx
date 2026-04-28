@@ -65,7 +65,8 @@ function isBossPlayer(player: Player) {
 
 type DiceRollView =
   | { status: 'idle' }
-  | { status: 'rolling'; playerId: string; diceType: string; startedAt: number; pendingResult?: DiceRollResult }
+  | { status: 'awaiting_result'; playerId: string; diceType: string; startedAt: number }
+  | { status: 'rolling'; playerId: string; diceType: string; startedAt: number; pendingResult: DiceRollResult }
   | { status: 'result'; playerId: string; diceType: string; steps: number };
 
 export const BoardScene: React.FC = () => {
@@ -137,7 +138,7 @@ export const BoardScene: React.FC = () => {
   const handleRollDice = () => {
     console.log('[BoardScene] 掷骰子');
     setDiceRollView({
-      status: 'rolling',
+      status: 'awaiting_result',
       playerId: currentPlayerId || myPlayerId,
       diceType: availableActions?.dice_type || 'wood',
       startedAt: Date.now(),
@@ -185,6 +186,8 @@ export const BoardScene: React.FC = () => {
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
   const isRoundEndWait = globalState === 'round_end_wait' || globalState === 'RoundEndWait';
+  
+  // ====================== 默认渲染操作 ====================== //
   const fallbackActions: Available | null =
     isMainAction && currentPlayer
       ? {
@@ -200,9 +203,13 @@ export const BoardScene: React.FC = () => {
   const shouldShowActionPanel =
     Boolean(actionView) &&
     isMainAction &&
+    diceRollView.status !== 'awaiting_result' &&
     diceRollView.status !== 'rolling';
   const shouldShowDiceOverlay = diceRollView.status === 'rolling' || diceRollView.status === 'result';
-  const hasPendingAnimations = pendingEntries.length > 0 || diceRollView.status !== 'idle';
+  const hasPendingAnimations =
+    pendingEntries.length > 0 ||
+    diceRollView.status === 'rolling' ||
+    diceRollView.status === 'result';
   const activeLogEntry =
     pendingEntries[0] && (pendingEntries[0].type === 'action' || pendingEntries[0].type === 'boss')
       ? pendingEntries[0]
@@ -213,6 +220,24 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === settlementPlayerId) ||
       null
     : null;
+
+  // ====================== 队列处理逻辑 ====================== //
+  const stateSyncQueue = useGameStore((state) => state.stateSyncQueue);
+  
+  useEffect(() => {
+    // 当存在没有执行完的动画或是正在扔骰子时，不触发下一次 StateSync 出队
+    if (hasPendingAnimations) {
+      return;
+    }
+
+    // 这里只有没有待播放动画且仍在队列里有待消费 StateSync
+    if (stateSyncQueue.length > 0) {
+       console.log(`[BoardScene] 拔出下一个 StateSync。剩余队列长度：${stateSyncQueue.length - 1}`);
+       useGameStore.getState().applyNextStateSync();
+       gameService['routeSceneByState']?.(useGameStore.getState().globalState); // trigger route check
+    }
+
+  }, [stateSyncQueue.length, hasPendingAnimations]);
 
   useEffect(() => {
     if (isTurnEndSettlement && currentPlayerId) {
@@ -323,6 +348,16 @@ export const BoardScene: React.FC = () => {
         return { ...current, pendingResult: result };
       }
 
+      if (current.status === 'awaiting_result' && current.playerId === result.playerId) {
+        return {
+          status: 'rolling',
+          playerId: current.playerId,
+          diceType: result.diceType,
+          startedAt: current.startedAt,
+          pendingResult: result,
+        };
+      }
+
       return {
         status: 'rolling',
         playerId: result.playerId,
@@ -334,7 +369,7 @@ export const BoardScene: React.FC = () => {
   }, [activeLogEntry, handledDiceResultKey]);
 
   useEffect(() => {
-    if (diceRollView.status !== 'rolling' || !diceRollView.pendingResult) return;
+    if (diceRollView.status !== 'rolling') return;
 
     const elapsed = Date.now() - diceRollView.startedAt;
     const delay = Math.max(0, DICE_ROLL_MIN_MS - elapsed);
@@ -361,6 +396,23 @@ export const BoardScene: React.FC = () => {
     return () => window.clearTimeout(timeoutId);
   }, [diceRollView]);
 
+  useEffect(() => {
+    const resetDiceView = () => setDiceRollView({ status: 'idle' });
+
+    window.addEventListener('board:dice-roll-rejected', resetDiceView);
+    return () => window.removeEventListener('board:dice-roll-rejected', resetDiceView);
+  }, []);
+
+  useEffect(() => {
+    if (diceRollView.status !== 'awaiting_result') return;
+
+    const timeoutId = window.setTimeout(() => {
+      setDiceRollView((current) => (current.status === 'awaiting_result' ? { status: 'idle' } : current));
+    }, 8000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diceRollView]);
+
   return (
     <div style={styles.sceneRoot}>
       <div style={styles.boardLayer}>
@@ -368,7 +420,8 @@ export const BoardScene: React.FC = () => {
           <PhaserBoard
             mapConfig={mapConfig}
             players={renderedPlayers}
-            followPlayerId={myPlayerId || currentPlayerId}
+            // followPlayerId={currentPlayerId || myPlayerId}
+            followPlayerId={currentPlayerId}
             activeLogEntry={activeLogEntry}
             settlementPlayer={settlementPlayer}
           />
