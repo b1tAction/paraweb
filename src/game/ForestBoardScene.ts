@@ -4,7 +4,6 @@ import { getTiledProperty } from './tiledHelpers';
 import {
   MOVE_STEP_MS,
   describeLogEntryEffect,
-  describeSettlementChange,
   getMetadataNumber,
   getMetadataNumberArray,
 } from './logEntryPlayback';
@@ -26,13 +25,6 @@ type TilesetImageConfig = {
   tiledNames: string[];
   key: string;
   url: string;
-};
-
-type SettlementStatusView = {
-  playerId: string;
-  container: Phaser.GameObjects.Container;
-  bg: Phaser.GameObjects.Graphics;
-  text: Phaser.GameObjects.Text;
 };
 
 const TILESET_IMAGES: TilesetImageConfig[] = [
@@ -100,7 +92,6 @@ export class ForestBoardScene extends Phaser.Scene {
   // 【修改点 1】把 Arc 改成 Sprite
   private playerMarkers = new Map<string, Phaser.GameObjects.Sprite>();
   private logDrivenPositions = new Map<string, number>();
-  private settlementStatus?: SettlementStatusView;
   private lastEffectKey = '';
 
   private ready = false;
@@ -198,15 +189,10 @@ export class ForestBoardScene extends Phaser.Scene {
     this.rebuildCellsFromBackendConfig();
     this.renderCellMarkers();
     this.syncPlayers(this.players);
-    this.syncSettlementStatus(this.settlementPlayer);
     this.playLogEntryEffect(this.activeLogEntry);
 
     this.ready = true;
   
-  }
-
-  update() {
-    this.updateSettlementStatusPosition();
   }
 
   updateFromReact(
@@ -237,7 +223,6 @@ export class ForestBoardScene extends Phaser.Scene {
     }
 
     this.syncPlayers(this.players);
-    this.syncSettlementStatus(this.settlementPlayer);
     this.playLogEntryEffect(this.activeLogEntry);
 
     if (followChanged) {
@@ -424,88 +409,6 @@ export class ForestBoardScene extends Phaser.Scene {
     this.followTargetPlayer();
   }
 
-  private syncSettlementStatus(player?: Player | null) {
-    if (!player) {
-      this.settlementStatus?.container.destroy(true);
-      this.settlementStatus = undefined;
-      return;
-    }
-
-    const marker = this.playerMarkers.get(player.player_id);
-    if (!marker) return;
-
-    const buffText =
-      player.buffs.length > 0
-        ? player.buffs
-            .map((buff) => `${buff.name || buff.type}${buff.duration < 0 ? '' : `:${buff.duration}`}`)
-            .join('  ')
-        : '无 Buff';
-    const settlementChange = describeSettlementChange(player, this.activeLogEntry);
-    const content = `TurnEnd 结算\nHP ${player.hp}   LP ${player.lp}\n${buffText}${settlementChange ? `\n${settlementChange.label}` : ''}`;
-    const borderColor = settlementChange?.color ?? 0xfff176;
-    const textColor = settlementChange?.textColor ?? '#ffffff';
-
-    if (!this.settlementStatus || this.settlementStatus.playerId !== player.player_id) {
-      this.settlementStatus?.container.destroy(true);
-
-      const bg = this.add.graphics();
-      const text = this.add.text(0, 0, content, {
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '15px',
-        color: textColor,
-        align: 'left',
-        lineSpacing: 4,
-        stroke: '#111827',
-        strokeThickness: 4,
-      });
-      text.setOrigin(0.5, 0.5);
-
-      const container = this.add.container(marker.x, marker.y - 78, [bg, text]);
-      container.setDepth(marker.y + 240);
-      container.setAlpha(0);
-
-      this.settlementStatus = {
-        playerId: player.player_id,
-        container,
-        bg,
-        text,
-      };
-
-      this.tweens.add({
-        targets: container,
-        alpha: 1,
-        duration: 160,
-        ease: 'Sine.easeOut',
-      });
-    }
-
-    this.settlementStatus.text.setText(content);
-    this.settlementStatus.text.setColor(textColor);
-    this.drawSettlementStatusBackground(this.settlementStatus, borderColor);
-    this.updateSettlementStatusPosition();
-  }
-
-  private drawSettlementStatusBackground(view: SettlementStatusView, borderColor: number) {
-    const width = Math.max(180, view.text.width + 28);
-    const height = view.text.height + 22;
-
-    view.bg.clear();
-    view.bg.fillStyle(0x111827, 0.88);
-    view.bg.fillRoundedRect(-width / 2, -height / 2, width, height, 8);
-    view.bg.lineStyle(2, borderColor, 0.95);
-    view.bg.strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
-  }
-
-private updateSettlementStatusPosition() {
-    if (!this.settlementStatus) return;
-    const marker = this.playerMarkers.get(this.settlementStatus.playerId);
-    if (!marker) return;
-
-    // 将位置改得更高
-    this.settlementStatus.container.setPosition(marker.x, marker.y - 150); 
-    this.settlementStatus.container.setDepth(marker.y + 240);
-}
-
   private playLogEntryEffect(entry?: LogEntry | null) {
     if (!entry || (entry.type !== 'action' && entry.type !== 'boss')) return;
 
@@ -525,7 +428,7 @@ private updateSettlementStatusPosition() {
       return;
     }
 
-    if (this.settlementPlayer && describeSettlementChange(this.settlementPlayer, entry)) return;
+    if (this.shouldSuppressSettlementEffect(entry)) return;
 
     const marker = this.playerMarkers.get(entry.target) ?? this.playerMarkers.get(this.followPlayerId || '');
     if (!marker) return;
@@ -578,6 +481,19 @@ private updateSettlementStatusPosition() {
       ease: 'Cubic.easeOut',
       onComplete: () => text.destroy(),
     });
+  }
+
+  private shouldSuppressSettlementEffect(entry: LogEntry) {
+    if (!this.settlementPlayer || entry.target !== this.settlementPlayer.player_id) return false;
+
+    return [
+      'damage',
+      'heal',
+      'fell_down',
+      'modify_lp',
+      'add_buff',
+      'remove_buff',
+    ].includes(entry.action_type);
   }
 
  private playMoveAnimation(entry: LogEntry) {
