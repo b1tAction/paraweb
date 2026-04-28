@@ -83,6 +83,34 @@ function isBossPlayer(player: Player) {
   return Boolean((player as Player & { is_boss?: boolean }).is_boss) || player.display_name === 'Boss';
 }
 
+function getLogEntryKey(entry: { timestamp: string; action_type: string; target: string; source: string }) {
+  return `${entry.timestamp}:${entry.action_type}:${entry.target}:${entry.source}`;
+}
+
+function syncRenderedPlayerPositionAfterMove(
+  rendered: Player[],
+  latestPlayers: Player[],
+  playerId: string,
+  position: number
+) {
+  const latestPlayer = latestPlayers.find((player) => player.player_id === playerId);
+  const nextPosition = latestPlayer?.position ?? position;
+  let changed = false;
+
+  const nextRendered = rendered.map((player) => {
+    if (player.player_id !== playerId) return player;
+    if (player.position === nextPosition) return player;
+
+    changed = true;
+    return {
+      ...player,
+      position: nextPosition,
+    };
+  });
+
+  return changed ? nextRendered : rendered;
+}
+
 type DiceRollView =
   | { status: 'idle' }
   | { status: 'awaiting_result'; playerId: string; diceType: string; startedAt: number }
@@ -112,6 +140,7 @@ export const BoardScene: React.FC = () => {
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
   const latestPlayersRef = useRef(players);
   const lastAppliedSettlementEntryRef = useRef('');
+  const lastSyncedMoveEntryRef = useRef('');
   const roundReadySentKeyRef = useRef('');
   const debugLogContentRef = useRef<HTMLDivElement>(null);
 
@@ -301,7 +330,31 @@ export const BoardScene: React.FC = () => {
     if (!hasPendingAnimations) {
       setRenderedPlayers(players);
     }
+    // setRenderedPlayers(players);
   }, [players, hasPendingAnimations]);
+
+  useEffect(() => {
+    if (playedEntries.length === 0) return;
+
+    const latestPlayedEntry = playedEntries[playedEntries.length - 1];
+    if (latestPlayedEntry.action_type !== 'move') return;
+
+    const key = getLogEntryKey(latestPlayedEntry);
+    if (lastSyncedMoveEntryRef.current === key) return;
+
+    const endPosition = getMetadataNumber(latestPlayedEntry.metadata, 'end_pos');
+    if (endPosition === null) return;
+
+    setRenderedPlayers((current) =>
+      syncRenderedPlayerPositionAfterMove(
+        current,
+        latestPlayersRef.current,
+        latestPlayedEntry.target,
+        endPosition
+      )
+    );
+    lastSyncedMoveEntryRef.current = key;
+  }, [playedEntries]);
 
   useEffect(() => {
     if (!isRoundEndWait) {
