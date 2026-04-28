@@ -656,65 +656,81 @@ private updateSettlementStatusPosition() {
     runNext();
   }
 
- private playDrawEventAnimation(entry: LogEntry) {
+private playDrawEventAnimation(entry: LogEntry) {
   const marker = this.playerMarkers.get(entry.target);
   if (!marker) return;
 
   const eventType = getEventTypeFromEntry(entry);
   const effect = getEventEffectConfig(eventType);
-
-  const x = marker.x;
-  const y = marker.y;
   const duration = effect.duration || 2500;
 
-  // 1. 创建文本对象（初始状态：透明且稍微偏下）
-  let emojiText: Phaser.GameObjects.Text | null = null;
-  if (effect.iconEmoji) {
-    emojiText = this.add.text(x - 50, y - 20, effect.iconEmoji, { fontSize: '28px' });
-    emojiText.setOrigin(0.5, 0.5);
-    emojiText.setDepth(y + 231);
-    emojiText.setAlpha(0); // 初始透明
-  }
+  // 1. 边界检测：计算摄像机视口，防止文字超出屏幕
+  const cam = this.cameras.main;
+  const screenWidth = cam.width / cam.zoom;
+  const padding = 120; // 边缘留白
+  const isTooFarLeft = marker.x < cam.scrollX + padding;
+  const isTooFarRight = marker.x > cam.scrollX + screenWidth - padding;
+  
+  let offsetX = 0;
+  if (isTooFarLeft) offsetX = 80;    // 靠近左边，向右推
+  if (isTooFarRight) offsetX = -80;  // 靠近右边，向左推
 
-  const textX = emojiText ? x + 15 : x;
-  const text = this.add.text(textX, y - 20, effect.label, {
+  // 2. 创建容器
+  const container = this.add.container(marker.x + offsetX, marker.y - 20);
+  container.setDepth(marker.y + 230);
+  container.setAlpha(0);
+
+  // 3. 创建文字
+  const text = this.add.text(0, 0, effect.label, {
     fontFamily: 'Arial, sans-serif',
     fontSize: '24px',
     fontStyle: 'bold',
     color: effect.textColor,
-    align: 'center',
     stroke: '#0b1020',
     strokeThickness: 5,
   });
-  text.setOrigin(0.5, 0.5);
-  text.setDepth(y + 230);
-  text.setAlpha(0); // 初始透明
+  text.setOrigin(0, 0.5);
 
-  // 2. 动画效果：自然地飘出
-  const targets = emojiText ? [text, emojiText] : [text];
+  // 强制长度限制：如果文字太长，自动缩小字号
+  if (text.width > 220) {
+    text.setFontSize(18);
+  }
 
-  // 统一执行浮现动画
+  // 4. 创建 Emoji 并组合
+  if (effect.iconEmoji) {
+    const emojiText = this.add.text(0, 0, effect.iconEmoji, { fontSize: '28px' });
+    emojiText.setOrigin(0.5, 0.5);
+    
+    // 排列：Emoji 在左，Text 在右
+    emojiText.setPosition(- (text.width / 2) - 10, 0);
+    text.setPosition(- (text.width / 2) + 20, 0);
+    
+    container.add([emojiText, text]);
+  } else {
+    text.setOrigin(0.5, 0.5);
+    container.add(text);
+  }
+
+  // 5. 动画效果：浮现动画
   this.tweens.add({
-    targets: targets,
-    alpha: { from: 0, to: 1 },        // 渐显
-    y: y - 60,                       // 从下方缓慢滑入上方
-    scale: { from: 0.8, to: 1 },     // 稍微放大一点点
-    duration: 600,                   // 出现的过程要平滑
-    ease: 'Back.easeOut',            // Back.easeOut 会带来轻微的“弹跳”感，非常自然
+    targets: container,
+    alpha: { from: 0, to: 1 },
+    y: marker.y - 60,                // 向上飘动
+    scale: { from: 0.8, to: 1 },     // 轻微放大
+    duration: 600,
+    ease: 'Back.easeOut',            // 自然弹跳效果
   });
 
-  // 3. 停留并淡出
+  // 6. 停留并淡出
   this.tweens.add({
-    targets: targets,
-    alpha: { from: 1, to: 0 },       // 渐隐
-    delay: duration - 600,           // 在 duration 结束前 600ms 开始消失
+    targets: container,
+    alpha: { from: 1, to: 0 },
+    delay: duration - 600,           // 持续显示直到最后阶段
     duration: 600,
     ease: 'Power2.easeOut',
     onComplete: () => {
-      text.destroy();
-      if (emojiText) emojiText.destroy();
+      container.destroy();           // 自动销毁容器及子项
     }
   });
 }
-
 }
