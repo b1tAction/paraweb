@@ -99,6 +99,8 @@ export class ForestBoardScene extends Phaser.Scene {
   private cellMarkers: Phaser.GameObjects.GameObject[] =[];
   // 【修改点 1】把 Arc 改成 Sprite
   private playerMarkers = new Map<string, Phaser.GameObjects.Sprite>();
+  private playerNames = new Map<string, Phaser.GameObjects.Text>();
+
   private logDrivenPositions = new Map<string, number>();
   private settlementStatus?: SettlementStatusView;
   private lastEffectKey = '';
@@ -207,6 +209,18 @@ export class ForestBoardScene extends Phaser.Scene {
 
   update() {
     this.updateSettlementStatusPosition();
+
+     // 确保名字每帧跟随 marker
+    this.playerNames.forEach((text, playerId) => {
+        const marker = this.playerMarkers.get(playerId);
+        if (marker) {
+            text.setPosition(marker.x, marker.y - 30);
+            text.setDepth(marker.depth + 1); // 名字永远在人物上方
+        } else {
+            text.destroy();
+            this.playerNames.delete(playerId);
+        }
+    });
   }
 
   updateFromReact(
@@ -400,6 +414,26 @@ export class ForestBoardScene extends Phaser.Scene {
         marker.setData('charPrefix', charPrefix);
 
         this.playerMarkers.set(player.player_id, marker);
+
+        if (player.player_id === this.followPlayerId) {
+          this.followTargetPlayer();
+        }
+
+        // 【新增】创建名字标签
+        const isMe = player.player_id === this.followPlayerId; 
+        
+        const nameText = this.add.text(targetX, targetY - 30, player.display_name, {
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '14px',
+          color: isMe ? '#ffee58' : '#ffffff', // 自己的名字显示亮黄色
+          stroke: '#000000',
+          strokeThickness: 3,
+        });
+        nameText.setOrigin(0.5, 0.5);
+        nameText.setDepth(targetY + 200); 
+        
+        // 存入 Map 以便后续更新
+        this.playerNames.set(player.player_id, nameText);
 
         if (player.player_id === this.followPlayerId) {
           this.followTargetPlayer();
