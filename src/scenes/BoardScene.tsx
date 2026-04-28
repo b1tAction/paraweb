@@ -8,7 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 import { PhaserBoard } from '../components/PhaserBoard';
-import type { Available, Player } from '../types/protocol';
+import type { Available, Player, Item } from '../types/protocol';
 import { DebugLogEntry } from '../components/DebugLogEntry';
 import {
   DICE_RESULT_DISPLAY_MS,
@@ -115,6 +115,7 @@ export const BoardScene: React.FC = () => {
 
    // 1. 新增：存储所有玩家的头像 Base64 (以 playerId 为 key)
   const[avatars, setAvatars] = useState<Record<string, string>>({});
+  const [itemTargetSelection, setItemTargetSelection] = useState<Item | null>(null);
   // 2. 新增：监听 Phaser 发过来的头像事件
   useEffect(() => {
     const handleAvatarUpdate = (e: any) => {
@@ -158,9 +159,13 @@ export const BoardScene: React.FC = () => {
   /**
    * 处理使用道具
    */
-  const handleUseItem = (itemId: string) => {
-    console.log('[BoardScene] 使用道具', itemId);
-    gameService.sendUseItem(itemId);
+  const handleUseItem = (item: Item) => {
+    if (item.type === 'reverse_clock') {
+      setItemTargetSelection(item);
+      return;
+    }
+    console.log('[BoardScene] 使用道具', item.id);
+    gameService.sendUseItem(item.id);
   };
 
   /**
@@ -517,7 +522,7 @@ export const BoardScene: React.FC = () => {
             {actionView.items.map((item) => (
               <button
                 key={item.id}
-                onClick={() => handleUseItem(item.id)}
+                onClick={() => handleUseItem(item)}
                 style={{
                   ...styles.actionTile,
                   ...styles.itemActionTile,
@@ -580,6 +585,40 @@ export const BoardScene: React.FC = () => {
                     {option.label}
                   </button>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {itemTargetSelection && (
+          <div style={styles.decisionBackdrop}>
+            <div style={styles.decisionSection}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', color: '#333' }}>选择道具目标玩家</h3>
+              <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#666' }}>
+                请为道具 {itemTargetSelection.name} 选择一个作用目标
+              </p>
+              <div style={styles.decisionOptions}>
+                {renderedPlayers.map((player) => (
+                  <button
+                    key={player.player_id}
+                    onClick={() => {
+                      console.log('[BoardScene] 选择目标使用了道具', itemTargetSelection.id, player.player_id);
+                      gameService.sendUseItem(itemTargetSelection.id, player.player_id);
+                      setItemTargetSelection(null);
+                    }}
+                    style={styles.decisionButton}
+                  >
+                    {player.display_name || player.player_id} {player.player_id === myPlayerId ? '(自己)' : ''}
+                  </button>
+                ))}
+              </div>
+              <div style={{ marginTop: '16px', textAlign: 'right' }}>
+                <button
+                  onClick={() => setItemTargetSelection(null)}
+                  style={{ ...styles.decisionButton, backgroundColor: '#9e9e9e', padding: '6px 12px' }}
+                >
+                  取消
+                </button>
               </div>
             </div>
           </div>
