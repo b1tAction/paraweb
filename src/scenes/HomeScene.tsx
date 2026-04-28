@@ -163,6 +163,7 @@ export const HomeScene: React.FC = () => {
   const handleCreateRoom = async () => {
     try {
       setError('');
+      useGameStore.getState().setFaction(faction);
       await gameService.createRoom(faction, maxPlayers);
       console.log('[HomeScene] 房间创建成功');
     } catch (err: unknown) {
@@ -183,7 +184,8 @@ export const HomeScene: React.FC = () => {
 
     try {
       setError('');
-      await gameService.joinRoom(joinMatchId);
+      useGameStore.getState().setFaction(faction);
+      await gameService.joinRoom(joinMatchId, { faction });
       console.log('[HomeScene] 加入房间成功');
     } catch (err: unknown) {
       const message = await getErrorMessage(err);
@@ -258,6 +260,19 @@ export const HomeScene: React.FC = () => {
 
             <div style={styles.section}>
               <h3>加入房间</h3>
+              <div style={styles.formGroup}>
+                <label>阵营：</label>
+                <select
+                  value={faction}
+                  onChange={(e) => setFaction(e.target.value)}
+                  style={styles.select}
+                >
+                  <option value="qing_long">青龙</option>
+                  <option value="zhu_que">朱雀</option>
+                  <option value="bai_hu">白虎</option>
+                  <option value="xuan_wu">玄武</option>
+                </select>
+              </div>
               <div style={styles.formGroup}>
                 <label>房间 ID：</label>
                 <input

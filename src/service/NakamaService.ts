@@ -93,10 +93,9 @@ export class NakamaService {
   }
 
   /**
-   * 构建 joinMatch metadata，确保 display_name 始终可用。
-   * - 优先使用调用方传入的 display_name
-   * - 其次使用 store.displayName
-   * - 最后回退到 session.username
+   * 构建 joinMatch metadata，确保 display_name 和 faction 始终可用。
+   * - display_name: 优先使用调用方传入的，其次 store.displayName，最后 session.username
+   * - faction: 优先使用调用方传入的，其次 store.faction
    */
   private buildJoinMetadata(metadata?: Record<string, string>): Record<string, string> | undefined {
     const store = useGameStore.getState();
@@ -110,6 +109,15 @@ export class NakamaService {
 
     if (candidateDisplayName) {
       merged.display_name = candidateDisplayName;
+    }
+
+    const candidateFaction =
+      merged.faction?.trim() ||
+      store.faction?.trim() ||
+      '';
+
+    if (candidateFaction) {
+      merged.faction = candidateFaction;
     }
 
     return Object.keys(merged).length > 0 ? merged : undefined;
