@@ -100,6 +100,7 @@ export class ForestBoardScene extends Phaser.Scene {
   // 【修改点 1】把 Arc 改成 Sprite
   private playerMarkers = new Map<string, Phaser.GameObjects.Sprite>();
   private playerNames = new Map<string, Phaser.GameObjects.Text>();
+  private playerAvatars = new Map<string, Phaser.GameObjects.Sprite>();
 
   private logDrivenPositions = new Map<string, number>();
   private settlementStatus?: SettlementStatusView;
@@ -373,8 +374,6 @@ export class ForestBoardScene extends Phaser.Scene {
  private syncPlayers(players: Player[]) {
     console.log('正在渲染的玩家数据:', players); 
 
-
-
     players.forEach((player, order) => {
       const visualPosition = this.logDrivenPositions.get(player.player_id) ?? player.position;
       const cell = this.cellViews.get(visualPosition);
@@ -392,57 +391,71 @@ export class ForestBoardScene extends Phaser.Scene {
 
       let marker = this.playerMarkers.get(player.player_id);
 
+      // =========================================================
+      // 首次创建人物
+      // =========================================================
       if (!marker) {
-        // 【修改】核心逻辑：根据玩家数据动态决定使用哪个精灵
-        
         // 1. 优先根据玩家的阵营(faction)去配置表里查找对应的人物前缀
         let charPrefix = player.faction ? FACTION_TO_PREFIX[player.faction] : null;
 
-        // 2. 如果没找到（比如阵营名写错了或没传），则按玩家加入顺序轮流分配一个外观，保证不报错
+        // 2. 如果没找到，则按加入顺序轮流分配
         if (!charPrefix || !AVAILABLE_CHARACTERS.includes(charPrefix)) {
             charPrefix = AVAILABLE_CHARACTERS[order % AVAILABLE_CHARACTERS.length];
             console.warn(`玩家 ${player.display_name} 阵营 ${player.faction} 未配置，已自动分配外观: ${charPrefix}`);
         }
 
-        // 3. 使用动态获取的前缀来创建精灵和播放动画
+        // 3. 创建精灵和播放动画
         marker = this.add.sprite(targetX, targetY, `${charPrefix}_idle`);
         marker.setScale(0.65);
         marker.play(`${charPrefix}_idle_anim`);
         marker.setDepth(targetY + 100);
         
-        // 4. 【关键】把这个人物的前缀存起来，方便移动时知道该播放哪个移动动画
+        // 4. 把前缀存起来方便移动时调用
         marker.setData('charPrefix', charPrefix);
 
         this.playerMarkers.set(player.player_id, marker);
 
-        if (player.player_id === this.followPlayerId) {
-          this.followTargetPlayer();
-        }
-
-        // 【新增】创建名字标签
+        // 5. 创建名字标签
         const isMe = player.player_id === this.followPlayerId; 
-        
         const nameText = this.add.text(targetX, targetY - 30, player.display_name, {
           fontFamily: 'Arial, sans-serif',
           fontSize: '14px',
-          color: isMe ? '#ffee58' : '#ffffff', // 自己的名字显示亮黄色
+          color: isMe ? '#ffee58' : '#ffffff', 
           stroke: '#000000',
           strokeThickness: 3,
         });
         nameText.setOrigin(0.5, 0.5);
         nameText.setDepth(targetY + 200); 
-        
-        // 存入 Map 以便后续更新
         this.playerNames.set(player.player_id, nameText);
 
         if (player.player_id === this.followPlayerId) {
           this.followTargetPlayer();
         }
 
+        // =========================================================
+        // 【新增】提取第一帧头像并发送给 React
+        // =========================================================
+        // 把原来的 this.events.emit 替换成这个：
+        try {
+          const avatarBase64 = this.textures.getBase64(`${charPrefix}_idle`, 0);
+          
+          // 使用 window 发送全局事件，跨越 Phaser 和 React 的边界
+          window.dispatchEvent(new CustomEvent('ui-player-avatar', {
+            detail: {
+              playerId: player.player_id,
+              avatarUrl: avatarBase64
+            }
+          }));
+        } catch (e) {
+          console.warn(`无法提取 ${player.display_name} 的头像`, e);
+        }
+
         return;
       }
 
-      // 这部分移动逻辑保持不变
+      // =========================================================
+      // 更新人物位置（移动）
+      // =========================================================
       this.tweens.add({
         targets: marker,
         x: targetX,
@@ -456,7 +469,7 @@ export class ForestBoardScene extends Phaser.Scene {
     });
 
     this.followTargetPlayer();
-  }
+}
 
   private syncSettlementStatus(player?: Player | null) {
     if (!player) {

@@ -109,8 +109,24 @@ export const BoardScene: React.FC = () => {
         hypothesisId: 'C'
       })
     }).catch(() => {});
+
   }, [mapConfig]);
   // #endregion
+
+   // 1. 新增：存储所有玩家的头像 Base64 (以 playerId 为 key)
+  const[avatars, setAvatars] = useState<Record<string, string>>({});
+  // 2. 新增：监听 Phaser 发过来的头像事件
+  useEffect(() => {
+    const handleAvatarUpdate = (e: any) => {
+      const { playerId, avatarUrl } = e.detail;
+      setAvatars(prev => ({ ...prev, [playerId]: avatarUrl }));
+    };
+
+    window.addEventListener('ui-player-avatar', handleAvatarUpdate);
+    return () => {
+      window.removeEventListener('ui-player-avatar', handleAvatarUpdate);
+    };
+  },[]);
 
   const isMyTurn = myPlayerId === currentPlayerId;
 
@@ -376,15 +392,31 @@ export const BoardScene: React.FC = () => {
                   }}
                 >
                   <div style={styles.avatarWrap}>
-                    <div
-                      style={{
-                        ...styles.avatar,
-                        backgroundColor: faction.color,
-                        boxShadow: isCurrentMainActionPlayer
-                          ? `0 0 0 3px rgba(255, 255, 255, 0.95), 0 0 22px ${faction.color}`
-                          : styles.avatar.boxShadow,
-                      }}
-                    />
+                    {avatars[player.player_id] ? (
+                      <img
+                        src={avatars[player.player_id]}
+                        alt={player.display_name}
+                        style={{
+                          ...styles.avatar, // 复用你原有的圆形边框样式
+                          backgroundColor: faction.color, // 垫底背景色
+                          objectFit: 'cover',         // 填满圆形
+                          objectPosition: 'center 15%', // 核心：向上偏移裁切，只保留头部和上半身！
+                          boxShadow: isCurrentMainActionPlayer
+                            ? `0 0 0 3px rgba(255, 255, 255, 0.95), 0 0 22px ${faction.color}`
+                            : styles.avatar.boxShadow,
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          ...styles.avatar,
+                          backgroundColor: faction.color,
+                          boxShadow: isCurrentMainActionPlayer
+                            ? `0 0 0 3px rgba(255, 255, 255, 0.95), 0 0 22px ${faction.color}`
+                            : styles.avatar.boxShadow,
+                        }}
+                      />
+                    )}
                     {player.player_id === myPlayerId && <span style={styles.myAvatarBadge}>我</span>}
                   </div>
                   <div style={styles.playerCardBody}>
