@@ -360,7 +360,7 @@ export class ForestBoardScene extends Phaser.Scene {
   }
 
  private syncPlayers(players: Player[]) {
-    console.log('正在渲染的玩家数据:', players); 
+    //console.log('正在渲染的玩家数据:', players); 
 
     players.forEach((player, order) => {
       const visualPosition = this.logDrivenPositions.get(player.player_id) ?? player.position;
