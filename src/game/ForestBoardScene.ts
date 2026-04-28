@@ -94,6 +94,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private playerNames = new Map<string, Phaser.GameObjects.Text>();
 
   private logDrivenPositions = new Map<string, number>();
+  private activeMoveAnimations = new Set<string>();
   private lastEffectKey = '';
 
   private ready = false;
@@ -230,7 +231,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
     if (!this.ready) return;
 
-    if (!activeLogEntry && !settlementPlayer) {
+    if (!activeLogEntry && !settlementPlayer && this.activeMoveAnimations.size === 0) {
       this.logDrivenPositions.clear();
     }
 
@@ -443,16 +444,22 @@ export class ForestBoardScene extends Phaser.Scene {
       // =========================================================
       // 更新人物位置（移动）
       // =========================================================
-      this.tweens.add({
-        targets: marker,
-        x: targetX,
-        y: targetY,
-        duration: 250,
-        ease: 'Sine.easeInOut',
-        onUpdate: () => {
-          marker?.setDepth((marker.y ?? targetY) + 100);
-        },
-      });
+      if (this.activeMoveAnimations.has(player.player_id)) {
+        // Move animation is already controlling this player's position.
+        // Only update depth to keep z-order correct.
+        marker.setDepth((marker.y ?? targetY) + 100);
+      } else {
+        this.tweens.add({
+          targets: marker,
+          x: targetX,
+          y: targetY,
+          duration: 250,
+          ease: 'Sine.easeInOut',
+          onUpdate: () => {
+            marker?.setDepth((marker.y ?? targetY) + 100);
+          },
+        });
+      }
     });
 
     this.followTargetPlayer();
@@ -584,13 +591,19 @@ export class ForestBoardScene extends Phaser.Scene {
     // 2. 开始移动前，播放对应外观的 move 动画
     marker.play(`${charPrefix}_move_anim`, true);
 
+    this.activeMoveAnimations.add(entry.target);
+
+    // Kill any existing tweens on this marker (e.g. from syncPlayers) to prevent competition
+    this.tweens.killTweensOf(marker);
+
     const runNext = () => {
       const point = points[index];
-      
+
       // 3. 如果没有下一个点了（抵达终点）
       if (!point) {
         // 恢复到对应外观的 idle 动画
-        marker.play(`${charPrefix}_idle_anim`, true); 
+        marker.play(`${charPrefix}_idle_anim`, true);
+        this.activeMoveAnimations.delete(entry.target);
         return;
       }
 
