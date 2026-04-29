@@ -8,6 +8,7 @@ type PhaserBoardProps = {
   players: Player[];
   /** 摄像头跟随的玩家 ID；通常传当前客户端自己的 myPlayerId */
   followPlayerId?: string | null;
+  selfPlayerId?: string | null;
   /** 当前正在播放的日志条目，用于棋盘上的特效提示 */
   activeLogEntry?: LogEntry | null;
   /** TurnEnd 结算目标；用于抑制当前玩家附近的 HP/LP/Buff 提示 */
@@ -18,6 +19,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   mapConfig,
   players,
   followPlayerId,
+  selfPlayerId,
   activeLogEntry,
   settlementPlayer,
 }) => {
@@ -52,6 +54,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       mapConfig,
       players,
       followPlayerId,
+      selfPlayerId,
       activeLogEntry,
       settlementPlayer,
     });
@@ -69,8 +72,8 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       'ForestBoardScene'
     ) as ForestBoardScene | undefined;
 
-    scene?.updateFromReact(mapConfig, players, followPlayerId, activeLogEntry, settlementPlayer);
-  }, [mapConfig, players, followPlayerId, activeLogEntry, settlementPlayer]);
+    scene?.updateFromReact(mapConfig, players, followPlayerId, selfPlayerId, activeLogEntry, settlementPlayer);
+  }, [mapConfig, players, followPlayerId, selfPlayerId, activeLogEntry, settlementPlayer]);
 
   return (
     <div
