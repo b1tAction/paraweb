@@ -490,7 +490,7 @@ const styles: Record<string, React.CSSProperties> = {
   matchId: {
     fontSize: '12px',
     color: '#333',
-    fontFamily: 'monospace',
+    fontFamily: 'inherit',
     wordBreak: 'break-all',
     marginBottom: '8px',
   },

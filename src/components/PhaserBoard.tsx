@@ -33,6 +33,9 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   width: 1280,
   height: 960,
   pixelArt: true,
+  antialias: false,
+  antialiasGL: false,
+  roundPixels: true,
   scale: { mode: Phaser.Scale.ENVELOP, autoCenter: Phaser.Scale.CENTER_BOTH },
   // 添加 preload 配置
   scene: {

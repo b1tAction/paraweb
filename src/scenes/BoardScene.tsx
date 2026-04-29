@@ -1202,7 +1202,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px 10px',
     fontSize: '11px',
     color: '#78909c',
-    fontFamily: 'monospace',
+    fontFamily: 'inherit',
   },
   bossSection: {
     padding: '12px',

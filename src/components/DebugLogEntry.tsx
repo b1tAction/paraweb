@@ -202,7 +202,7 @@ export const DebugLogEntry: React.FC<DebugLogEntryProps> = ({ entry, players }) 
         fontSize: '11px',
         lineHeight: 1.4,
         color: color,
-        fontFamily: 'monospace',
+        fontFamily: 'inherit',
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
