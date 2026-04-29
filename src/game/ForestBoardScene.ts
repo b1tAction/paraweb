@@ -29,6 +29,7 @@ type TilesetImageConfig = {
 
 type CellMarkerView = {
   sprite: Phaser.GameObjects.Sprite;
+  label: Phaser.GameObjects.Text;
 };
 
 const TILESET_IMAGES: TilesetImageConfig[] = [
@@ -72,6 +73,7 @@ const CAMERA_VIEW_TILES_X = 30;
 const CAMERA_VIEW_TILES_Y = 20;
 const GAME_FONT_FAMILY = 'Zpix, sans-serif';
 const PLAYER_NAME_SCREEN_FONT_SIZE = 14;
+const CELL_LABEL_SCREEN_FONT_SIZE = 12;
 const PLAYER_NAME_TEXTURE_RESOLUTION = 2;
 
 export class ForestBoardScene extends Phaser.Scene {
@@ -350,8 +352,9 @@ export class ForestBoardScene extends Phaser.Scene {
   }
 
   private renderCellMarkers() {
-    this.cellMarkers.forEach(({ sprite }) => {
+    this.cellMarkers.forEach(({ sprite, label }) => {
       sprite.destroy();
+      label.destroy();
     });
 
     this.cellMarkers.clear();
@@ -359,7 +362,19 @@ export class ForestBoardScene extends Phaser.Scene {
     for (const cell of this.cellViews.values()) {
       const sprite = this.add.sprite(cell.x, cell.y, 'logic-cell-off');
       sprite.setDepth(cell.y + 50);
-      this.cellMarkers.set(cell.index, { sprite });
+
+      const label = this.add.text(cell.x, cell.y, String(cell.index), {
+        fontFamily: GAME_FONT_FAMILY,
+        fontSize: `${this.getWorldFontSize(CELL_LABEL_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`,
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 3,
+      });
+      label.setOrigin(0.5, 0.5);
+      this.configurePlayerNameText(label);
+      label.setDepth(cell.y + 55);
+
+      this.cellMarkers.set(cell.index, { sprite, label });
     }
 
     this.refreshCellMarkerStates();
