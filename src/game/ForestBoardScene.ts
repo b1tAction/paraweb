@@ -75,6 +75,7 @@ const GAME_FONT_FAMILY = 'Zpix, sans-serif';
 const PLAYER_NAME_SCREEN_FONT_SIZE = 14;
 const CELL_LABEL_SCREEN_FONT_SIZE = 12;
 const PLAYER_NAME_TEXTURE_RESOLUTION = 2;
+const LOGIC_CELL_MARKER_SCALE = 1.5;
 
 export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
@@ -389,6 +390,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
     for (const cell of this.cellViews.values()) {
       const sprite = this.add.sprite(cell.x, cell.y, 'logic-cell-off');
+      sprite.setScale(LOGIC_CELL_MARKER_SCALE);
       sprite.setDepth(cell.y + 50);
 
       const label = this.add.text(cell.x, cell.y, String(cell.index), {
