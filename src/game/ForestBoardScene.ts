@@ -70,6 +70,9 @@ const FACTION_TO_PREFIX: Record<string, string> = {
 
 const CAMERA_VIEW_TILES_X = 30;
 const CAMERA_VIEW_TILES_Y = 20;
+const GAME_FONT_FAMILY = 'Zpix, sans-serif';
+const PLAYER_NAME_SCREEN_FONT_SIZE = 14;
+const PLAYER_NAME_TEXTURE_RESOLUTION = 2;
 
 export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
@@ -201,7 +204,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.playerNames.forEach((text, playerId) => {
         const marker = this.playerMarkers.get(playerId);
         if (marker) {
-            text.setPosition(marker.x, marker.y - 30);
+            text.setPosition(Math.round(marker.x), Math.round(marker.y - 30));
             text.setDepth(marker.depth + 1); // 名字永远在人物上方
         } else {
             text.destroy();
@@ -253,6 +256,23 @@ export class ForestBoardScene extends Phaser.Scene {
 
     camera.setZoom(zoom);
     camera.roundPixels = true;
+  }
+
+  private getCameraZoom() {
+    return this.cameras.main.zoom || 1;
+  }
+
+  private getWorldFontSize(screenFontSize: number) {
+    return Math.max(1, Math.round(screenFontSize / this.getCameraZoom()));
+  }
+
+  private getTextTextureResolution() {
+    return Math.max(PLAYER_NAME_TEXTURE_RESOLUTION, Math.ceil(this.getCameraZoom() * PLAYER_NAME_TEXTURE_RESOLUTION));
+  }
+
+  private configurePlayerNameText(text: Phaser.GameObjects.Text) {
+    text.setResolution(this.getTextTextureResolution());
+    text.setScale(1 / PLAYER_NAME_TEXTURE_RESOLUTION);
   }
 
   private followTargetPlayer() {
@@ -415,13 +435,14 @@ export class ForestBoardScene extends Phaser.Scene {
         // 5. 创建名字标签
         const isMe = player.player_id === this.followPlayerId; 
         const nameText = this.add.text(targetX, targetY - 30, player.display_name, {
-          fontFamily: 'Arial, sans-serif',
-          fontSize: '14px',
+          fontFamily: GAME_FONT_FAMILY,
+          fontSize: `${this.getWorldFontSize(PLAYER_NAME_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`,
           color: isMe ? '#ffee58' : '#ffffff', 
           stroke: '#000000',
           strokeThickness: 3,
         });
         nameText.setOrigin(0.5, 0.5);
+        this.configurePlayerNameText(nameText);
         nameText.setDepth(targetY + 200); 
         this.playerNames.set(player.player_id, nameText);
 
@@ -508,7 +529,7 @@ export class ForestBoardScene extends Phaser.Scene {
     ring.setDepth(y + 210);
 
     const text = this.add.text(x, y - 42, effect.label, {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: GAME_FONT_FAMILY,
       fontSize: '22px',
       fontStyle: 'bold',
       color: effect.textColor,
@@ -674,7 +695,7 @@ private playDrawEventAnimation(entry: LogEntry) {
 
   // 3. 创建文字
   const text = this.add.text(0, 0, effect.label, {
-    fontFamily: 'Arial, sans-serif',
+    fontFamily: GAME_FONT_FAMILY,
     fontSize: '24px',
     fontStyle: 'bold',
     color: effect.textColor,

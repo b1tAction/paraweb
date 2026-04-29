@@ -97,6 +97,9 @@ const App: React.FC = () => {
   if (isRestoring) {
     return (
       <div style={styles.app}>
+        <span className="zpix-font-loader" aria-hidden="true">
+          Zpix 中文字体预加载
+        </span>
         <main style={styles.main}>
           <LoadingScene />
         </main>
@@ -108,6 +111,9 @@ const App: React.FC = () => {
 
   return (
     <div style={styles.app}>
+      <span className="zpix-font-loader" aria-hidden="true">
+        Zpix 中文字体预加载
+      </span>
       <header style={styles.header}>
         <h1 style={styles.logo}>ParaDiced</h1>
         <nav style={styles.nav}>

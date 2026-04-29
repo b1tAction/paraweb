@@ -102,7 +102,7 @@ export const styles: Record<string, CSSProperties> = {
     fontSize: '48px',
     fontWeight: 'bold',
     textAlign: 'center',
-    fontFamily: 'monospace',
+    fontFamily: 'inherit',
   },
   resultDisplay: {
     fontSize: '16px',
