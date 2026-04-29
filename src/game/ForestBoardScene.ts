@@ -80,6 +80,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
   private players: Player[] =[];
   private followPlayerId?: string | null;
+  private selfPlayerId?: string | null;
   private activeLogEntry?: LogEntry | null;
   private settlementPlayer?: Player | null;
   private mapTileWidth = 32;
@@ -107,12 +108,14 @@ export class ForestBoardScene extends Phaser.Scene {
     mapConfig: MapConfig;
     players: Player[];
     followPlayerId?: string | null;
+    selfPlayerId?: string | null;
     activeLogEntry?: LogEntry | null;
     settlementPlayer?: Player | null;
   }) {
     this.mapConfig = data.mapConfig;
     this.players = data.players ??[];
     this.followPlayerId = data.followPlayerId;
+    this.selfPlayerId = data.selfPlayerId;
     this.activeLogEntry = data.activeLogEntry;
     this.settlementPlayer = data.settlementPlayer;
   }
@@ -219,15 +222,18 @@ export class ForestBoardScene extends Phaser.Scene {
     mapConfig: MapConfig,
     players: Player[],
     followPlayerId?: string | null,
+    selfPlayerId?: string | null,
     activeLogEntry?: LogEntry | null,
     settlementPlayer?: Player | null
   ) {
     const mapChanged = this.mapConfig !== mapConfig;
     const followChanged = this.followPlayerId !== followPlayerId;
+    const selfChanged = this.selfPlayerId !== selfPlayerId;
 
     this.mapConfig = mapConfig;
     this.players = players ??[];
     this.followPlayerId = followPlayerId;
+    this.selfPlayerId = selfPlayerId;
     this.activeLogEntry = activeLogEntry;
     this.settlementPlayer = settlementPlayer;
 
@@ -244,6 +250,10 @@ export class ForestBoardScene extends Phaser.Scene {
 
     this.syncPlayers(this.players);
     this.playLogEntryEffect(this.activeLogEntry);
+
+    if (selfChanged) {
+      this.refreshPlayerNameStyles();
+    }
 
     if (followChanged) {
       this.followTargetPlayer();
@@ -275,6 +285,24 @@ export class ForestBoardScene extends Phaser.Scene {
   private configurePlayerNameText(text: Phaser.GameObjects.Text) {
     text.setResolution(this.getTextTextureResolution());
     text.setScale(1 / PLAYER_NAME_TEXTURE_RESOLUTION);
+  }
+
+  private getPlayerNameColor(playerId: string) {
+    return playerId === this.selfPlayerId ? '#ffee58' : '#ffffff';
+  }
+
+  private applyPlayerNameStyle(playerId: string, text: Phaser.GameObjects.Text, displayName?: string) {
+    text.setText(displayName || playerId);
+    text.setColor(this.getPlayerNameColor(playerId));
+  }
+
+  private refreshPlayerNameStyles() {
+    this.players.forEach((player) => {
+      const nameText = this.playerNames.get(player.player_id);
+      if (nameText) {
+        this.applyPlayerNameStyle(player.player_id, nameText, player.display_name);
+      }
+    });
   }
 
   private followTargetPlayer() {
@@ -423,6 +451,11 @@ export class ForestBoardScene extends Phaser.Scene {
 
       let marker = this.playerMarkers.get(player.player_id);
 
+      const nameText = this.playerNames.get(player.player_id);
+      if (nameText) {
+        this.applyPlayerNameStyle(player.player_id, nameText, player.display_name);
+      }
+
       // =========================================================
       // 首次创建人物
       // =========================================================
@@ -448,16 +481,16 @@ export class ForestBoardScene extends Phaser.Scene {
         this.playerMarkers.set(player.player_id, marker);
 
         // 5. 创建名字标签
-        const isMe = player.player_id === this.followPlayerId; 
         const nameText = this.add.text(targetX, targetY - 30, player.display_name, {
           fontFamily: GAME_FONT_FAMILY,
           fontSize: `${this.getWorldFontSize(PLAYER_NAME_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`,
-          color: isMe ? '#ffee58' : '#ffffff', 
+          color: this.getPlayerNameColor(player.player_id), 
           stroke: '#000000',
           strokeThickness: 3,
         });
         nameText.setOrigin(0.5, 0.5);
         this.configurePlayerNameText(nameText);
+        this.applyPlayerNameStyle(player.player_id, nameText, player.display_name);
         nameText.setDepth(targetY + 200); 
         this.playerNames.set(player.player_id, nameText);
 

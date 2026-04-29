@@ -463,6 +463,7 @@ export const BoardScene: React.FC = () => {
             players={renderedPlayers}
             // followPlayerId={currentPlayerId || myPlayerId}
             followPlayerId={currentPlayerId}
+            selfPlayerId={myPlayerId}
             activeLogEntry={activeLogEntry}
             settlementPlayer={settlementPlayer}
           />
