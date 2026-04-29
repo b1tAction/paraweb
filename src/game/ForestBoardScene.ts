@@ -27,6 +27,10 @@ type TilesetImageConfig = {
   url: string;
 };
 
+type CellMarkerView = {
+  sprite: Phaser.GameObjects.Sprite;
+};
+
 const TILESET_IMAGES: TilesetImageConfig[] = [
   {
     tiledNames: ['grass'],
@@ -52,15 +56,6 @@ const TILESET_IMAGES: TilesetImageConfig[] = [
     url: '/assets/tilesets/forest/trees/Plants.png',
   },
 ];
-
-const CELL_COLORS: Record<string, number> = {
-  normal: 0xffffff,
-  checkpoint: 0x4fc3f7,
-  fragile: 0xffb74d,
-  fog: 0x9575cd,
-  event: 0x81c784,
-  boss: 0xef5350,
-};
 
 // 【新增】定义你所有可用的人物前缀（文件名）
 const AVAILABLE_CHARACTERS = ['red', 'green', 'white', 'black'];
@@ -88,7 +83,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private pathNodes = new Map<number, PathNode>();
   private cellViews = new Map<number, BoardCellView>();
 
-  private cellMarkers: Phaser.GameObjects.GameObject[] =[];
+  private cellMarkers = new Map<number, CellMarkerView>();
   // 【修改点 1】把 Arc 改成 Sprite
   private playerMarkers = new Map<string, Phaser.GameObjects.Sprite>();
   private playerNames = new Map<string, Phaser.GameObjects.Text>();
@@ -123,6 +118,8 @@ export class ForestBoardScene extends Phaser.Scene {
     for (const tileset of TILESET_IMAGES) {
       this.load.image(tileset.key, tileset.url);
     }
+    this.load.image('logic-cell-off', '/assets/tilesets/block/off.png');
+    this.load.image('logic-cell-on', '/assets/tilesets/block/on.png');
 
     // 【修改】使用循环批量加载所有定义好的人物资源
     AVAILABLE_CHARACTERS.forEach(prefix => {
@@ -333,30 +330,42 @@ export class ForestBoardScene extends Phaser.Scene {
   }
 
   private renderCellMarkers() {
-    for (const marker of this.cellMarkers) {
-      marker.destroy();
-    }
+    this.cellMarkers.forEach(({ sprite }) => {
+      sprite.destroy();
+    });
 
-    this.cellMarkers =[];
+    this.cellMarkers.clear();
 
     for (const cell of this.cellViews.values()) {
-      const color = CELL_COLORS[cell.cell_type] ?? 0xffffff;
-
-      const circle = this.add.circle(cell.x, cell.y, 12, color, 0.35);
-      circle.setStrokeStyle(2, color, 0.9);
-      circle.setDepth(cell.y + 50);
-
-      const label = this.add.text(cell.x, cell.y - 24, String(cell.index), {
-        fontSize: '12px',
-        color: '#ffffff',
-        stroke: '#000000',
-        strokeThickness: 3,
-      });
-      label.setOrigin(0.5, 0.5);
-      label.setDepth(cell.y + 51);
-
-      this.cellMarkers.push(circle, label);
+      const sprite = this.add.sprite(cell.x, cell.y, 'logic-cell-off');
+      sprite.setDepth(cell.y + 50);
+      this.cellMarkers.set(cell.index, { sprite });
     }
+
+    this.refreshCellMarkerStates();
+  }
+
+  private collectOccupiedCellIndices(players: Player[]) {
+    const occupied = new Set<number>();
+
+    players.forEach((player) => {
+      if (this.activeMoveAnimations.has(player.player_id)) return;
+
+      const visualPosition = this.logDrivenPositions.get(player.player_id) ?? player.position;
+      if (this.cellViews.has(visualPosition)) {
+        occupied.add(visualPosition);
+      }
+    });
+
+    return occupied;
+  }
+
+  private refreshCellMarkerStates(players: Player[] = this.players) {
+    const occupied = this.collectOccupiedCellIndices(players);
+
+    this.cellMarkers.forEach(({ sprite }, cellIndex) => {
+      sprite.setTexture(occupied.has(cellIndex) ? 'logic-cell-on' : 'logic-cell-off');
+    });
   }
 
  private syncPlayers(players: Player[]) {
@@ -462,6 +471,7 @@ export class ForestBoardScene extends Phaser.Scene {
       }
     });
 
+    this.refreshCellMarkerStates(players);
     this.followTargetPlayer();
 }
 
@@ -564,6 +574,7 @@ export class ForestBoardScene extends Phaser.Scene {
       if (endPos !== null) {
         console.log('📍 [ForestBoardScene] 直接设置玩家位置:', endPos);
         this.logDrivenPositions.set(entry.target, endPos);
+        this.refreshCellMarkerStates();
       }
       return;
     }
@@ -592,6 +603,7 @@ export class ForestBoardScene extends Phaser.Scene {
     marker.play(`${charPrefix}_move_anim`, true);
 
     this.activeMoveAnimations.add(entry.target);
+    this.refreshCellMarkerStates();
 
     // Kill any existing tweens on this marker (e.g. from syncPlayers) to prevent competition
     this.tweens.killTweensOf(marker);
@@ -604,6 +616,7 @@ export class ForestBoardScene extends Phaser.Scene {
         // 恢复到对应外观的 idle 动画
         marker.play(`${charPrefix}_idle_anim`, true);
         this.activeMoveAnimations.delete(entry.target);
+        this.refreshCellMarkerStates();
         return;
       }
 
@@ -625,6 +638,7 @@ export class ForestBoardScene extends Phaser.Scene {
         },
         onComplete: () => {
           this.logDrivenPositions.set(entry.target, point.cellIndex);
+          this.refreshCellMarkerStates();
           index += 1;
           runNext();
         },
