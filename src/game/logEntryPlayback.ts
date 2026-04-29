@@ -1,7 +1,7 @@
 import type { LogEntry, Player } from '../types/protocol';
 import { getEventEffectConfig } from './eventAnimations';
 
-export const DICE_ROLL_MIN_MS = 600;
+export const DICE_ROLL_MIN_MS = 1200;
 export const DICE_RESULT_DISPLAY_MS = 1200;
 export const DEFAULT_ACTION_ANIMATION_DELAY_MS = 2000;
 export const MOVE_STEP_MS = 220;
