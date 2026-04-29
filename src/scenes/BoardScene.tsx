@@ -87,11 +87,34 @@ function getLogEntryKey(entry: { timestamp: string; action_type: string; target:
   return `${entry.timestamp}:${entry.action_type}:${entry.target}:${entry.source}`;
 }
 
+function getDiceAssetType(diceType: string) {
+  return diceType === 'gold' || diceType === 'silver' || diceType === 'copper' || diceType === 'wood'
+    ? diceType
+    : 'wood';
+}
+
+function getDiceRotateSrc(diceType: string) {
+  return `/assets/dice/${getDiceAssetType(diceType)}_rotate.png`;
+}
+
+function getDiceResultSrc(diceType: string, steps: number) {
+  return `/assets/dice/${getDiceAssetType(diceType)}_result_${steps}.png`;
+}
+
 type DiceRollView =
   | { status: 'idle' }
   | { status: 'awaiting_result'; playerId: string; diceType: string; startedAt: number }
   | { status: 'rolling'; playerId: string; diceType: string; startedAt: number; pendingResult: DiceRollResult }
   | { status: 'result'; playerId: string; diceType: string; steps: number };
+
+type DiceRollDisplayView = Exclude<DiceRollView, { status: 'idle' }>;
+
+function getDiceAssetKey(view: DiceRollDisplayView) {
+  if (view.status === 'result') {
+    return `${view.playerId}:${view.diceType}:result:${view.steps}`;
+  }
+  return `${view.playerId}:${view.diceType}:rolling:${view.startedAt}`;
+}
 
 export const BoardScene: React.FC = () => {
   const {
@@ -232,7 +255,10 @@ export const BoardScene: React.FC = () => {
     isMainAction &&
     diceRollView.status !== 'awaiting_result' &&
     diceRollView.status !== 'rolling';
-  const shouldShowDiceOverlay = diceRollView.status === 'rolling' || diceRollView.status === 'result';
+  const shouldShowDiceOverlay =
+    diceRollView.status === 'awaiting_result' ||
+    diceRollView.status === 'rolling' ||
+    diceRollView.status === 'result';
   const hasPendingAnimations =
     pendingEntries.length > 0 ||
     diceRollView.status === 'rolling' ||
@@ -665,17 +691,25 @@ export const BoardScene: React.FC = () => {
           </div>
         )}
 
-        {shouldShowDiceOverlay && (
+        {diceRollView.status !== 'idle' && shouldShowDiceOverlay && (
           <div style={styles.diceOverlay} aria-live="polite">
-            <div
-              className={diceRollView.status === 'rolling' ? 'paradice-dice-spinning' : undefined}
-              style={{
-                ...styles.diceCube,
-                ...(diceRollView.status === 'result' ? styles.diceCubeResult : null),
-              }}
-            >
-              {diceRollView.status === 'result' ? diceRollView.steps : '?'}
-            </div>
+            {diceRollView.status === 'result' ? (
+              <img
+                key={getDiceAssetKey(diceRollView)}
+                src={getDiceResultSrc(diceRollView.diceType, diceRollView.steps)}
+                alt=""
+                style={styles.diceImage}
+              />
+            ) : (
+              <div
+                key={getDiceAssetKey(diceRollView)}
+                className="paradice-dice-sprite-rolling"
+                style={{
+                  ...styles.diceSprite,
+                  backgroundImage: `url(${getDiceRotateSrc(diceRollView.diceType)})`,
+                }}
+              />
+            )}
           </div>
         )}
 
@@ -1106,30 +1140,27 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     gap: '10px',
-    padding: '18px 22px',
+    padding: '14px 18px',
     borderRadius: '8px',
-    backgroundColor: 'rgba(12, 18, 26, 0.74)',
-    backdropFilter: 'blur(6px)',
-    boxShadow: '0 18px 42px rgba(0, 0, 0, 0.36)',
+    backgroundColor: 'rgba(12, 18, 26, 0.48)',
+    backdropFilter: 'blur(4px)',
+    boxShadow: '0 18px 42px rgba(0, 0, 0, 0.32)',
   },
-  diceCube: {
-    width: '86px',
-    height: '86px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '14px',
-    border: '3px solid rgba(255, 255, 255, 0.92)',
-    backgroundColor: '#f8fafc',
-    color: '#17202a',
-    fontSize: '42px',
-    fontWeight: 900,
-    boxShadow: 'inset 0 -8px 0 rgba(0, 0, 0, 0.08), 0 10px 24px rgba(0, 0, 0, 0.32)',
+  diceImage: {
+    width: '192px',
+    height: '156px',
+    objectFit: 'contain',
+    imageRendering: 'pixelated',
+    filter: 'drop-shadow(0 10px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 18px 22px rgba(0, 0, 0, 0.28))',
   },
-  diceCubeResult: {
-    backgroundColor: '#fff3c4',
-    color: '#1f2933',
-    borderColor: '#f9c74f',
+  diceSprite: {
+    width: '192px',
+    height: '156px',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: '0 0',
+    backgroundSize: '1152px 156px',
+    imageRendering: 'pixelated',
+    filter: 'drop-shadow(0 10px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 18px 22px rgba(0, 0, 0, 0.28))',
   },
   diceOverlayText: {
     color: '#ffffff',

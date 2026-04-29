@@ -36,9 +36,11 @@ button:disabled {
   0% {
     transform: rotate(0deg) scale(1);
   }
+
   50% {
     transform: rotate(180deg) scale(1.08);
   }
+
   100% {
     transform: rotate(360deg) scale(1);
   }
@@ -46,4 +48,19 @@ button:disabled {
 
 .paradice-dice-spinning {
   animation: paradice-dice-spin 0.42s linear infinite;
+}
+
+@keyframes paradice-dice-sprite-roll {
+  from {
+    background-position-x: 0;
+  }
+
+  to {
+    background-position-x: -1152px;
+  }
+}
+
+.paradice-dice-sprite-rolling {
+  animation: paradice-dice-sprite-roll 0.54s steps(6) infinite;
+  /* spritesheet 的播放速度 */
 }
