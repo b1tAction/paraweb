@@ -55,6 +55,12 @@ const PLAYER_CARD_IMAGES: Record<string, string> = {
   xuan_wu: '/assets/ui/player_card_xuanwu.png',
 };
 const PLAYER_STAT_MAX = 8;
+const BOTTOM_BAR_ASSET_BASE = '/assets/bottom_bar';
+const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
+  any_door: 'any_door.png',
+  dice_upgrade: 'dice_upgrade.png',
+  reverse_clock: 'reverse_clock.png',
+};
 
 function getFactionMeta(faction: string) {
   return FACTION_META[faction] ?? { label: faction || '未知', color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
@@ -77,6 +83,10 @@ function getFillPercent(value: number, maxValue: number) {
 
 function getPlayerCardImage(faction: string) {
   return PLAYER_CARD_IMAGES[faction] ?? PLAYER_CARD_IMAGES.qing_long;
+}
+
+function getBottomBarItemIcon(type: string) {
+  return `${BOTTOM_BAR_ASSET_BASE}/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`;
 }
 
 function isBossPlayer(player: Player) {
@@ -643,16 +653,19 @@ export const BoardScene: React.FC = () => {
             <button
               onClick={handleRollDice}
               style={{
-                ...styles.actionTile,
-                ...styles.diceActionTile,
+                ...styles.bottomBarButton,
                 ...(!canInteractWithActions ? styles.disabledActionTile : null),
               }}
               title={`投 ${actionView.dice_type} 骰子`}
+              aria-label={`投骰子 ${actionView.dice_type}`}
               disabled={!canInteractWithActions}
             >
-              <span style={styles.actionIcon}>◇</span>
-              <span style={styles.actionLabel}>投骰子</span>
-              <span style={styles.actionMeta}>{actionView.dice_type}</span>
+              <img
+                src={`${BOTTOM_BAR_ASSET_BASE}/dice_roll.png`}
+                alt=""
+                draggable={false}
+                style={styles.bottomBarLogo}
+              />
             </button>
 
             {actionView.items.map((item) => (
@@ -660,16 +673,19 @@ export const BoardScene: React.FC = () => {
                 key={item.id}
                 onClick={() => handleUseItem(item)}
                 style={{
-                  ...styles.actionTile,
-                  ...styles.itemActionTile,
+                  ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
                 }}
                 title={item.name}
+                aria-label={item.name}
                 disabled={!canInteractWithActions}
               >
-                <span style={styles.actionIcon}>□</span>
-                <span style={styles.actionLabel}>{item.name}</span>
-                <span style={styles.actionMeta}>道具</span>
+                <img
+                  src={getBottomBarItemIcon(item.type)}
+                  alt=""
+                  draggable={false}
+                  style={styles.bottomBarLogo}
+                />
               </button>
             ))}
 
@@ -957,11 +973,8 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: '10px',
     width: 'min(760px, calc(100vw - 32px))',
-    padding: '12px',
-    borderRadius: '8px',
-    backgroundColor: 'rgba(18, 24, 32, 0.72)',
-    backdropFilter: 'blur(8px)',
-    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.28)',
+    padding: 0,
+    backgroundColor: 'transparent',
   },
   waitingActionText: {
     flex: '1 0 100%',
@@ -1078,6 +1091,32 @@ const styles: Record<string, React.CSSProperties> = {
     objectFit: 'contain',
     imageRendering: 'auto',
     filter: 'drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55))',
+  },
+  bottomBarButton: {
+    flex: '0 0 111px',
+    width: '111px',
+    height: '111px',
+    padding: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: 'none',
+    backgroundColor: 'transparent',
+    backgroundImage: `url("${BOTTOM_BAR_ASSET_BASE}/frame.png")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+    backgroundSize: '100% 100%',
+    cursor: 'pointer',
+    imageRendering: 'pixelated',
+    filter: 'drop-shadow(0 5px 8px rgba(0, 0, 0, 0.32))',
+    boxSizing: 'border-box',
+  },
+  bottomBarLogo: {
+    width: '72px',
+    height: '72px',
+    objectFit: 'contain',
+    imageRendering: 'pixelated',
+    pointerEvents: 'none',
   },
   actionTile: {
     width: '112px',
