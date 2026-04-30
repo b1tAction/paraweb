@@ -40,7 +40,7 @@ export interface StateSync {
  * - heal: hp_change
  * - modify_lp: lp_change
  * - move: steps, start_pos, end_pos, path
- * - add_buff: buff_type, duration
+ * - add_buff: buff_type (duration comes from StateSync.players)
  * - remove_buff: buff_type
  * - draw_event: event_type
  * - draw_item: item_type

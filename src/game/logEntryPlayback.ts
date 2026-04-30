@@ -73,7 +73,12 @@ export function clonePlayer(player: Player): Player {
   };
 }
 
-export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
+function resolveSyncedBuff(playerId: string, buffType: string, syncedPlayers: Player[] = []) {
+  const syncedPlayer = syncedPlayers.find((item) => item.player_id === playerId);
+  return syncedPlayer?.buffs.find((buff) => buff.type === buffType);
+}
+
+export function applyLogEntryToPlayer(player: Player, entry: LogEntry, syncedPlayers: Player[] = []): Player {
   if (entry.target !== player.player_id) return player;
 
   const next = clonePlayer(player);
@@ -121,12 +126,13 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
     }
     case 'add_buff': {
       if (!buffType || next.buffs.some((buff) => buff.type === buffType)) break;
+      const syncedBuff = resolveSyncedBuff(entry.target, buffType, syncedPlayers);
       next.buffs = [
         ...next.buffs,
         {
           type: buffType,
-          name: buffType,
-          duration: getMetadataNumber(entry.metadata, 'duration') ?? 0,
+          name: syncedBuff?.name || buffType,
+          duration: syncedBuff?.duration ?? 0,
         },
       ];
       break;

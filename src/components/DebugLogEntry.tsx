@@ -88,9 +88,7 @@ function formatEntry(entry: LogEntry, players: Player[]): string {
     }
     case 'add_buff': {
       const buffType = getMetaStr(meta, 'buff_type');
-      const durationFromMeta = getMetaNum(meta, 'duration');
-      const duration =
-        durationFromMeta ?? resolveBuffDuration(entry.target, buffType, players);
+      const duration = resolveBuffDuration(entry.target, buffType, players);
       const durationText = duration !== null ? formatDuration(duration) : '?';
       return `[add_buff] ${targetName} gained ${buffType} (${durationText}) from ${sourceName}`;
     }
