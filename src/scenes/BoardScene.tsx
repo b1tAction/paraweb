@@ -69,7 +69,7 @@ function getFactionMeta(faction: string) {
 function getBuffColor(type: string) {
   if (BLUE_BUFFS.has(type)) return '#1994d2';
   if (RED_BUFFS.has(type)) return '#d32f2f';
-  if (type === 'hidden') return '#f5ad40';
+  if (type === 'hidden') return '#8b8071ca';
   return '#9e9e9e';
 }
 
@@ -109,6 +109,22 @@ function getDiceRotateSrc(diceType: string) {
 
 function getDiceResultSrc(diceType: string, steps: number) {
   return `/assets/dice/${getDiceAssetType(diceType)}_result_${steps}.png`;
+}
+
+function getDiceResultNumberStyle(diceType: string): React.CSSProperties {
+  const colorByType: Record<string, { color: string; shadow: string }> = {
+    gold: { color: '#ffe9a1', shadow: '#7a4c00' },
+    silver: { color: '#f3f7ff', shadow: '#5f6f87' },
+    copper: { color: '#c884ff', shadow: '#5c287a' },
+    wood: { color: '#7be36c', shadow: '#245f1e' },
+  };
+  const palette = colorByType[getDiceAssetType(diceType)];
+
+  return {
+    ...styles.diceResultNumber,
+    color: palette.color,
+    textShadow: `2px 0 0 ${palette.color}, -2px 0 0 ${palette.color}, 0 5px 0 ${palette.shadow}, 0 0 16px ${palette.color}, 0 9px 18px rgba(0, 0, 0, 0.48)`,
+  };
 }
 
 type DiceRollView =
@@ -709,25 +725,30 @@ export const BoardScene: React.FC = () => {
         )}
 
         {diceRollView.status !== 'idle' && shouldShowDiceOverlay && (
-          <div style={styles.diceOverlay} aria-live="polite">
-            {diceRollView.status === 'result' ? (
-              <img
-                key={getDiceAssetKey(diceRollView)}
-                src={getDiceResultSrc(diceRollView.diceType, diceRollView.steps)}
-                alt=""
-                style={styles.diceImage}
-              />
-            ) : (
-              <div
-                key={getDiceAssetKey(diceRollView)}
-                className="paradice-dice-sprite-rolling"
-                style={{
-                  ...styles.diceSprite,
-                  backgroundImage: `url(${getDiceRotateSrc(diceRollView.diceType)})`,
-                }}
-              />
+          <>
+            {diceRollView.status === 'result' && (
+              <div style={getDiceResultNumberStyle(diceRollView.diceType)}>{diceRollView.steps}</div>
             )}
-          </div>
+            <div style={styles.diceOverlay} aria-live="polite">
+              {diceRollView.status === 'result' ? (
+                <img
+                  key={getDiceAssetKey(diceRollView)}
+                  src={getDiceResultSrc(diceRollView.diceType, diceRollView.steps)}
+                  alt=""
+                  style={styles.diceImage}
+                />
+              ) : (
+                <div
+                  key={getDiceAssetKey(diceRollView)}
+                  className="paradice-dice-sprite-rolling"
+                  style={{
+                    ...styles.diceSprite,
+                    backgroundImage: `url(${getDiceRotateSrc(diceRollView.diceType)})`,
+                  }}
+                />
+              )}
+            </div>
+          </>
         )}
 
         {decisionRequest && (
@@ -1176,10 +1197,6 @@ const styles: Record<string, React.CSSProperties> = {
     left: '50%',
     top: '52%',
     transform: 'translate(-50%, -50%)',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '10px',
     padding: '14px 18px',
     borderRadius: '8px',
     backgroundColor: 'rgba(12, 18, 26, 0.48)',
@@ -1189,9 +1206,22 @@ const styles: Record<string, React.CSSProperties> = {
   diceImage: {
     width: '192px',
     height: '156px',
+    display: 'block',
     objectFit: 'contain',
     imageRendering: 'pixelated',
     filter: 'drop-shadow(0 10px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 18px 22px rgba(0, 0, 0, 0.28))',
+  },
+  diceResultNumber: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    left: '50%',
+    top: 'calc(52% - 145px)',
+    transform: 'translateX(-50%) scaleX(1.22) scaleY(0.82)',
+    transformOrigin: 'center center',
+    fontFamily: 'Zpix, monospace',
+    fontSize: '58px',
+    fontWeight: 1000,
+    lineHeight: 0.86,
   },
   diceSprite: {
     width: '192px',
