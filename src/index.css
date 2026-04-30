@@ -100,3 +100,29 @@ button:disabled {
   animation: paradice-dice-sprite-roll 0.54s steps(6) infinite;
   /* spritesheet 的播放速度 */
 }
+
+@keyframes paradice-figure-idle {
+  0%,
+  24.99% {
+    transform: translateX(0);
+  }
+
+  25%,
+  49.99% {
+    transform: translateX(-25%);
+  }
+
+  50%,
+  74.99% {
+    transform: translateX(-50%);
+  }
+
+  75%,
+  100% {
+    transform: translateX(-75%);
+  }
+}
+
+.paradice-figure-idle {
+  animation: paradice-figure-idle 0.8s infinite;
+}
