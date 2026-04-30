@@ -164,6 +164,7 @@ export const BoardScene: React.FC = () => {
   const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
   const lastAppliedSettlementEntryRef = useRef('');
+  const lastAppliedImmediateRespawnRef = useRef('');
   const lastAppliedEntryRef = useRef('');
   const roundReadySentKeyRef = useRef('');
   const debugLogContentRef = useRef<HTMLDivElement>(null);
@@ -349,6 +350,31 @@ export const BoardScene: React.FC = () => {
     });
     lastAppliedSettlementEntryRef.current = key;
   }, [activeLogEntry, settlementPlayerId, players]);
+
+  useEffect(() => {
+    if (!activeLogEntry || activeLogEntry.action_type !== 'respawn') return;
+
+    const syncedPlayer = players.find((player) => player.player_id === activeLogEntry.target);
+    const key = `${getLogEntryKey(activeLogEntry)}:${syncedPlayer?.hp ?? ''}:${syncedPlayer?.lp ?? ''}`;
+    if (lastAppliedImmediateRespawnRef.current === key) return;
+
+    const checkpointPos = getMetadataNumber(activeLogEntry.metadata, 'checkpoint_pos');
+    if (checkpointPos === null && !syncedPlayer) return;
+
+    setRenderedPlayers((current) =>
+      current.map((player) =>
+        player.player_id === activeLogEntry.target
+          ? {
+              ...player,
+              position: checkpointPos ?? syncedPlayer?.position ?? player.position,
+              hp: syncedPlayer?.hp ?? player.hp,
+              lp: syncedPlayer?.lp ?? player.lp,
+            }
+          : player
+      )
+    );
+    lastAppliedImmediateRespawnRef.current = key;
+  }, [activeLogEntry, players]);
 
   useEffect(() => {
     // 关键：只有当前批次动画（含骰子）都渲染完，才刷新玩家快照
