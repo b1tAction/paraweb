@@ -163,7 +163,6 @@ export const BoardScene: React.FC = () => {
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
   const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
-  const latestPlayersRef = useRef(players);
   const lastAppliedSettlementEntryRef = useRef('');
   const lastAppliedEntryRef = useRef('');
   const roundReadySentKeyRef = useRef('');
@@ -346,13 +345,12 @@ export const BoardScene: React.FC = () => {
 
     setSettlementPlayerSnapshot((current) => {
       if (!current) return current;
-      return applyLogEntryToPlayer(current, activeLogEntry);
+      return applyLogEntryToPlayer(current, activeLogEntry, players);
     });
     lastAppliedSettlementEntryRef.current = key;
-  }, [activeLogEntry, settlementPlayerId]);
+  }, [activeLogEntry, settlementPlayerId, players]);
 
   useEffect(() => {
-    latestPlayersRef.current = players;
     // 关键：只有当前批次动画（含骰子）都渲染完，才刷新玩家快照
     // 避免 HP/LP/位置提前“跳变”。
     if (!hasPendingAnimations) {
@@ -369,10 +367,10 @@ export const BoardScene: React.FC = () => {
     if (lastAppliedEntryRef.current === key) return;
 
     setRenderedPlayers((current) =>
-      current.map((player) => applyLogEntryToPlayer(player, latestPlayedEntry))
+      current.map((player) => applyLogEntryToPlayer(player, latestPlayedEntry, players))
     );
     lastAppliedEntryRef.current = key;
-  }, [playedEntries]);
+  }, [playedEntries, players]);
 
   useEffect(() => {
     if (!isRoundEndWait) {
