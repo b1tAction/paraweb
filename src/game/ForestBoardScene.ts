@@ -76,6 +76,8 @@ const PLAYER_NAME_SCREEN_FONT_SIZE = 14;
 const CELL_LABEL_SCREEN_FONT_SIZE = 12;
 const PLAYER_NAME_TEXTURE_RESOLUTION = 2;
 const LOGIC_CELL_MARKER_SCALE = 1.5;
+const SHRINE_TEXTURE_KEY = 'map-shrine';
+const SHRINE_TILESET_NAME = 'shrine';
 
 export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
@@ -129,6 +131,7 @@ export class ForestBoardScene extends Phaser.Scene {
     }
     this.load.image('logic-cell-off', '/assets/tilesets/block/off.png');
     this.load.image('logic-cell-on', '/assets/tilesets/block/on.png');
+    this.load.image(SHRINE_TEXTURE_KEY, '/assets/shrine/shrine.png');
 
     // 【修改】使用循环批量加载所有定义好的人物资源
     AVAILABLE_CHARACTERS.forEach(prefix => {
@@ -171,6 +174,7 @@ export class ForestBoardScene extends Phaser.Scene {
             layer.setDepth(layerIndex * 10);
         }
     });
+    this.renderShrines(map);
 
      AVAILABLE_CHARACTERS.forEach(prefix => {
       // 创建待机动画
@@ -318,6 +322,33 @@ export class ForestBoardScene extends Phaser.Scene {
     this.cameras.main.startFollow(marker, true, 0.12, 0.12);
   }
 
+  private renderShrines(map: Phaser.Tilemaps.Tilemap) {
+    const shrineCollection = map.imageCollections.find((collection) => collection.name === SHRINE_TILESET_NAME);
+    if (!shrineCollection) return;
+    const shrineImages = new Map<number, { width: number; height: number }>(
+      shrineCollection.images.map((image: { gid: number; width: number; height: number }) => [
+        image.gid,
+        { width: image.width, height: image.height },
+      ])
+    );
+
+    map.objects.forEach((objectLayer) => {
+      if (objectLayer.visible === false) return;
+
+      objectLayer.objects.forEach((obj: any) => {
+        const shrineImage = shrineImages.get(obj.gid);
+        if (obj.visible === false || !shrineImage) return;
+
+        const shrine = this.add.image(obj.x, obj.y, SHRINE_TEXTURE_KEY);
+        shrine.setOrigin(0, 1);
+        shrine.setDisplaySize(obj.width || shrineImage.width, obj.height || shrineImage.height);
+        shrine.setRotation(Phaser.Math.DegToRad(obj.rotation || 0));
+        shrine.setAlpha((typeof obj.opacity === 'number' ? obj.opacity : 1) * objectLayer.opacity);
+        shrine.setDepth((obj.y || 0) + 40);
+      });
+    });
+  }
+
   private extractPathNodes(map: Phaser.Tilemaps.Tilemap) {
     const objectLayer =
       map.getObjectLayer('path_nodes') ??
@@ -334,6 +365,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
     objectLayer.objects.forEach((obj: any, fallbackIndex: number) => {
       if (obj.visible === false) return;
+      if (!obj.point || obj.gid) return;
 
       const index = Number(
         getTiledProperty<number>(obj, 'index', fallbackIndex)
