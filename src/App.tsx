@@ -108,24 +108,32 @@ const App: React.FC = () => {
   }
 
   const SceneComponent = sceneComponents[currentScene] || HomeScene;
+  const isHomeScene =
+    currentScene === Scene.Home ||
+    currentScene === Scene.CreateRoom ||
+    currentScene === Scene.JoinRoom;
 
   return (
     <div style={styles.app}>
       <span className="zpix-font-loader" aria-hidden="true">
         Zpix 中文字体预加载
       </span>
-      <header style={styles.header}>
-        <h1 style={styles.logo}>ParaDiced</h1>
-        <nav style={styles.nav}>
-          <span>场景：{currentScene}</span>
-        </nav>
-      </header>
-      <main style={styles.main}>
+      {!isHomeScene && (
+        <header style={styles.header}>
+          <h1 style={styles.logo}>ParaDiced</h1>
+          <nav style={styles.nav}>
+            <span>场景：{currentScene}</span>
+          </nav>
+        </header>
+      )}
+      <main style={isHomeScene ? { ...styles.main, ...styles.homeMain } : styles.main}>
         <SceneComponent />
       </main>
-      <footer style={styles.footer}>
-        <p>派乐代 - 回合制派对游戏</p>
-      </footer>
+      {!isHomeScene && (
+        <footer style={styles.footer}>
+          <p>派乐代 - 回合制派对游戏</p>
+        </footer>
+      )}
     </div>
   );
 };
@@ -157,6 +165,9 @@ const styles: Record<string, React.CSSProperties> = {
   main: {
     flex: 1,
     padding: '20px',
+  },
+  homeMain: {
+    padding: 0,
   },
   footer: {
     backgroundColor: '#333',
