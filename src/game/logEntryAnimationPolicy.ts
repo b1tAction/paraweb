@@ -5,7 +5,9 @@ import {
   DICE_ROLL_MIN_MS,
   MOVE_STEP_MS,
   getMetadataNumberArray,
+  getMetadataString,
 } from './logEntryPlayback';
+import { getEventEffectConfig } from './eventAnimations';
 
 export type LogEntryAnimationContext = {
   entry: LogEntry;
@@ -39,6 +41,14 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
     delayMs: ({ entry }) => {
       const path = getMetadataNumberArray(entry.metadata, 'path');
       return Math.max(700, Math.min(3200, Math.max(1, path.length - 1) * MOVE_STEP_MS + 250));
+    },
+  },
+  draw_event: {
+    renderOnBoard: true,
+    delayMs: ({ entry }) => {
+      const eventType = getMetadataString(entry.metadata, 'event_type');
+      const config = getEventEffectConfig(eventType);
+      return config.duration || DEFAULT_ACTION_ANIMATION_DELAY_MS;
     },
   },
   remove_item: {
