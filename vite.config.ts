@@ -1,10 +1,23 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    host: true
-  }
-})
+    host: true,
+  },
+  build: {
+    chunkSizeWarningLimit: 1800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-phaser': ['phaser'],
+          'vendor-nakama': ['@heroiclabs/nakama-js'],
+          'vendor-state': ['zustand'],
+        },
+      },
+    },
+  },
+});
