@@ -210,6 +210,16 @@ export const BoardScene: React.FC = () => {
   },[]);
 
   const isMyTurn = myPlayerId === currentPlayerId;
+  const followPlayerId = useMemo(() => {
+    if (!currentPlayerId) return myPlayerId || null;
+
+    const currentTurnPlayer = renderedPlayers.find((player) => player.player_id === currentPlayerId);
+    if (currentTurnPlayer && isBossPlayer(currentTurnPlayer)) {
+      return myPlayerId || currentPlayerId;
+    }
+
+    return currentPlayerId;
+  }, [currentPlayerId, myPlayerId, renderedPlayers]);
 
   /**
    * 处理掷骰子
@@ -550,8 +560,7 @@ export const BoardScene: React.FC = () => {
           <PhaserBoard
             mapConfig={mapConfig}
             players={renderedPlayers}
-            // followPlayerId={currentPlayerId || myPlayerId}
-            followPlayerId={currentPlayerId}
+            followPlayerId={followPlayerId}
             selfPlayerId={myPlayerId}
             activeAnimationContext={boardAnimationContext}
             settlementPlayer={settlementPlayer}
