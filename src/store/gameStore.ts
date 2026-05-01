@@ -197,6 +197,8 @@ interface GameState {
 
   /** 重置状态 (用于退出游戏) */
   reset: () => void;
+  /** 清空当前对局状态但保留登录态 */
+  resetMatchState: () => void;
 }
 
 // ========== 创建 Store ==========
@@ -338,6 +340,33 @@ export const useGameStore = create<GameState>((set) => ({
       miniGameResultPending: false,
       pendingScene: null,
     }),
+
+  resetMatchState: () =>
+    set((state) => ({
+      match: null,
+      currentScene: Scene.Home,
+      globalState: 'match_init',
+      turnState: '',
+      matchId: '',
+      players: [],
+      currentPlayerId: '',
+      round: 0,
+      turn: 0,
+      decisionRequest: null,
+      availableActions: null,
+      waitingSync: null,
+      stateSyncQueue: [],
+      miniGameStart: null,
+      miniGameResult: null,
+      gameOver: null,
+      playedEntries: [],
+      pendingEntries: [],
+      startGameAck: null,
+      mapConfig: null,
+      miniGameResultPending: false,
+      pendingScene: null,
+      faction: state.faction,
+    })),
 }));
 
 export default useGameStore;

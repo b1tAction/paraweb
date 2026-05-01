@@ -187,8 +187,14 @@ export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
       return { label: '复活', color: 0x4fc3f7, textColor: '#e1f5fe' };
     case 'boss_damage':
       return { label: `Boss -${num('damage')}`, color: 0xef5350, textColor: '#ffebee' };
-    case 'boss_attack':
-      return { label: `HP -${num('damage')}`, color: 0xd32f2f, textColor: '#ffebee' };
+    case 'boss_attack': {
+      const attackType = str('attack_type');
+      return {
+        label: attackType ? `Boss ${attackType}` : 'Boss Attack',
+        color: 0xd32f2f,
+        textColor: '#ffebee',
+      };
+    }
     case 'teleport':
       return { label: `${num('from_pos')} -> ${num('to_pos')}`, color: 0x29b6f6, textColor: '#e1f5fe' };
     case 'use_item':
