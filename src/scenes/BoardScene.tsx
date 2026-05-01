@@ -122,20 +122,7 @@ export const BoardScene: React.FC = () => {
 
   // #region agent instrumentation - Hypothesis C
   useEffect(() => {
-    fetch('http://127.0.0.1:7649/ingest/fd570d88-3ae3-47ed-8ee1-493b444c6f23', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '31c30f' },
-      body: JSON.stringify({
-        sessionId: '31c30f',
-        location: 'BoardScene.tsx:mapConfig',
-        message: 'mapConfig in BoardScene',
-        data: { hasMapConfig: !!mapConfig, mapLength: mapConfig?.length, cells: mapConfig?.cells?.length },
-        timestamp: Date.now(),
-        runId: 'debug',
-        hypothesisId: 'C'
-      })
-    }).catch(() => {});
-
+    // Analytics fetch removed
   }, [mapConfig]);
   // #endregion
 
@@ -254,6 +241,11 @@ export const BoardScene: React.FC = () => {
   useEffect(() => {
     // 当存在没有执行完的动画或是正在扔骰子时，不触发下一次 StateSync 出队
     if (hasPendingAnimations) {
+      return;
+    }
+
+    // 如果当前处于小游戏弹窗状态，由后台的 BoardScene 暂停消费队列，避免路由冲突
+    if (useGameStore.getState().currentScene === 'MiniGameSubmitRankScene') {
       return;
     }
 

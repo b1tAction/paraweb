@@ -104,7 +104,8 @@ const App: React.FC = () => {
     );
   }
 
-  const SceneComponent = sceneComponents[currentScene] || HomeScene;
+  const isMiniGameOverlay = currentScene === Scene.MiniGameSubmitRank;
+  const BackgroundScene = isMiniGameOverlay ? BoardScene : (sceneComponents[currentScene] || HomeScene);
 
   return (
     <div style={styles.app}>
@@ -115,8 +116,15 @@ const App: React.FC = () => {
         </nav>
       </header>
       <main style={styles.main}>
-        <SceneComponent />
+        <BackgroundScene />
       </main>
+      
+      {isMiniGameOverlay && (
+        <div style={styles.overlay}>
+          <MiniGameSubmitRankScene />
+        </div>
+      )}
+
       <footer style={styles.footer}>
         <p>派乐代 - 回合制派对游戏</p>
       </footer>
@@ -162,6 +170,18 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     padding: '20px',
     textAlign: 'center',
+  },
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
   },
 };
 

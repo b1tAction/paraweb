@@ -174,7 +174,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   if (hasMiniGameStart && !isParticipant) {
     return (
-      <div style={styles.container}>
+      <div style={styles.modalContainer}>
         <h2 style={styles.title}>Mini-Game</h2>
         <p style={styles.submittedText}>
           You are not participating this round. Waiting for others...
@@ -188,7 +188,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   if (!hasMiniGameStart) {
     return (
-      <div style={styles.container}>
+      <div style={styles.modalContainer}>
         <h2 style={styles.title}>Mini-Game</h2>
         <p style={styles.submittedText}>Waiting for mini-game start...</p>
       </div>
@@ -199,7 +199,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   if (gamePhase === 'result') {
     return (
-      <div style={styles.container}>
+      <div style={styles.modalContainer}>
         <h2 style={styles.title}>{getGameTitle()} - Results</h2>
         {renderResult()}
       </div>
@@ -242,7 +242,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.modalContainer}>
       <h2 style={styles.title}>{getGameTitle()}</h2>
       {renderGame()}
     </div>

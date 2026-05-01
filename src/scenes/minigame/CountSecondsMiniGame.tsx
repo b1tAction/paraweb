@@ -49,6 +49,13 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
 
   const deviation = phase === 'stopped' ? Math.abs(elapsedSeconds - 5.0) : null;
 
+  const getDeviationColor = (dev: number | null) => {
+    if (dev === null) return '#666';
+    if (dev <= 0.2) return '#4CAF50'; // Perfect (Green)
+    if (dev <= 0.8) return '#FF9800'; // Good (Orange)
+    return '#f44336'; // Missed (Red)
+  };
+
   return (
     <div style={styles.gameArea}>
       {phase === 'idle' && (
@@ -58,7 +65,12 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
           </p>
           <button
             onClick={handleStart}
-            style={isParticipant ? { ...styles.button, backgroundColor: '#2196F3' } : styles.buttonDisabled}
+            style={isParticipant ? { 
+              ...styles.button, 
+              backgroundColor: '#2196F3',
+              backgroundImage: 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)',
+              boxShadow: '0 4px 6px rgba(33, 150, 243, 0.2)'
+            } : styles.buttonDisabled}
             disabled={!isParticipant}
           >
             Start
@@ -74,7 +86,13 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
           </p>
           <button
             onClick={handleStop}
-            style={{ ...styles.button, backgroundColor: '#f44336', marginTop: '16px' }}
+            style={{ 
+              ...styles.button, 
+              backgroundColor: '#f44336', 
+              backgroundImage: 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)',
+              boxShadow: '0 4px 6px rgba(244, 67, 54, 0.2)',
+              marginTop: '16px' 
+            }}
           >
             Stop
           </button>
@@ -83,11 +101,11 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
 
       {phase === 'stopped' && !submitted && (
         <>
-          <p style={styles.resultDisplay}>
-            Your estimate: {elapsedSeconds.toFixed(2)} seconds
+          <p style={{ ...styles.resultDisplay, fontWeight: 'bold' }}>
+            Your estimate: <span style={{ color: '#2196F3' }}>{elapsedSeconds.toFixed(2)}s</span>
           </p>
-          <p style={styles.resultDisplay}>
-            Deviation: {deviation!.toFixed(2)} seconds (target: 5.0)
+          <p style={{ ...styles.resultDisplay, fontWeight: 'bold', color: getDeviationColor(deviation) }}>
+            Deviation: {deviation!.toFixed(2)}s (target: 5.0s)
           </p>
           <button
             onClick={handleSubmit}
@@ -100,9 +118,17 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
       )}
 
       {phase === 'stopped' && submitted && (
-        <p style={styles.submittedText}>
-          Submitted! Estimate: {elapsedSeconds.toFixed(2)}s, deviation: {deviation!.toFixed(2)}s
-        </p>
+        <div style={{ ...styles.resultContainer, backgroundColor: 'transparent', padding: '16px' }}>
+          <p style={{ ...styles.submittedText, fontWeight: 'bold' }}>
+            Submitted!
+          </p>
+          <p style={{ fontSize: '16px', color: '#333' }}>
+            Estimate: <span style={{ color: '#2196F3' }}>{elapsedSeconds.toFixed(2)}s</span>
+          </p>
+          <p style={{ fontSize: '16px', fontWeight: 'bold', color: getDeviationColor(deviation) }}>
+            Deviation: {deviation!.toFixed(2)}s
+          </p>
+        </div>
       )}
 
       {submitError && <p style={styles.errorText}>{submitError}</p>}
