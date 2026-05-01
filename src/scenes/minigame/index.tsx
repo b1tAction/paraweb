@@ -15,6 +15,7 @@ import { DiceRaceMiniGame } from './DiceRaceMiniGame';
 import { CountSecondsMiniGame } from './CountSecondsMiniGame';
 import { MathCalcMiniGame } from './MathCalcMiniGame';
 import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
+import { VernierMiniGame } from './VernierMiniGame';
 import { styles } from './MiniGameStyles';
 
 // ========== Game Phase ==========
@@ -170,6 +171,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       case 'count_seconds': return 'Count Seconds';
       case 'math_calc': return 'Math Calculation';
       case 'rainbow_memory': return 'Rainbow Memory';
+      case 'vernier': return 'Vernier Caliper';
       default: return `Mini-Game: ${gameType}`;
     }
   };
@@ -202,7 +204,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   // ========== Result phase ==========
   // For 'math_calc' and 'rainbow_memory', we keep rendering the game component itself even in result phase
   // so users can see the final detailed ranking inside the game UI for 3s.
-  if (gamePhase === 'result' && gameType !== 'math_calc' && gameType !== 'rainbow_memory') {
+  if (gamePhase === 'result' && gameType !== 'math_calc' && gameType !== 'rainbow_memory' && gameType !== 'vernier') {
     return (
       <div style={styles.modalContainer}>
         <h2 style={styles.title}>{getGameTitle()} - Results</h2>
@@ -248,6 +250,16 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       case 'rainbow_memory':
         return (
           <RainbowMemoryMiniGame
+            isParticipant={isParticipant}
+            submitted={submitted}
+            isSubmitting={isSubmitting}
+            submitError={submitError}
+            onSubmit={submitGameData}
+          />
+        );
+      case 'vernier':
+        return (
+          <VernierMiniGame
             isParticipant={isParticipant}
             submitted={submitted}
             isSubmitting={isSubmitting}

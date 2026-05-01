@@ -339,6 +339,98 @@ export const styles: Record<string, CSSProperties> = {
     borderRadius: '4px',
     color: '#fff',
     textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+  },
+
+  // Vernier Styles
+  vernierContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center', // Center vertically
+    width: '100%',
+    flex: 1, // Take up available space
+    minHeight: '300px',
+  },
+  vernierTrack: {
+    width: '100%',
+    height: '60px',
+    background: '#2c3e50',
+    borderRadius: '8px',
+    position: 'relative',
+    // Removed overflow: hidden to show indicators outside
+    boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.5)',
+    border: '2px solid #34495e',
+    margin: '40px 0',
+  },
+  vernierHighlight: {
+    position: 'absolute',
+    top: 0,
+    height: '100%',
+    background: 'rgba(231, 76, 60, 0.4)',
+    borderLeft: '1px solid rgba(231, 76, 60, 0.8)',
+    borderRight: '1px solid rgba(231, 76, 60, 0.8)',
+  },
+  vernierRuler: {
+    height: '100%',
+    width: '120px',
+    background: 'linear-gradient(to bottom, #bdc3c7, #95a5a6)',
+    position: 'absolute',
+    top: 0,
+    borderRadius: '4px',
+    display: 'flex',
+    justifyContent: 'center',
+    boxShadow: '0 0 15px rgba(0,0,0,0.3)',
+  },
+  vernierCenterLine: {
+    width: '3px',
+    height: '100%',
+    background: '#e74c3c',
+    boxShadow: '0 0 8px rgba(231, 76, 60, 0.8)',
+  },
+  vernierIndicator: {
+    position: 'absolute',
+    top: '-28px', // Moved further out
+    left: '50%',
+    transform: 'translateX(-50%)',
+    fontSize: '28px',
+    color: '#f1c40f',
+    textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+    zIndex: 10,
+  },
+  vernierIndicatorBottom: {
+    position: 'absolute',
+    bottom: '-28px', // Moved further out
+    left: '50%',
+    transform: 'translateX(-50%) rotate(180deg)',
+    fontSize: '28px',
+    color: '#f1c40f',
+    zIndex: 10,
+  },
+  stopBtn: {
+    marginTop: '20px',
+    padding: '15px 40px',
+    fontSize: '24px',
+    fontWeight: 'bold',
+    borderRadius: '50px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+    color: 'white',
+    cursor: 'pointer',
+    boxShadow: '0 6px 20px rgba(231, 76, 60, 0.4)',
+    transition: 'all 0.2s ease',
+    textTransform: 'uppercase',
+    letterSpacing: '2px',
+  },
+  stopBtnActive: {
+    transform: 'scale(0.95)',
+    boxShadow: '0 2px 10px rgba(231, 76, 60, 0.2)',
+  },
+  deviationText: {
+    fontSize: '32px',
+    fontWeight: 'bold',
+    color: '#333',
+    margin: '10px 0',
+    fontFamily: 'monospace', // Better for counting
   }
 };
 
