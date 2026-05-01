@@ -19,18 +19,17 @@ export interface StateSync {
   current_player_id: string;
   /** 当前轮次 */
   round: number;
-  /** 当前回合 */
+  /** 当前回合索引 */
   turn: number;
+  /** 是否暂停 (等待决策) */
+  paused: boolean;
   /** 玩家列表 */
   players: Player[];
+  /** 地图信息 */
+  map: MapInfo;
   /** 回合效果日志 */
   entries?: LogEntry[];
 }
-  /** 当前回合索引 */
-  /** 是否暂停 (等待决策) */
-  /** 所有玩家状态 */
-  /** 地图信息 */
-  /** 增量日志条目 (自上次 StateSync 后新增的动画数据，omitempty: 无新效果时不包含) */
 
 /**
  * LogEntry - 游戏日志条目
@@ -49,7 +48,7 @@ export interface StateSync {
  * - fell_down: position, hp_change
  * - respawn: checkpoint_pos
  * - boss_damage: damage, is_crit, boss_remaining_hp
- * - boss_attack: attack_type, damage
+ * - boss_attack: attack_type, target
  * - boss_skill: skill_type, targets
  * - dice_roll: dice_type, dice_steps
  * - state: from, to
@@ -121,6 +120,8 @@ export interface Player {
   is_dead: boolean;
   /** 是否跳过回合 */
   skip_turn: boolean;
+  /** 是否 Boss 特殊玩家 */
+  is_boss?: boolean;
 }
 
 /**
