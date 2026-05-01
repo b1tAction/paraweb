@@ -149,12 +149,24 @@ type DiceRollView =
   | { status: 'result'; playerId: string; diceType: string; steps: number };
 
 type DiceRollDisplayView = Exclude<DiceRollView, { status: 'idle' }>;
+type IdleDicePreview = { key: string; playerId: string; diceType: string; face: number };
 
 function getDiceAssetKey(view: DiceRollDisplayView) {
   if (view.status === 'result') {
     return `${view.playerId}:${view.diceType}:result:${view.steps}`;
   }
   return `${view.playerId}:${view.diceType}:rolling:${view.startedAt}`;
+}
+
+function getDiceTypeForRank(rank: number) {
+  if (rank === 1) return 'gold';
+  if (rank === 2) return 'silver';
+  if (rank === 3) return 'copper';
+  return 'wood';
+}
+
+function rollPreviewDiceFace() {
+  return Math.floor(Math.random() * 6) + 1;
 }
 
 export const BoardScene: React.FC = () => {
@@ -169,9 +181,14 @@ export const BoardScene: React.FC = () => {
     playedEntries,
     pendingEntries,
     round: storeRound,
+    turn: storeTurn,
     mapConfig,
+    miniGameResult,
+    diceAssignments,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
+  const [idleDicePreview, setIdleDicePreview] = useState<IdleDicePreview | null>(null);
+  const [rolledDiceTurnKey, setRolledDiceTurnKey] = useState('');
   const [handledDiceResultKey, setHandledDiceResultKey] = useState(
     () => getLatestDiceRollResult(playedEntries)?.key || ''
   );
@@ -224,14 +241,16 @@ export const BoardScene: React.FC = () => {
    */
   const handleRollDice = () => {
     console.log('[BoardScene] 掷骰子');
+    setRolledDiceTurnKey(`${storeRound}:${storeTurn}:${currentPlayerId || myPlayerId}`);
     setDiceRollView({
       status: 'awaiting_result',
       playerId: currentPlayerId || myPlayerId,
-      diceType: availableActions?.dice_type || 'wood',
+      diceType: availableActions?.dice_type || idleDicePreview?.diceType || 'wood',
       startedAt: Date.now(),
     });
     gameService.sendRollDice().catch((err) => {
       console.error('[BoardScene] 掷骰子失败', err);
+      setRolledDiceTurnKey('');
       setDiceRollView({ status: 'idle' });
     });
   };
@@ -275,26 +294,46 @@ export const BoardScene: React.FC = () => {
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
   const isRoundEndWait = globalState === 'round_end_wait' || globalState === 'RoundEndWait';
+  const miniGameDiceType = useMemo(() => {
+    if (!currentPlayerId) return '';
+    const assignedDiceType = diceAssignments[currentPlayerId];
+    if (assignedDiceType) return assignedDiceType;
+
+    const rank = miniGameResult?.rankings.find((entry) => entry.player_id === currentPlayerId)?.rank;
+    return rank ? getDiceTypeForRank(rank) : '';
+  }, [currentPlayerId, diceAssignments, miniGameResult]);
   
   // ====================== 默认渲染操作 ====================== //
-  const fallbackActions: Available | null =
-    isMainAction && currentPlayer
+  const canUseOwnFactionSkill = Boolean(
+    myPlayer &&
+      (myPlayer.faction === 'qing_long' || myPlayer.faction === 'xuan_wu') &&
+      myPlayer.charge > 0
+  );
+  const actionView: Available | null =
+    isMainAction && myPlayer
       ? {
-          dice_type: 'dice',
-          items: currentPlayer.items || [],
-          can_use_skill:
-            (currentPlayer.faction === 'qing_long' || currentPlayer.faction === 'xuan_wu') &&
-            currentPlayer.charge > 0,
+          dice_type: (isMyTurn ? availableActions?.dice_type : '') || miniGameDiceType || 'wood',
+          items: isMyTurn && availableActions ? availableActions.items : myPlayer.items || [],
+          can_use_skill: isMyTurn && availableActions ? availableActions.can_use_skill : canUseOwnFactionSkill,
         }
       : null;
-  const actionView = availableActions || fallbackActions;
   const canInteractWithActions = isMyTurn && Boolean(availableActions);
+  const actionTurnKey = isMainAction && currentPlayerId ? `${storeRound}:${storeTurn}:${currentPlayerId}` : '';
+  const currentDicePreviewType = isMyTurn ? availableActions?.dice_type || miniGameDiceType : miniGameDiceType;
   const shouldShowActionPanel =
     Boolean(actionView) &&
     isMainAction &&
     diceRollView.status !== 'awaiting_result' &&
     diceRollView.status !== 'rolling';
+  const shouldShowIdleDicePreview =
+    Boolean(idleDicePreview) &&
+    Boolean(currentDicePreviewType) &&
+    isMainAction &&
+    diceRollView.status === 'idle' &&
+    actionTurnKey !== rolledDiceTurnKey &&
+    pendingEntries.length === 0;
   const shouldShowDiceOverlay =
+    shouldShowIdleDicePreview ||
     diceRollView.status === 'awaiting_result' ||
     diceRollView.status === 'rolling' ||
     diceRollView.status === 'result';
@@ -319,6 +358,25 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === settlementPlayerId) ||
       null
     : null;
+
+  useEffect(() => {
+    if (!actionTurnKey || !currentDicePreviewType || !currentPlayerId) {
+      setIdleDicePreview(null);
+      return;
+    }
+
+    const key = `${actionTurnKey}:${currentDicePreviewType}`;
+    setIdleDicePreview((current) =>
+      current?.key === key
+        ? current
+        : {
+            key,
+            playerId: currentPlayerId,
+            diceType: currentDicePreviewType,
+            face: rollPreviewDiceFace(),
+          }
+    );
+  }, [actionTurnKey, currentDicePreviewType, currentPlayerId]);
 
   // ====================== 队列处理逻辑 ====================== //
   const stateSyncQueue = useGameStore((state) => state.stateSyncQueue);
@@ -556,7 +614,10 @@ export const BoardScene: React.FC = () => {
   }, [diceRollView]);
 
   useEffect(() => {
-    const resetDiceView = () => setDiceRollView({ status: 'idle' });
+    const resetDiceView = () => {
+      setRolledDiceTurnKey('');
+      setDiceRollView({ status: 'idle' });
+    };
 
     window.addEventListener('board:dice-roll-rejected', resetDiceView);
     return () => window.removeEventListener('board:dice-roll-rejected', resetDiceView);
@@ -807,20 +868,27 @@ export const BoardScene: React.FC = () => {
           </div>
         )}
 
-        {diceRollView.status !== 'idle' && shouldShowDiceOverlay && (
+        {shouldShowDiceOverlay && (
           <>
             {diceRollView.status === 'result' && (
               <div style={getDiceResultNumberStyle(diceRollView.diceType)}>{diceRollView.steps}</div>
             )}
             <div style={styles.diceOverlay} aria-live="polite">
-              {diceRollView.status === 'result' ? (
+              {shouldShowIdleDicePreview && idleDicePreview ? (
+                <img
+                  key={idleDicePreview.key}
+                  src={getDiceResultSrc(idleDicePreview.diceType, idleDicePreview.face)}
+                  alt=""
+                  style={styles.diceImage}
+                />
+              ) : diceRollView.status === 'result' ? (
                 <img
                   key={getDiceAssetKey(diceRollView)}
                   src={getDiceResultSrc(diceRollView.diceType, diceRollView.steps)}
                   alt=""
                   style={styles.diceImage}
                 />
-              ) : (
+              ) : diceRollView.status !== 'idle' ? (
                 <div
                   key={getDiceAssetKey(diceRollView)}
                   className="paradice-dice-sprite-rolling"
@@ -829,6 +897,8 @@ export const BoardScene: React.FC = () => {
                     backgroundImage: `url(${getDiceRotateSrc(diceRollView.diceType)})`,
                   }}
                 />
+              ) : (
+                null
               )}
             </div>
           </>

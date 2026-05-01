@@ -116,6 +116,8 @@ interface GameState {
   miniGameStart: MiniGameStart | null;
   /** 小游戏结果 (如果有) */
   miniGameResult: MiniGameResult | null;
+  /** 本轮小游戏为每个玩家分配的骰子类型 */
+  diceAssignments: Record<string, string>;
   /** 游戏结束信息 (如果有) */
   gameOver: GameOver | null;
   /** 开始游戏确认 (包含地图配置) */
@@ -166,6 +168,8 @@ interface GameState {
   setMiniGameStart: (start: MiniGameStart | null) => void;
   /** 设置小游戏结果 */
   setMiniGameResult: (result: MiniGameResult | null) => void;
+  /** 设置本轮玩家骰子分配 */
+  setDiceAssignments: (assignments: Record<string, string>) => void;
   /** 设置游戏结束 */
   setGameOver: (gameOver: GameOver | null) => void;
   /** 将增量entries追加到播放队列 */
@@ -225,6 +229,7 @@ export const useGameStore = create<GameState>((set) => ({
   waitingSync: null,
   miniGameStart: null,
   miniGameResult: null,
+  diceAssignments: {},
   gameOver: null,
   startGameAck: null,
   mapConfig: null,
@@ -264,6 +269,7 @@ export const useGameStore = create<GameState>((set) => ({
   setMiniGameStart: (start) => set({ miniGameStart: start }),
 
   setMiniGameResult: (result) => set({ miniGameResult: result }),
+  setDiceAssignments: (assignments) => set({ diceAssignments: assignments }),
 
   setGameOver: (gameOver) => set({ gameOver }),
 
@@ -333,6 +339,7 @@ export const useGameStore = create<GameState>((set) => ({
       stateSyncQueue: [],
       miniGameStart: null,
       miniGameResult: null,
+      diceAssignments: {},
       gameOver: null,
       playedEntries: [],
       pendingEntries: [],
@@ -359,6 +366,7 @@ export const useGameStore = create<GameState>((set) => ({
       stateSyncQueue: [],
       miniGameStart: null,
       miniGameResult: null,
+      diceAssignments: {},
       gameOver: null,
       playedEntries: [],
       pendingEntries: [],
