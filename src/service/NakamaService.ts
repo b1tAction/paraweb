@@ -499,11 +499,21 @@ export class NakamaService {
 
   private handleMiniGameResult(data: protocol.MiniGameResult) {
     const store = useGameStore.getState();
+    const diceAssignments: Record<string, string> = {};
+    data.rankings.forEach((entry) => {
+      if (entry.rank === 1) diceAssignments[entry.player_id] = 'gold';
+      else if (entry.rank === 2) diceAssignments[entry.player_id] = 'silver';
+      else if (entry.rank === 3) diceAssignments[entry.player_id] = 'copper';
+      else diceAssignments[entry.player_id] = 'wood';
+    });
+
     store.setMiniGameResult(data);
+    store.setDiceAssignments(diceAssignments);
     store.setMiniGameResultPending(true);
 
     console.log('[Nakama] 小游戏结果', {
       rankings: data.rankings,
+      diceAssignments,
     });
   }
 
