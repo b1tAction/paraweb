@@ -127,7 +127,7 @@ export const styles: Record<string, CSSProperties> = {
     fontSize: '56px',
     fontWeight: '800',
     textAlign: 'center',
-    fontFamily: '"SF Mono", "Menlo", "Monaco", "Consolas", monospace',
+    fontFamily: 'inherit',
     color: '#333',
     textShadow: '0 2px 4px rgba(0,0,0,0.1)',
     margin: '16px 0',

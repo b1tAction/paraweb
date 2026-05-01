@@ -1,10 +1,11 @@
 import type { LogEntry, Player } from '../types/protocol';
 import { getEventEffectConfig } from './eventAnimations';
 
-export const DICE_ROLL_MIN_MS = 600;
+export const DICE_ROLL_MIN_MS = 1200;
 export const DICE_RESULT_DISPLAY_MS = 1200;
 export const DEFAULT_ACTION_ANIMATION_DELAY_MS = 2000;
 export const MOVE_STEP_MS = 220;
+export const PLAYER_STAT_MAX = 8;
 
 export type DiceRollResult = {
   key: string;
@@ -50,26 +51,25 @@ export function getMetadataNumberArray(metadata: Record<string, any> | undefined
     .filter((item): item is number => item !== null);
 }
 
-export function getLogEntryAnimationDelay(entry: LogEntry) {
-  if (entry.type !== 'action' && entry.type !== 'boss') return 0;
-
-  if (entry.action_type === 'dice_roll') {
-    return DICE_ROLL_MIN_MS + DICE_RESULT_DISPLAY_MS;
-  }
-
-  if (entry.action_type === 'move') {
-    const path = getMetadataNumberArray(entry.metadata, 'path');
-    return Math.max(700, Math.min(3200, Math.max(1, path.length - 1) * MOVE_STEP_MS + 250));
-  }
-
-  return DEFAULT_ACTION_ANIMATION_DELAY_MS;
-}
-
 export function clonePlayer(player: Player): Player {
   return {
     ...player,
+    hp: clampPlayerStat(player.hp),
+    lp: clampPlayerStat(player.lp),
     buffs: player.buffs.map((buff) => ({ ...buff })),
     items: player.items.map((item) => ({ ...item })),
+  };
+}
+
+export function clampPlayerStat(value: number) {
+  return Math.max(0, Math.min(PLAYER_STAT_MAX, value));
+}
+
+export function normalizePlayerStats(player: Player): Player {
+  return {
+    ...player,
+    hp: clampPlayerStat(player.hp),
+    lp: clampPlayerStat(player.lp),
   };
 }
 
@@ -80,6 +80,7 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
   const hpChange = getMetadataNumber(entry.metadata, 'hp_change') ?? 0;
   const lpChange = getMetadataNumber(entry.metadata, 'lp_change') ?? 0;
   const buffType = getMetadataString(entry.metadata, 'buff_type');
+  const buffDuration = getMetadataNumber(entry.metadata, 'duration');
 
   switch (entry.action_type) {
     case 'damage':
@@ -126,7 +127,7 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
         {
           type: buffType,
           name: buffType,
-          duration: getMetadataNumber(entry.metadata, 'duration') ?? 0,
+          duration: buffDuration ?? 0,
         },
       ];
       break;
@@ -140,7 +141,7 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
       break;
   }
 
-  return next;
+  return normalizePlayerStats(next);
 }
 
 export function getLatestDiceRollResult(entries: LogEntry[]): DiceRollResult | null {
@@ -196,8 +197,14 @@ export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
       return { label: '复活', color: 0x4fc3f7, textColor: '#e1f5fe' };
     case 'boss_damage':
       return { label: `Boss -${num('damage')}`, color: 0xef5350, textColor: '#ffebee' };
-    case 'boss_attack':
-      return { label: `HP -${num('damage')}`, color: 0xd32f2f, textColor: '#ffebee' };
+    case 'boss_attack': {
+      const attackType = str('attack_type');
+      return {
+        label: attackType ? `Boss ${attackType}` : 'Boss Attack',
+        color: 0xd32f2f,
+        textColor: '#ffebee',
+      };
+    }
     case 'teleport':
       return { label: `${num('from_pos')} -> ${num('to_pos')}`, color: 0x29b6f6, textColor: '#e1f5fe' };
     case 'use_item':

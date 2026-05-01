@@ -2,6 +2,14 @@
  * index.css - 全局样式
  */
 
+@font-face {
+  font-family: 'Zpix';
+  src: url('/assets/font/zpix.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -9,14 +17,42 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+  font-family: 'Zpix', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
     Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  text-rendering: optimizeSpeed;
+}
+
+canvas,
+img {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-family: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+.zpix-font-loader {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  font-family: 'Zpix', sans-serif;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 button {
@@ -43,9 +79,11 @@ button:disabled {
   0% {
     transform: rotate(0deg) scale(1);
   }
+
   50% {
     transform: rotate(180deg) scale(1.08);
   }
+
   100% {
     transform: rotate(360deg) scale(1);
   }
@@ -73,4 +111,49 @@ button:disabled {
 
 .pulse-timer-anim {
   animation: pulse-timer 1s infinite ease-in-out;
+}
+
+@keyframes paradice-dice-sprite-roll {
+  from {
+    background-position-x: 0;
+  }
+
+  to {
+    background-position-x: -1152px;
+  }
+}
+
+.paradice-dice-sprite-rolling {
+  animation: paradice-dice-sprite-roll 0.54s steps(6) infinite;
+  /* spritesheet 的播放速度 */
+}
+
+@keyframes paradice-figure-idle {
+  0%,
+  24.999% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  25%,
+  49.999% {
+    transform: translate3d(-25%, 0, 0);
+  }
+
+  50%,
+  74.999% {
+    transform: translate3d(-50%, 0, 0);
+  }
+
+  75%,
+  100% {
+    transform: translate3d(-75%, 0, 0);
+  }
+}
+
+.paradice-figure-idle {
+  animation: paradice-figure-idle 0.8s infinite;
+  animation-timing-function: step-end;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }

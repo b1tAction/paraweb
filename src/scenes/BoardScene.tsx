@@ -4,7 +4,7 @@
  * 显示游戏主界面，玩家可以进行回合操作
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 import { PhaserBoard } from '../components/PhaserBoard';
@@ -13,14 +13,20 @@ import { DebugLogEntry } from '../components/DebugLogEntry';
 import {
   DICE_RESULT_DISPLAY_MS,
   DICE_ROLL_MIN_MS,
+  PLAYER_STAT_MAX,
   applyLogEntryToPlayer,
   clonePlayer,
   getLatestDiceRollResult,
-  getLogEntryAnimationDelay,
   getMetadataNumber,
   getMetadataString,
   type DiceRollResult,
 } from '../game/logEntryPlayback';
+import {
+  createLogEntryAnimationContext,
+  getLogEntryAnimationDelay,
+  isLogEntryAnimationCandidate,
+  shouldRenderBoardLogEntryAnimation,
+} from '../game/logEntryAnimationPolicy';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
@@ -54,7 +60,12 @@ const PLAYER_CARD_IMAGES: Record<string, string> = {
   bai_hu: '/assets/ui/player_card_baihu.png',
   xuan_wu: '/assets/ui/player_card_xuanwu.png',
 };
-const PLAYER_STAT_MAX = 8;
+const BOTTOM_BAR_ASSET_BASE = '/assets/bottom_bar';
+const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
+  any_door: 'any_door.png',
+  dice_upgrade: 'dice_upgrade.png',
+  reverse_clock: 'reverse_clock.png',
+};
 
 function getFactionMeta(faction: string) {
   return FACTION_META[faction] ?? { label: faction || '未知', color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
@@ -63,7 +74,7 @@ function getFactionMeta(faction: string) {
 function getBuffColor(type: string) {
   if (BLUE_BUFFS.has(type)) return '#1994d2';
   if (RED_BUFFS.has(type)) return '#d32f2f';
-  if (type === 'hidden') return '#f5ad40';
+  if (type === 'hidden') return '#8b8071ca';
   return '#9e9e9e';
 }
 
@@ -79,6 +90,10 @@ function getPlayerCardImage(faction: string) {
   return PLAYER_CARD_IMAGES[faction] ?? PLAYER_CARD_IMAGES.qing_long;
 }
 
+function getBottomBarItemIcon(type: string) {
+  return `${BOTTOM_BAR_ASSET_BASE}/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`;
+}
+
 function isBossPlayer(player: Player) {
   return Boolean((player as Player & { is_boss?: boolean }).is_boss) || player.display_name === 'Boss';
 }
@@ -87,11 +102,59 @@ function getLogEntryKey(entry: { timestamp: string; action_type: string; target:
   return `${entry.timestamp}:${entry.action_type}:${entry.target}:${entry.source}`;
 }
 
+function shouldApplyImmediatePlayerStatUpdate(actionType: string) {
+  return (
+    actionType === 'damage' ||
+    actionType === 'heal' ||
+    actionType === 'modify_lp' ||
+    actionType === 'fell_down'
+  );
+}
+
+function getDiceAssetType(diceType: string) {
+  return diceType === 'gold' || diceType === 'silver' || diceType === 'copper' || diceType === 'wood'
+    ? diceType
+    : 'wood';
+}
+
+function getDiceRotateSrc(diceType: string) {
+  return `/assets/dice/${getDiceAssetType(diceType)}_rotate.png`;
+}
+
+function getDiceResultSrc(diceType: string, steps: number) {
+  return `/assets/dice/${getDiceAssetType(diceType)}_result_${steps}.png`;
+}
+
+function getDiceResultNumberStyle(diceType: string): React.CSSProperties {
+  const colorByType: Record<string, { color: string; shadow: string }> = {
+    gold: { color: '#ffe9a1', shadow: '#7a4c00' },
+    silver: { color: '#f3f7ff', shadow: '#5f6f87' },
+    copper: { color: '#c884ff', shadow: '#5c287a' },
+    wood: { color: '#7be36c', shadow: '#245f1e' },
+  };
+  const palette = colorByType[getDiceAssetType(diceType)];
+
+  return {
+    ...styles.diceResultNumber,
+    color: palette.color,
+    textShadow: `2px 0 0 ${palette.color}, -2px 0 0 ${palette.color}, 0 5px 0 ${palette.shadow}, 0 0 16px ${palette.color}, 0 9px 18px rgba(0, 0, 0, 0.48)`,
+  };
+}
+
 type DiceRollView =
   | { status: 'idle' }
   | { status: 'awaiting_result'; playerId: string; diceType: string; startedAt: number }
   | { status: 'rolling'; playerId: string; diceType: string; startedAt: number; pendingResult: DiceRollResult }
   | { status: 'result'; playerId: string; diceType: string; steps: number };
+
+type DiceRollDisplayView = Exclude<DiceRollView, { status: 'idle' }>;
+
+function getDiceAssetKey(view: DiceRollDisplayView) {
+  if (view.status === 'result') {
+    return `${view.playerId}:${view.diceType}:result:${view.steps}`;
+  }
+  return `${view.playerId}:${view.diceType}:rolling:${view.startedAt}`;
+}
 
 export const BoardScene: React.FC = () => {
   const {
@@ -114,8 +177,9 @@ export const BoardScene: React.FC = () => {
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
   const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
-  const latestPlayersRef = useRef(players);
   const lastAppliedSettlementEntryRef = useRef('');
+  const lastAppliedImmediateStatEntryRef = useRef('');
+  const lastAppliedImmediateRespawnRef = useRef('');
   const lastAppliedEntryRef = useRef('');
   const roundReadySentKeyRef = useRef('');
   const debugLogContentRef = useRef<HTMLDivElement>(null);
@@ -143,6 +207,16 @@ export const BoardScene: React.FC = () => {
   },[]);
 
   const isMyTurn = myPlayerId === currentPlayerId;
+  const followPlayerId = useMemo(() => {
+    if (!currentPlayerId) return myPlayerId || null;
+
+    const currentTurnPlayer = renderedPlayers.find((player) => player.player_id === currentPlayerId);
+    if (currentTurnPlayer && isBossPlayer(currentTurnPlayer)) {
+      return myPlayerId || currentPlayerId;
+    }
+
+    return currentPlayerId;
+  }, [currentPlayerId, myPlayerId, renderedPlayers]);
 
   /**
    * 处理掷骰子
@@ -219,15 +293,25 @@ export const BoardScene: React.FC = () => {
     isMainAction &&
     diceRollView.status !== 'awaiting_result' &&
     diceRollView.status !== 'rolling';
-  const shouldShowDiceOverlay = diceRollView.status === 'rolling' || diceRollView.status === 'result';
+  const shouldShowDiceOverlay =
+    diceRollView.status === 'awaiting_result' ||
+    diceRollView.status === 'rolling' ||
+    diceRollView.status === 'result';
   const hasPendingAnimations =
     pendingEntries.length > 0 ||
     diceRollView.status === 'rolling' ||
     diceRollView.status === 'result';
+  const activeAnimationContext = useMemo(
+    () => createLogEntryAnimationContext(playedEntries, pendingEntries),
+    [playedEntries, pendingEntries]
+  );
   const activeLogEntry =
-    pendingEntries[0] && (pendingEntries[0].type === 'action' || pendingEntries[0].type === 'boss')
-      ? pendingEntries[0]
+    activeAnimationContext && isLogEntryAnimationCandidate(activeAnimationContext.entry)
+      ? activeAnimationContext.entry
       : null;
+  const boardAnimationContext = shouldRenderBoardLogEntryAnimation(activeAnimationContext)
+    ? activeAnimationContext
+    : null;
   const settlementPlayer = settlementPlayerId
     ? settlementPlayerSnapshot ||
       renderedPlayers.find((player) => player.player_id === settlementPlayerId) ||
@@ -289,10 +373,46 @@ export const BoardScene: React.FC = () => {
       return applyLogEntryToPlayer(current, activeLogEntry);
     });
     lastAppliedSettlementEntryRef.current = key;
-  }, [activeLogEntry, settlementPlayerId]);
+  }, [activeLogEntry, settlementPlayerId, players]);
 
   useEffect(() => {
-    latestPlayersRef.current = players;
+    if (!activeLogEntry || !shouldApplyImmediatePlayerStatUpdate(activeLogEntry.action_type)) return;
+
+    const key = getLogEntryKey(activeLogEntry);
+    if (lastAppliedImmediateStatEntryRef.current === key) return;
+
+    setRenderedPlayers((current) =>
+      current.map((player) => applyLogEntryToPlayer(player, activeLogEntry))
+    );
+    lastAppliedImmediateStatEntryRef.current = key;
+  }, [activeLogEntry]);
+
+  useEffect(() => {
+    if (!activeLogEntry || activeLogEntry.action_type !== 'respawn') return;
+
+    const syncedPlayer = players.find((player) => player.player_id === activeLogEntry.target);
+    const key = `${getLogEntryKey(activeLogEntry)}:${syncedPlayer?.hp ?? ''}:${syncedPlayer?.lp ?? ''}`;
+    if (lastAppliedImmediateRespawnRef.current === key) return;
+
+    const checkpointPos = getMetadataNumber(activeLogEntry.metadata, 'checkpoint_pos');
+    if (checkpointPos === null && !syncedPlayer) return;
+
+    setRenderedPlayers((current) =>
+      current.map((player) =>
+        player.player_id === activeLogEntry.target
+          ? {
+              ...player,
+              position: checkpointPos ?? syncedPlayer?.position ?? player.position,
+              hp: syncedPlayer?.hp ?? player.hp,
+              lp: syncedPlayer?.lp ?? player.lp,
+            }
+          : player
+      )
+    );
+    lastAppliedImmediateRespawnRef.current = key;
+  }, [activeLogEntry, players]);
+
+  useEffect(() => {
     // 关键：只有当前批次动画（含骰子）都渲染完，才刷新玩家快照
     // 避免 HP/LP/位置提前“跳变”。
     if (!hasPendingAnimations) {
@@ -307,12 +427,16 @@ export const BoardScene: React.FC = () => {
     const latestPlayedEntry = playedEntries[playedEntries.length - 1];
     const key = getLogEntryKey(latestPlayedEntry);
     if (lastAppliedEntryRef.current === key) return;
+    if (lastAppliedImmediateStatEntryRef.current === key) {
+      lastAppliedEntryRef.current = key;
+      return;
+    }
 
     setRenderedPlayers((current) =>
       current.map((player) => applyLogEntryToPlayer(player, latestPlayedEntry))
     );
     lastAppliedEntryRef.current = key;
-  }, [playedEntries]);
+  }, [playedEntries, players]);
 
   useEffect(() => {
     if (!isRoundEndWait) {
@@ -343,15 +467,14 @@ export const BoardScene: React.FC = () => {
   useEffect(() => {
     if (pendingEntries.length === 0) return;
 
-    const firstEntry = pendingEntries[0];
-    const delay = getLogEntryAnimationDelay(firstEntry);
+    const delay = getLogEntryAnimationDelay(activeAnimationContext);
 
     const timeoutId = window.setTimeout(() => {
       useGameStore.getState().playNextEntry();
     }, delay);
 
     return () => window.clearTimeout(timeoutId);
-  }, [pendingEntries]);
+  }, [activeAnimationContext, pendingEntries.length]);
 
   // Auto-scroll debug log when new entries appear
   useEffect(() => {
@@ -361,7 +484,9 @@ export const BoardScene: React.FC = () => {
   }, [playedEntries.length]);
 
   useEffect(() => {
-    if (!activeLogEntry || activeLogEntry.action_type !== 'dice_roll') return;
+    if (!activeAnimationContext || activeAnimationContext.entry.action_type !== 'dice_roll') return;
+
+    const activeLogEntry = activeAnimationContext.entry;
 
     const steps = getMetadataNumber(activeLogEntry.metadata, 'dice_steps');
     if (!steps) return;
@@ -399,7 +524,7 @@ export const BoardScene: React.FC = () => {
         pendingResult: result,
       };
     });
-  }, [activeLogEntry, handledDiceResultKey]);
+  }, [activeAnimationContext, handledDiceResultKey]);
 
   useEffect(() => {
     if (diceRollView.status !== 'rolling') return;
@@ -453,9 +578,9 @@ export const BoardScene: React.FC = () => {
           <PhaserBoard
             mapConfig={mapConfig}
             players={renderedPlayers}
-            // followPlayerId={currentPlayerId || myPlayerId}
-            followPlayerId={currentPlayerId}
-            activeLogEntry={activeLogEntry}
+            followPlayerId={followPlayerId}
+            selfPlayerId={myPlayerId}
+            activeAnimationContext={boardAnimationContext}
             settlementPlayer={settlementPlayer}
           />
         ) : (
@@ -608,16 +733,19 @@ export const BoardScene: React.FC = () => {
             <button
               onClick={handleRollDice}
               style={{
-                ...styles.actionTile,
-                ...styles.diceActionTile,
+                ...styles.bottomBarButton,
                 ...(!canInteractWithActions ? styles.disabledActionTile : null),
               }}
               title={`投 ${actionView.dice_type} 骰子`}
+              aria-label={`投骰子 ${actionView.dice_type}`}
               disabled={!canInteractWithActions}
             >
-              <span style={styles.actionIcon}>◇</span>
-              <span style={styles.actionLabel}>投骰子</span>
-              <span style={styles.actionMeta}>{actionView.dice_type}</span>
+              <img
+                src={`${BOTTOM_BAR_ASSET_BASE}/dice_roll.png`}
+                alt=""
+                draggable={false}
+                style={styles.bottomBarLogo}
+              />
             </button>
 
             {actionView.items.map((item) => (
@@ -625,16 +753,19 @@ export const BoardScene: React.FC = () => {
                 key={item.id}
                 onClick={() => handleUseItem(item)}
                 style={{
-                  ...styles.actionTile,
-                  ...styles.itemActionTile,
+                  ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
                 }}
                 title={item.name}
+                aria-label={item.name}
                 disabled={!canInteractWithActions}
               >
-                <span style={styles.actionIcon}>□</span>
-                <span style={styles.actionLabel}>{item.name}</span>
-                <span style={styles.actionMeta}>道具</span>
+                <img
+                  src={getBottomBarItemIcon(item.type)}
+                  alt=""
+                  draggable={false}
+                  style={styles.bottomBarLogo}
+                />
               </button>
             ))}
 
@@ -657,18 +788,31 @@ export const BoardScene: React.FC = () => {
           </div>
         )}
 
-        {shouldShowDiceOverlay && (
-          <div style={styles.diceOverlay} aria-live="polite">
-            <div
-              className={diceRollView.status === 'rolling' ? 'paradice-dice-spinning' : undefined}
-              style={{
-                ...styles.diceCube,
-                ...(diceRollView.status === 'result' ? styles.diceCubeResult : null),
-              }}
-            >
-              {diceRollView.status === 'result' ? diceRollView.steps : '?'}
+        {diceRollView.status !== 'idle' && shouldShowDiceOverlay && (
+          <>
+            {diceRollView.status === 'result' && (
+              <div style={getDiceResultNumberStyle(diceRollView.diceType)}>{diceRollView.steps}</div>
+            )}
+            <div style={styles.diceOverlay} aria-live="polite">
+              {diceRollView.status === 'result' ? (
+                <img
+                  key={getDiceAssetKey(diceRollView)}
+                  src={getDiceResultSrc(diceRollView.diceType, diceRollView.steps)}
+                  alt=""
+                  style={styles.diceImage}
+                />
+              ) : (
+                <div
+                  key={getDiceAssetKey(diceRollView)}
+                  className="paradice-dice-sprite-rolling"
+                  style={{
+                    ...styles.diceSprite,
+                    backgroundImage: `url(${getDiceRotateSrc(diceRollView.diceType)})`,
+                  }}
+                />
+              )}
             </div>
-          </div>
+          </>
         )}
 
         {decisionRequest && (
@@ -914,11 +1058,8 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: '10px',
     width: 'min(760px, calc(100vw - 32px))',
-    padding: '12px',
-    borderRadius: '8px',
-    backgroundColor: 'rgba(18, 24, 32, 0.72)',
-    backdropFilter: 'blur(8px)',
-    boxShadow: '0 10px 28px rgba(0, 0, 0, 0.28)',
+    padding: 0,
+    backgroundColor: 'transparent',
   },
   waitingActionText: {
     flex: '1 0 100%',
@@ -1036,6 +1177,32 @@ const styles: Record<string, React.CSSProperties> = {
     imageRendering: 'auto',
     filter: 'drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55))',
   },
+  bottomBarButton: {
+    flex: '0 0 111px',
+    width: '111px',
+    height: '111px',
+    padding: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: 'none',
+    backgroundColor: 'transparent',
+    backgroundImage: `url("${BOTTOM_BAR_ASSET_BASE}/frame.png")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+    backgroundSize: '100% 100%',
+    cursor: 'pointer',
+    imageRendering: 'pixelated',
+    filter: 'drop-shadow(0 5px 8px rgba(0, 0, 0, 0.32))',
+    boxSizing: 'border-box',
+  },
+  bottomBarLogo: {
+    width: '72px',
+    height: '72px',
+    objectFit: 'contain',
+    imageRendering: 'pixelated',
+    pointerEvents: 'none',
+  },
   actionTile: {
     width: '112px',
     minHeight: '92px',
@@ -1094,34 +1261,40 @@ const styles: Record<string, React.CSSProperties> = {
     left: '50%',
     top: '52%',
     transform: 'translate(-50%, -50%)',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '18px 22px',
+    padding: '14px 18px',
     borderRadius: '8px',
-    backgroundColor: 'rgba(12, 18, 26, 0.74)',
-    backdropFilter: 'blur(6px)',
-    boxShadow: '0 18px 42px rgba(0, 0, 0, 0.36)',
+    backgroundColor: 'rgba(12, 18, 26, 0.48)',
+    backdropFilter: 'blur(4px)',
+    boxShadow: '0 18px 42px rgba(0, 0, 0, 0.32)',
   },
-  diceCube: {
-    width: '86px',
-    height: '86px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '14px',
-    border: '3px solid rgba(255, 255, 255, 0.92)',
-    backgroundColor: '#f8fafc',
-    color: '#17202a',
-    fontSize: '42px',
-    fontWeight: 900,
-    boxShadow: 'inset 0 -8px 0 rgba(0, 0, 0, 0.08), 0 10px 24px rgba(0, 0, 0, 0.32)',
+  diceImage: {
+    width: '192px',
+    height: '156px',
+    display: 'block',
+    objectFit: 'contain',
+    imageRendering: 'pixelated',
+    filter: 'drop-shadow(0 10px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 18px 22px rgba(0, 0, 0, 0.28))',
   },
-  diceCubeResult: {
-    backgroundColor: '#fff3c4',
-    color: '#1f2933',
-    borderColor: '#f9c74f',
+  diceResultNumber: {
+    pointerEvents: 'none',
+    position: 'absolute',
+    left: '50%',
+    top: 'calc(52% - 145px)',
+    transform: 'translateX(-50%) scaleX(1.22) scaleY(0.82)',
+    transformOrigin: 'center center',
+    fontFamily: 'Zpix, monospace',
+    fontSize: '58px',
+    fontWeight: 1000,
+    lineHeight: 0.86,
+  },
+  diceSprite: {
+    width: '192px',
+    height: '156px',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: '0 0',
+    backgroundSize: '1152px 156px',
+    imageRendering: 'pixelated',
+    filter: 'drop-shadow(0 10px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 18px 22px rgba(0, 0, 0, 0.28))',
   },
   diceOverlayText: {
     color: '#ffffff',
@@ -1194,7 +1367,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '4px 10px',
     fontSize: '11px',
     color: '#78909c',
-    fontFamily: 'monospace',
+    fontFamily: 'inherit',
   },
   bossSection: {
     padding: '12px',
