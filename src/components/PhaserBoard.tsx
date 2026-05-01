@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
-import type { LogEntry, MapConfig, Player } from '../types/protocol';
+import type { MapConfig, Player } from '../types/protocol';
 import { ForestBoardScene } from '../game/ForestBoardScene';
+import type { LogEntryAnimationContext } from '../game/logEntryAnimationPolicy';
 
 type PhaserBoardProps = {
   mapConfig: MapConfig;
@@ -10,7 +11,7 @@ type PhaserBoardProps = {
   followPlayerId?: string | null;
   selfPlayerId?: string | null;
   /** 当前正在播放的日志条目，用于棋盘上的特效提示 */
-  activeLogEntry?: LogEntry | null;
+  activeAnimationContext?: LogEntryAnimationContext | null;
   /** TurnEnd 结算目标；用于抑制当前玩家附近的 HP/LP/Buff 提示 */
   settlementPlayer?: Player | null;
 };
@@ -20,7 +21,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   players,
   followPlayerId,
   selfPlayerId,
-  activeLogEntry,
+  activeAnimationContext,
   settlementPlayer,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -55,7 +56,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       players,
       followPlayerId,
       selfPlayerId,
-      activeLogEntry,
+      activeAnimationContext,
       settlementPlayer,
     });
 
@@ -72,8 +73,8 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       'ForestBoardScene'
     ) as ForestBoardScene | undefined;
 
-    scene?.updateFromReact(mapConfig, players, followPlayerId, selfPlayerId, activeLogEntry, settlementPlayer);
-  }, [mapConfig, players, followPlayerId, selfPlayerId, activeLogEntry, settlementPlayer]);
+    scene?.updateFromReact(mapConfig, players, followPlayerId, selfPlayerId, activeAnimationContext, settlementPlayer);
+  }, [mapConfig, players, followPlayerId, selfPlayerId, activeAnimationContext, settlementPlayer]);
 
   return (
     <div

@@ -50,21 +50,6 @@ export function getMetadataNumberArray(metadata: Record<string, any> | undefined
     .filter((item): item is number => item !== null);
 }
 
-export function getLogEntryAnimationDelay(entry: LogEntry) {
-  if (entry.type !== 'action' && entry.type !== 'boss') return 0;
-
-  if (entry.action_type === 'dice_roll') {
-    return DICE_ROLL_MIN_MS + DICE_RESULT_DISPLAY_MS;
-  }
-
-  if (entry.action_type === 'move') {
-    const path = getMetadataNumberArray(entry.metadata, 'path');
-    return Math.max(700, Math.min(3200, Math.max(1, path.length - 1) * MOVE_STEP_MS + 250));
-  }
-
-  return DEFAULT_ACTION_ANIMATION_DELAY_MS;
-}
-
 export function clonePlayer(player: Player): Player {
   return {
     ...player,

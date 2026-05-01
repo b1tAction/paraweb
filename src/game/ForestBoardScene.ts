@@ -8,6 +8,10 @@ import {
   getMetadataNumberArray,
 } from './logEntryPlayback';
 import { getEventEffectConfig, getEventTypeFromEntry } from './eventAnimations';
+import {
+  shouldRenderBoardLogEntryAnimation,
+  type LogEntryAnimationContext,
+} from './logEntryAnimationPolicy';
 
 type PathNode = {
   index: number;
@@ -31,6 +35,8 @@ type CellMarkerView = {
   sprite: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
 };
+
+type BoardAnimationRenderer = (context: LogEntryAnimationContext) => void;
 
 const TILESET_IMAGES: TilesetImageConfig[] = [
   {
@@ -84,7 +90,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private players: Player[] =[];
   private followPlayerId?: string | null;
   private selfPlayerId?: string | null;
-  private activeLogEntry?: LogEntry | null;
+  private activeAnimationContext?: LogEntryAnimationContext | null;
   private settlementPlayer?: Player | null;
   private mapTileWidth = 32;
   private mapTileHeight = 32;
@@ -100,6 +106,10 @@ export class ForestBoardScene extends Phaser.Scene {
   private logDrivenPositions = new Map<string, number>();
   private activeMoveAnimations = new Set<string>();
   private lastEffectKey = '';
+  private readonly boardAnimationRenderers: Record<string, BoardAnimationRenderer> = {
+    move: (context) => this.playMoveAnimation(context),
+    draw_event: (context) => this.playDrawEventAnimation(context),
+  };
 
   private ready = false;
 
@@ -112,14 +122,14 @@ export class ForestBoardScene extends Phaser.Scene {
     players: Player[];
     followPlayerId?: string | null;
     selfPlayerId?: string | null;
-    activeLogEntry?: LogEntry | null;
+    activeAnimationContext?: LogEntryAnimationContext | null;
     settlementPlayer?: Player | null;
   }) {
     this.mapConfig = data.mapConfig;
     this.players = data.players ??[];
     this.followPlayerId = data.followPlayerId;
     this.selfPlayerId = data.selfPlayerId;
-    this.activeLogEntry = data.activeLogEntry;
+    this.activeAnimationContext = data.activeAnimationContext;
     this.settlementPlayer = data.settlementPlayer;
   }
 
@@ -202,7 +212,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.rebuildCellsFromBackendConfig();
     this.renderCellMarkers();
     this.syncPlayers(this.players);
-    this.playLogEntryEffect(this.activeLogEntry);
+    this.playLogEntryEffect(this.activeAnimationContext);
 
     this.ready = true;
   
@@ -228,7 +238,7 @@ export class ForestBoardScene extends Phaser.Scene {
     players: Player[],
     followPlayerId?: string | null,
     selfPlayerId?: string | null,
-    activeLogEntry?: LogEntry | null,
+    activeAnimationContext?: LogEntryAnimationContext | null,
     settlementPlayer?: Player | null
   ) {
     const mapChanged = this.mapConfig !== mapConfig;
@@ -239,12 +249,12 @@ export class ForestBoardScene extends Phaser.Scene {
     this.players = players ??[];
     this.followPlayerId = followPlayerId;
     this.selfPlayerId = selfPlayerId;
-    this.activeLogEntry = activeLogEntry;
+    this.activeAnimationContext = activeAnimationContext;
     this.settlementPlayer = settlementPlayer;
 
     if (!this.ready) return;
 
-    if (!activeLogEntry && !settlementPlayer && this.activeMoveAnimations.size === 0) {
+    if (!activeAnimationContext && !settlementPlayer && this.activeMoveAnimations.size === 0) {
       this.logDrivenPositions.clear();
     }
 
@@ -254,7 +264,7 @@ export class ForestBoardScene extends Phaser.Scene {
     }
 
     this.syncPlayers(this.players);
-    this.playLogEntryEffect(this.activeLogEntry);
+    this.playLogEntryEffect(this.activeAnimationContext);
 
     if (selfChanged) {
       this.refreshPlayerNameStyles();
@@ -578,24 +588,21 @@ export class ForestBoardScene extends Phaser.Scene {
     this.followTargetPlayer();
 }
 
-  private playLogEntryEffect(entry?: LogEntry | null) {
-    if (!entry || (entry.type !== 'action' && entry.type !== 'boss')) return;
+  private playLogEntryEffect(context?: LogEntryAnimationContext | null) {
+    if (!context || !shouldRenderBoardLogEntryAnimation(context)) return;
 
-    const effectKey = `${entry.timestamp}:${entry.type}:${entry.action_type}:${entry.target}:${entry.source}`;
+    const { entry } = context;
+
+    const effectKey = `${context.sequenceIndex}:${entry.timestamp}:${entry.type}:${entry.action_type}:${entry.target}:${entry.source}`;
     if (effectKey === this.lastEffectKey) return;
     this.lastEffectKey = effectKey;
 
-    if (entry.action_type === 'dice_roll') return;
+    const renderer = this.boardAnimationRenderers[entry.action_type] ?? this.playGenericLogEntryEffect;
+    renderer(context);
+  }
 
-    if (entry.action_type === 'move') {
-      this.playMoveAnimation(entry);
-      return;
-    }
-
-    if (entry.action_type === 'draw_event') {
-      this.playDrawEventAnimation(entry);
-      return;
-    }
+  private playGenericLogEntryEffect = (context: LogEntryAnimationContext) => {
+    const { entry } = context;
 
     if (this.shouldSuppressSettlementEffect(entry)) return;
 
@@ -650,7 +657,7 @@ export class ForestBoardScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onComplete: () => text.destroy(),
     });
-  }
+  };
 
   private shouldSuppressSettlementEffect(entry: LogEntry) {
     if (!this.settlementPlayer || entry.target !== this.settlementPlayer.player_id) return false;
@@ -665,7 +672,8 @@ export class ForestBoardScene extends Phaser.Scene {
     ].includes(entry.action_type);
   }
 
- private playMoveAnimation(entry: LogEntry) {
+ private playMoveAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
     const marker = this.playerMarkers.get(entry.target);
     if (!marker) return;
 
@@ -751,7 +759,8 @@ export class ForestBoardScene extends Phaser.Scene {
     runNext();
   }
 
-private playDrawEventAnimation(entry: LogEntry) {
+private playDrawEventAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
   const marker = this.playerMarkers.get(entry.target);
   if (!marker) return;
 
