@@ -4,7 +4,7 @@
  * 显示游戏主界面，玩家可以进行回合操作
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 import { PhaserBoard } from '../components/PhaserBoard';
@@ -16,11 +16,16 @@ import {
   applyLogEntryToPlayer,
   clonePlayer,
   getLatestDiceRollResult,
-  getLogEntryAnimationDelay,
   getMetadataNumber,
   getMetadataString,
   type DiceRollResult,
 } from '../game/logEntryPlayback';
+import {
+  createLogEntryAnimationContext,
+  getLogEntryAnimationDelay,
+  isLogEntryAnimationCandidate,
+  shouldRenderBoardLogEntryAnimation,
+} from '../game/logEntryAnimationPolicy';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
@@ -289,10 +294,17 @@ export const BoardScene: React.FC = () => {
     pendingEntries.length > 0 ||
     diceRollView.status === 'rolling' ||
     diceRollView.status === 'result';
+  const activeAnimationContext = useMemo(
+    () => createLogEntryAnimationContext(playedEntries, pendingEntries),
+    [playedEntries, pendingEntries]
+  );
   const activeLogEntry =
-    pendingEntries[0] && (pendingEntries[0].type === 'action' || pendingEntries[0].type === 'boss')
-      ? pendingEntries[0]
+    activeAnimationContext && isLogEntryAnimationCandidate(activeAnimationContext.entry)
+      ? activeAnimationContext.entry
       : null;
+  const boardAnimationContext = shouldRenderBoardLogEntryAnimation(activeAnimationContext)
+    ? activeAnimationContext
+    : null;
   const settlementPlayer = settlementPlayerId
     ? settlementPlayerSnapshot ||
       renderedPlayers.find((player) => player.player_id === settlementPlayerId) ||
@@ -427,15 +439,14 @@ export const BoardScene: React.FC = () => {
   useEffect(() => {
     if (pendingEntries.length === 0) return;
 
-    const firstEntry = pendingEntries[0];
-    const delay = getLogEntryAnimationDelay(firstEntry);
+    const delay = getLogEntryAnimationDelay(activeAnimationContext);
 
     const timeoutId = window.setTimeout(() => {
       useGameStore.getState().playNextEntry();
     }, delay);
 
     return () => window.clearTimeout(timeoutId);
-  }, [pendingEntries]);
+  }, [activeAnimationContext, pendingEntries.length]);
 
   // Auto-scroll debug log when new entries appear
   useEffect(() => {
@@ -445,7 +456,9 @@ export const BoardScene: React.FC = () => {
   }, [playedEntries.length]);
 
   useEffect(() => {
-    if (!activeLogEntry || activeLogEntry.action_type !== 'dice_roll') return;
+    if (!activeAnimationContext || activeAnimationContext.entry.action_type !== 'dice_roll') return;
+
+    const activeLogEntry = activeAnimationContext.entry;
 
     const steps = getMetadataNumber(activeLogEntry.metadata, 'dice_steps');
     if (!steps) return;
@@ -483,7 +496,7 @@ export const BoardScene: React.FC = () => {
         pendingResult: result,
       };
     });
-  }, [activeLogEntry, handledDiceResultKey]);
+  }, [activeAnimationContext, handledDiceResultKey]);
 
   useEffect(() => {
     if (diceRollView.status !== 'rolling') return;
@@ -540,7 +553,7 @@ export const BoardScene: React.FC = () => {
             // followPlayerId={currentPlayerId || myPlayerId}
             followPlayerId={currentPlayerId}
             selfPlayerId={myPlayerId}
-            activeLogEntry={activeLogEntry}
+            activeAnimationContext={boardAnimationContext}
             settlementPlayer={settlementPlayer}
           />
         ) : (
