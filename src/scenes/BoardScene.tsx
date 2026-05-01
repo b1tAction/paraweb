@@ -107,7 +107,8 @@ function shouldApplyImmediatePlayerStatUpdate(actionType: string) {
     actionType === 'damage' ||
     actionType === 'heal' ||
     actionType === 'modify_lp' ||
-    actionType === 'fell_down'
+    actionType === 'fell_down' ||
+    actionType === 'boss_damage'
   );
 }
 
@@ -682,7 +683,6 @@ export const BoardScene: React.FC = () => {
                 </div>
                 <div style={styles.bossStats}>
                   <span>HP {bossPlayer.hp}</span>
-                  <span>LP {bossPlayer.lp}</span>
                   <span>位置 {bossPlayer.position}</span>
                 </div>
                 <div style={styles.buffDots} aria-label="Boss Buffs">
@@ -711,6 +711,25 @@ export const BoardScene: React.FC = () => {
                 key={`${buff.type}-${index}`}
                 style={styles.selfBuffFrame}
                 title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
+              >
+                <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
+                <img
+                  src={`/assets/buff/${buff.type}.png`}
+                  alt={buff.name}
+                  style={styles.selfBuffIcon}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {bossPlayer && bossPlayer.buffs.length > 0 && (
+          <div style={styles.bossBuffPanel} aria-label="Boss Buff">
+            {bossPlayer.buffs.map((buff, index) => (
+              <div
+                key={`${buff.type}-${index}`}
+                style={styles.selfBuffFrame}
+                title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '鏆傛棤鏁堟灉璇存槑'}\n鍓╀綑鍥炲悎: ${formatBuffDuration(buff.duration)}`}
               >
                 <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
                 <img
@@ -1146,6 +1165,19 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '10px',
     paddingRight: '4px',
   },
+  bossBuffPanel: {
+    pointerEvents: 'auto',
+    position: 'absolute',
+    right: '14px',
+    top: '130px',
+    maxHeight: 'calc(100vh - 340px)',
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    paddingLeft: '4px',
+    alignItems: 'flex-end',
+  },
   selfBuffFrame: {
     width: '144px',
     height: '60px',
@@ -1416,6 +1448,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff3e0',
     fontSize: '13px',
     fontWeight: 700,
+  },
+  buffDots: {
+    display: 'none',
+  },
+  buffDot: {
+    display: 'none',
   },
 };
 
