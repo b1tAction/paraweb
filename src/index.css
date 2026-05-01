@@ -103,26 +103,30 @@ button:disabled {
 
 @keyframes paradice-figure-idle {
   0%,
-  24.99% {
-    transform: translateX(0);
+  24.999% {
+    transform: translate3d(0, 0, 0);
   }
 
   25%,
-  49.99% {
-    transform: translateX(-25%);
+  49.999% {
+    transform: translate3d(-25%, 0, 0);
   }
 
   50%,
-  74.99% {
-    transform: translateX(-50%);
+  74.999% {
+    transform: translate3d(-50%, 0, 0);
   }
 
   75%,
   100% {
-    transform: translateX(-75%);
+    transform: translate3d(-75%, 0, 0);
   }
 }
 
 .paradice-figure-idle {
   animation: paradice-figure-idle 0.8s infinite;
+  animation-timing-function: step-end;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
