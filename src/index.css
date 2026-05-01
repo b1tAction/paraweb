@@ -56,16 +56,23 @@ select {
 }
 
 button {
-  transition: all 0.2s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 button:hover {
-  opacity: 0.9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+button:active {
+  transform: translateY(0);
 }
 
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 @keyframes paradice-dice-spin {
@@ -84,6 +91,26 @@ button:disabled {
 
 .paradice-dice-spinning {
   animation: paradice-dice-spin 0.42s linear infinite;
+}
+
+@keyframes pulse-timer {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+    color: #2196F3;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+}
+
+.pulse-timer-anim {
+  animation: pulse-timer 1s infinite ease-in-out;
 }
 
 @keyframes paradice-dice-sprite-roll {

@@ -439,13 +439,13 @@ export class NakamaService {
     if (
       store.currentScene !== Scene.Board &&
       store.currentScene !== Scene.DiceAssign &&
-      store.stateSyncQueue.length > 0
+      useGameStore.getState().stateSyncQueue.length > 0
     ) {
-      store.applyNextStateSync();
+      useGameStore.getState().applyNextStateSync();
       // 这里可以安全地再次获取更新后的状态进行路由
       this.routeSceneByState(useGameStore.getState().globalState);
     } else {
-      console.log('[Nakama] 状态同步加入队列，当前队列长度：', store.stateSyncQueue.length);
+      console.log('[Nakama] 状态同步加入队列，当前队列长度：', useGameStore.getState().stateSyncQueue.length);
     }
   }
 

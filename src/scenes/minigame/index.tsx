@@ -13,13 +13,16 @@ import { useGameStore } from '../../store/gameStore';
 import { gameService } from '../../service/NakamaService';
 import { DiceRaceMiniGame } from './DiceRaceMiniGame';
 import { CountSecondsMiniGame } from './CountSecondsMiniGame';
+import { MathCalcMiniGame } from './MathCalcMiniGame';
+import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
+import { VernierMiniGame } from './VernierMiniGame';
 import { styles } from './MiniGameStyles';
 
 // ========== Game Phase ==========
 
 type GamePhase = 'playing' | 'result';
 
-// Result display duration before transitioning to next scene
+// Result display duration before transitioning to next// 展示小游戏结果的时长
 const RESULT_DISPLAY_DURATION_MS = 3000;
 
 // ========== MiniGameSubmitRankScene ==========
@@ -166,6 +169,9 @@ export const MiniGameSubmitRankScene: React.FC = () => {
     switch (gameType) {
       case 'dice_race': return 'Roll Dice';
       case 'count_seconds': return 'Count Seconds';
+      case 'math_calc': return 'Math Calculation';
+      case 'rainbow_memory': return 'Rainbow Memory';
+      case 'vernier': return 'Vernier Caliper';
       default: return `Mini-Game: ${gameType}`;
     }
   };
@@ -174,7 +180,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   if (hasMiniGameStart && !isParticipant) {
     return (
-      <div style={styles.container}>
+      <div style={styles.modalContainer}>
         <h2 style={styles.title}>Mini-Game</h2>
         <p style={styles.submittedText}>
           You are not participating this round. Waiting for others...
@@ -188,7 +194,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   if (!hasMiniGameStart) {
     return (
-      <div style={styles.container}>
+      <div style={styles.modalContainer}>
         <h2 style={styles.title}>Mini-Game</h2>
         <p style={styles.submittedText}>Waiting for mini-game start...</p>
       </div>
@@ -196,10 +202,11 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   }
 
   // ========== Result phase ==========
-
-  if (gamePhase === 'result') {
+  // For 'math_calc' and 'rainbow_memory', we keep rendering the game component itself even in result phase
+  // so users can see the final detailed ranking inside the game UI for 3s.
+  if (gamePhase === 'result' && gameType !== 'math_calc' && gameType !== 'rainbow_memory' && gameType !== 'vernier') {
     return (
-      <div style={styles.container}>
+      <div style={styles.modalContainer}>
         <h2 style={styles.title}>{getGameTitle()} - Results</h2>
         {renderResult()}
       </div>
@@ -230,6 +237,36 @@ export const MiniGameSubmitRankScene: React.FC = () => {
             onSubmit={submitGameData}
           />
         );
+      case 'math_calc':
+        return (
+          <MathCalcMiniGame
+            isParticipant={isParticipant}
+            submitted={submitted}
+            isSubmitting={isSubmitting}
+            submitError={submitError}
+            onSubmit={submitGameData}
+          />
+        );
+      case 'rainbow_memory':
+        return (
+          <RainbowMemoryMiniGame
+            isParticipant={isParticipant}
+            submitted={submitted}
+            isSubmitting={isSubmitting}
+            submitError={submitError}
+            onSubmit={submitGameData}
+          />
+        );
+      case 'vernier':
+        return (
+          <VernierMiniGame
+            isParticipant={isParticipant}
+            submitted={submitted}
+            isSubmitting={isSubmitting}
+            submitError={submitError}
+            onSubmit={submitGameData}
+          />
+        );
       default:
         return (
           <div style={styles.gameArea}>
@@ -242,7 +279,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.modalContainer}>
       <h2 style={styles.title}>{getGameTitle()}</h2>
       {renderGame()}
     </div>
