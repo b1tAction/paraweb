@@ -54,8 +54,8 @@ export function getMetadataNumberArray(metadata: Record<string, any> | undefined
 export function clonePlayer(player: Player): Player {
   return {
     ...player,
-    hp: clampPlayerStat(player.hp),
-    lp: clampPlayerStat(player.lp),
+    hp: normalizeHp(player),
+    lp: normalizeLp(player),
     buffs: player.buffs.map((buff) => ({ ...buff })),
     items: player.items.map((item) => ({ ...item })),
   };
@@ -65,11 +65,27 @@ export function clampPlayerStat(value: number) {
   return Math.max(0, Math.min(PLAYER_STAT_MAX, value));
 }
 
+function isBossPlayer(player: Player) {
+  return Boolean((player as Player & { is_boss?: boolean }).is_boss) || player.display_name === 'Boss';
+}
+
+function clampBossStat(value: number) {
+  return Math.max(0, value);
+}
+
+function normalizeHp(player: Player) {
+  return isBossPlayer(player) ? clampBossStat(player.hp) : clampPlayerStat(player.hp);
+}
+
+function normalizeLp(player: Player) {
+  return isBossPlayer(player) ? clampBossStat(player.lp) : clampPlayerStat(player.lp);
+}
+
 export function normalizePlayerStats(player: Player): Player {
   return {
     ...player,
-    hp: clampPlayerStat(player.hp),
-    lp: clampPlayerStat(player.lp),
+    hp: normalizeHp(player),
+    lp: normalizeLp(player),
   };
 }
 
@@ -79,6 +95,8 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
   const next = clonePlayer(player);
   const hpChange = getMetadataNumber(entry.metadata, 'hp_change') ?? 0;
   const lpChange = getMetadataNumber(entry.metadata, 'lp_change') ?? 0;
+  const damage = getMetadataNumber(entry.metadata, 'damage') ?? 0;
+  const bossRemainingHp = getMetadataNumber(entry.metadata, 'boss_remaining_hp');
   const buffType = getMetadataString(entry.metadata, 'buff_type');
   const buffDuration = getMetadataNumber(entry.metadata, 'duration');
 
@@ -95,6 +113,9 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
       }
       break;
     }
+    case 'boss_damage':
+      next.hp = bossRemainingHp ?? next.hp - damage;
+      break;
     case 'modify_lp':
       next.lp += lpChange;
       break;
