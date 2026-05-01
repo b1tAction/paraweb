@@ -47,14 +47,6 @@ function resolveDisplayName(target: string, players: Player[]): string {
   return target;
 }
 
-function resolveBuffDuration(targetPlayerId: string, buffType: string, players: Player[]): number | null {
-  if (!targetPlayerId || !buffType) return null;
-  const player = players.find((p) => p.player_id === targetPlayerId);
-  if (!player) return null;
-  const buff = player.buffs.find((b) => b.type === buffType);
-  return typeof buff?.duration === 'number' ? buff.duration : null;
-}
-
 // Format a single entry as a string (mirrors CLI displayLogEntry)
 function formatEntry(entry: LogEntry, players: Player[]): string {
   const targetName = resolveDisplayName(entry.target, players);
@@ -88,7 +80,7 @@ function formatEntry(entry: LogEntry, players: Player[]): string {
     }
     case 'add_buff': {
       const buffType = getMetaStr(meta, 'buff_type');
-      const duration = resolveBuffDuration(entry.target, buffType, players);
+      const duration = getMetaNum(meta, 'duration');
       const durationText = duration !== null ? formatDuration(duration) : '?';
       return `[add_buff] ${targetName} gained ${buffType} (${durationText}) from ${sourceName}`;
     }

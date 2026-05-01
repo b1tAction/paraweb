@@ -368,7 +368,7 @@ export const BoardScene: React.FC = () => {
 
     setSettlementPlayerSnapshot((current) => {
       if (!current) return current;
-      return applyLogEntryToPlayer(current, activeLogEntry, players);
+      return applyLogEntryToPlayer(current, activeLogEntry);
     });
     lastAppliedSettlementEntryRef.current = key;
   }, [activeLogEntry, settlementPlayerId, players]);
@@ -415,7 +415,7 @@ export const BoardScene: React.FC = () => {
     if (lastAppliedEntryRef.current === key) return;
 
     setRenderedPlayers((current) =>
-      current.map((player) => applyLogEntryToPlayer(player, latestPlayedEntry, players))
+      current.map((player) => applyLogEntryToPlayer(player, latestPlayedEntry))
     );
     lastAppliedEntryRef.current = key;
   }, [playedEntries, players]);
