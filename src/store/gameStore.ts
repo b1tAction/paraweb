@@ -19,6 +19,7 @@ import type {
   StartGameAck,
   MapConfig,
 } from '../types/protocol';
+import { normalizePlayerStats } from '../game/logEntryPlayback';
 
 // ========== 场景枚举 ==========
 
@@ -297,7 +298,7 @@ export const useGameStore = create<GameState>((set) => ({
       stateSyncQueue: restQueue,
       globalState: nextSync.global_state as GlobalState,
       turnState: nextSync.turn_state as TurnState,
-      players: nextSync.players || state.players,
+      players: nextSync.players?.map(normalizePlayerStats) || state.players,
       currentPlayerId: nextSync.current_player_id,
       round: nextSync.round ?? state.round,
       turn: nextSync.turn ?? state.turn,
@@ -305,7 +306,7 @@ export const useGameStore = create<GameState>((set) => ({
     };
   }),
 
-  setPlayers: (players) => set({ players }),
+  setPlayers: (players) => set({ players: players.map(normalizePlayerStats) }),
 
   setCurrentPlayerId: (playerId) => set({ currentPlayerId: playerId }),
   setRoundTurn: (round, turn) => set({ round, turn }),
