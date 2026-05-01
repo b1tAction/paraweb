@@ -143,6 +143,12 @@ export class ForestBoardScene extends Phaser.Scene {
     this.load.image('logic-cell-on', '/assets/tilesets/block/on.png');
     this.load.image(SHRINE_TEXTURE_KEY, '/assets/shrine/shrine.png');
 
+    // Load lightning bolt effect sprite sheet for thunder event
+    this.load.spritesheet('lightning-bolt', '/assets/effects/Lightning-bolt.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
     // 【修改】使用循环批量加载所有定义好的人物资源
     AVAILABLE_CHARACTERS.forEach(prefix => {
       this.load.spritesheet(`${prefix}_idle`, `/assets/figures/${prefix}_idle.png`, {
@@ -203,6 +209,14 @@ export class ForestBoardScene extends Phaser.Scene {
         frameRate: 10,
         repeat: -1
       });
+    });
+
+    // Create lightning strike animation for thunder event
+    this.anims.create({
+      key: 'lightning_strike_anim',
+      frames: this.anims.generateFrameNumbers('lightning-bolt', { start: 0, end: 9 }),
+      frameRate: 15,
+      repeat: 0
     });
 
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
@@ -761,10 +775,17 @@ export class ForestBoardScene extends Phaser.Scene {
 
 private playDrawEventAnimation(context: LogEntryAnimationContext) {
   const { entry } = context;
+  const eventType = getEventTypeFromEntry(entry);
+
+  // Route thunder event to dedicated lightning strike animation
+  if (eventType === 'thunder') {
+    this.playLightningStrikeAnimation(context);
+    return;
+  }
+
   const marker = this.playerMarkers.get(entry.target);
   if (!marker) return;
 
-  const eventType = getEventTypeFromEntry(entry);
   const effect = getEventEffectConfig(eventType);
   const duration = effect.duration || 2500;
 
@@ -835,6 +856,91 @@ private playDrawEventAnimation(context: LogEntryAnimationContext) {
     onComplete: () => {
       container.destroy();           // 自动销毁容器及子项
     }
+  });
+}
+
+private playLightningStrikeAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  // Find the cell at player.position — the actual grid cell where the player is standing
+  const player = this.players.find(p => p.player_id === entry.target);
+  // Prefer visual/animated position (logDrivenPositions) when available,
+  // otherwise fall back to backend `player.position`.
+  const visualPos = this.logDrivenPositions.get(entry.target) ?? player?.position;
+  const cell = visualPos !== undefined && visualPos !== null ? this.cellViews.get(visualPos) : null;
+
+  // Use cell center as the lightning landing point (ground level)
+  // If cell not found, fall back to marker.y + 16 (marker sits at cell.y - 16)
+  const cellCenterX = cell ? cell.x : marker.x;
+  const cellCenterY = cell ? cell.y : marker.y + 16;
+
+  const effect = getEventEffectConfig('thunder');
+  const duration = effect.duration || 2800;
+
+  // Prefer the visual marker position so lightning lands where the player appears.
+  // Fall back to cell center only if marker is unavailable.
+  const visualX = marker.x;
+  const visualY = marker.y;
+  const landingX = visualX ?? cellCenterX;
+  const landingY = visualY ? visualY + 16 : cellCenterY;
+
+  // 1. Create lightning sprite with origin at bottom center so it lands on the visual position
+  const lightningSprite = this.add.sprite(landingX, landingY, 'lightning-bolt');
+  lightningSprite.setScale(2.0);
+  lightningSprite.setOrigin(0.5, 1.0); // Origin at bottom center: sprite extends upward from the cell
+  lightningSprite.setDepth(landingY + 300);
+  lightningSprite.play('lightning_strike_anim');
+
+  // Destroy lightning sprite after animation completes
+  lightningSprite.on('animationcomplete', () => {
+    lightningSprite.destroy();
+  });
+
+  // 2. Camera flash effect (white flash simulating lightning brightness)
+  this.cameras.main.flash(300, 255, 255, 200);
+
+  // 3. Player marker shake effect (trembling after being struck)
+  this.tweens.add({
+    targets: marker,
+    x: {
+      from: marker.x - 4,
+      to: marker.x,
+    },
+    y: {
+      from: marker.y - 3,
+      to: marker.y,
+    },
+    duration: 80,
+    repeat: 8,
+    ease: 'Linear',
+    yoyo: true,
+  });
+
+  // 4. Display floating text label "⚡ 雷劫"
+  const labelText = effect.iconEmoji || '⚡';
+  const label = this.add.text(landingX, landingY - 50, labelText, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '22px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  label.setOrigin(0.5, 0.5);
+  label.setDepth(landingY + 310);
+
+  // Floating up and fading out animation for the text label
+  this.tweens.add({
+    targets: label,
+    y: cellCenterY - 170,
+    alpha: 0,
+    duration: duration,
+    ease: 'Cubic.easeOut',
+    onComplete: () => {
+      label.destroy();
+    },
   });
 }
 }

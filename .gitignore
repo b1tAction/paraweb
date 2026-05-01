@@ -1,4 +1,8 @@
 node_modules
 dist
 *.md
+images
+*.zip
+*.tar
+*.tar.gz
 .DS_Store
