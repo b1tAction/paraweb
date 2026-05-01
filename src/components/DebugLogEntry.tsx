@@ -127,8 +127,7 @@ function formatEntry(entry: LogEntry, players: Player[]): string {
     }
     case 'boss_attack': {
       const attackType = getMetaStr(meta, 'attack_type');
-      const damage = getMetaNum(meta, 'damage') ?? 0;
-      return `[boss_attack] Boss attacked ${targetName} (${attackType}) HP-${damage}`;
+      return `[boss_attack] Boss attacked ${targetName}${attackType ? ` (${attackType})` : ''}`;
     }
     case 'boss_skill': {
       const skillType = getMetaStr(meta, 'skill_type');
