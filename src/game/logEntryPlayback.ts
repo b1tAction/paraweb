@@ -5,6 +5,7 @@ export const DICE_ROLL_MIN_MS = 1200;
 export const DICE_RESULT_DISPLAY_MS = 1200;
 export const DEFAULT_ACTION_ANIMATION_DELAY_MS = 2000;
 export const MOVE_STEP_MS = 220;
+export const PLAYER_STAT_MAX = 8;
 
 export type DiceRollResult = {
   key: string;
@@ -53,8 +54,22 @@ export function getMetadataNumberArray(metadata: Record<string, any> | undefined
 export function clonePlayer(player: Player): Player {
   return {
     ...player,
+    hp: clampPlayerStat(player.hp),
+    lp: clampPlayerStat(player.lp),
     buffs: player.buffs.map((buff) => ({ ...buff })),
     items: player.items.map((item) => ({ ...item })),
+  };
+}
+
+export function clampPlayerStat(value: number) {
+  return Math.max(0, Math.min(PLAYER_STAT_MAX, value));
+}
+
+export function normalizePlayerStats(player: Player): Player {
+  return {
+    ...player,
+    hp: clampPlayerStat(player.hp),
+    lp: clampPlayerStat(player.lp),
   };
 }
 
@@ -126,7 +141,7 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
       break;
   }
 
-  return next;
+  return normalizePlayerStats(next);
 }
 
 export function getLatestDiceRollResult(entries: LogEntry[]): DiceRollResult | null {

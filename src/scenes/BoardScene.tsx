@@ -13,6 +13,7 @@ import { DebugLogEntry } from '../components/DebugLogEntry';
 import {
   DICE_RESULT_DISPLAY_MS,
   DICE_ROLL_MIN_MS,
+  PLAYER_STAT_MAX,
   applyLogEntryToPlayer,
   clonePlayer,
   getLatestDiceRollResult,
@@ -59,7 +60,6 @@ const PLAYER_CARD_IMAGES: Record<string, string> = {
   bai_hu: '/assets/ui/player_card_baihu.png',
   xuan_wu: '/assets/ui/player_card_xuanwu.png',
 };
-const PLAYER_STAT_MAX = 8;
 const BOTTOM_BAR_ASSET_BASE = '/assets/bottom_bar';
 const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   any_door: 'any_door.png',
