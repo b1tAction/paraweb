@@ -13,13 +13,15 @@ import { useGameStore } from '../../store/gameStore';
 import { gameService } from '../../service/NakamaService';
 import { DiceRaceMiniGame } from './DiceRaceMiniGame';
 import { CountSecondsMiniGame } from './CountSecondsMiniGame';
+import { MathCalcMiniGame } from './MathCalcMiniGame';
+import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
 import { styles } from './MiniGameStyles';
 
 // ========== Game Phase ==========
 
 type GamePhase = 'playing' | 'result';
 
-// Result display duration before transitioning to next scene
+// Result display duration before transitioning to next// 展示小游戏结果的时长
 const RESULT_DISPLAY_DURATION_MS = 3000;
 
 // ========== MiniGameSubmitRankScene ==========
@@ -166,6 +168,8 @@ export const MiniGameSubmitRankScene: React.FC = () => {
     switch (gameType) {
       case 'dice_race': return 'Roll Dice';
       case 'count_seconds': return 'Count Seconds';
+      case 'math_calc': return 'Math Calculation';
+      case 'rainbow_memory': return 'Rainbow Memory';
       default: return `Mini-Game: ${gameType}`;
     }
   };
@@ -196,8 +200,9 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   }
 
   // ========== Result phase ==========
-
-  if (gamePhase === 'result') {
+  // For 'math_calc' and 'rainbow_memory', we keep rendering the game component itself even in result phase
+  // so users can see the final detailed ranking inside the game UI for 3s.
+  if (gamePhase === 'result' && gameType !== 'math_calc' && gameType !== 'rainbow_memory') {
     return (
       <div style={styles.modalContainer}>
         <h2 style={styles.title}>{getGameTitle()} - Results</h2>
@@ -223,6 +228,26 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       case 'count_seconds':
         return (
           <CountSecondsMiniGame
+            isParticipant={isParticipant}
+            submitted={submitted}
+            isSubmitting={isSubmitting}
+            submitError={submitError}
+            onSubmit={submitGameData}
+          />
+        );
+      case 'math_calc':
+        return (
+          <MathCalcMiniGame
+            isParticipant={isParticipant}
+            submitted={submitted}
+            isSubmitting={isSubmitting}
+            submitError={submitError}
+            onSubmit={submitGameData}
+          />
+        );
+      case 'rainbow_memory':
+        return (
+          <RainbowMemoryMiniGame
             isParticipant={isParticipant}
             submitted={submitted}
             isSubmitting={isSubmitting}
