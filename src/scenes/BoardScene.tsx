@@ -102,6 +102,15 @@ function getLogEntryKey(entry: { timestamp: string; action_type: string; target:
   return `${entry.timestamp}:${entry.action_type}:${entry.target}:${entry.source}`;
 }
 
+function shouldApplyImmediatePlayerStatUpdate(actionType: string) {
+  return (
+    actionType === 'damage' ||
+    actionType === 'heal' ||
+    actionType === 'modify_lp' ||
+    actionType === 'fell_down'
+  );
+}
+
 function getDiceAssetType(diceType: string) {
   return diceType === 'gold' || diceType === 'silver' || diceType === 'copper' || diceType === 'wood'
     ? diceType
@@ -169,6 +178,7 @@ export const BoardScene: React.FC = () => {
   const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
   const lastAppliedSettlementEntryRef = useRef('');
+  const lastAppliedImmediateStatEntryRef = useRef('');
   const lastAppliedImmediateRespawnRef = useRef('');
   const lastAppliedEntryRef = useRef('');
   const roundReadySentKeyRef = useRef('');
@@ -374,6 +384,18 @@ export const BoardScene: React.FC = () => {
   }, [activeLogEntry, settlementPlayerId, players]);
 
   useEffect(() => {
+    if (!activeLogEntry || !shouldApplyImmediatePlayerStatUpdate(activeLogEntry.action_type)) return;
+
+    const key = getLogEntryKey(activeLogEntry);
+    if (lastAppliedImmediateStatEntryRef.current === key) return;
+
+    setRenderedPlayers((current) =>
+      current.map((player) => applyLogEntryToPlayer(player, activeLogEntry))
+    );
+    lastAppliedImmediateStatEntryRef.current = key;
+  }, [activeLogEntry]);
+
+  useEffect(() => {
     if (!activeLogEntry || activeLogEntry.action_type !== 'respawn') return;
 
     const syncedPlayer = players.find((player) => player.player_id === activeLogEntry.target);
@@ -413,6 +435,10 @@ export const BoardScene: React.FC = () => {
     const latestPlayedEntry = playedEntries[playedEntries.length - 1];
     const key = getLogEntryKey(latestPlayedEntry);
     if (lastAppliedEntryRef.current === key) return;
+    if (lastAppliedImmediateStatEntryRef.current === key) {
+      lastAppliedEntryRef.current = key;
+      return;
+    }
 
     setRenderedPlayers((current) =>
       current.map((player) => applyLogEntryToPlayer(player, latestPlayedEntry))
