@@ -3,6 +3,8 @@ import { getEventEffectConfig } from './eventAnimations';
 
 export const DICE_ROLL_MIN_MS = 1200;
 export const DICE_RESULT_DISPLAY_MS = 1200;
+export const DICE_UPGRADE_FLASH_MS = 720;
+export const DICE_UPGRADE_RESULT_MS = 980;
 export const DEFAULT_ACTION_ANIMATION_DELAY_MS = 2000;
 export const MOVE_STEP_MS = 220;
 export const PLAYER_STAT_MAX = 8;
@@ -214,6 +216,8 @@ export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
       return { label: `移动 ${num('steps')}`, color: 0xffa726, textColor: '#fff8e1' };
     case 'dice_roll':
       return { label: `${str('dice_type') || 'dice'} ${num('dice_steps')}`, color: 0xffffff, textColor: '#ffffff' };
+    case 'dice_upgrade':
+      return { label: `${str('from_dice') || 'dice'} -> ${str('to_dice') || 'dice'}`, color: 0xfff176, textColor: '#fffde7' };
     case 'respawn':
       return { label: '复活', color: 0x4fc3f7, textColor: '#e1f5fe' };
     case 'boss_damage':

@@ -13,6 +13,8 @@ import { DebugLogEntry } from '../components/DebugLogEntry';
 import {
   DICE_RESULT_DISPLAY_MS,
   DICE_ROLL_MIN_MS,
+  DICE_UPGRADE_FLASH_MS,
+  DICE_UPGRADE_RESULT_MS,
   PLAYER_STAT_MAX,
   applyLogEntryToPlayer,
   clonePlayer,
@@ -151,6 +153,18 @@ type DiceRollView =
 type DiceRollDisplayView = Exclude<DiceRollView, { status: 'idle' }>;
 type IdleDicePreview = { key: string; playerId: string; diceType: string; face: number };
 
+type DiceUpgradeView =
+  | { status: 'idle' }
+  | {
+      status: 'charging' | 'upgraded';
+      playerId: string;
+      fromDice: string;
+      toDice: string;
+      face: number;
+      startedAt: number;
+      entryKey: string;
+    };
+
 function getDiceAssetKey(view: DiceRollDisplayView) {
   if (view.status === 'result') {
     return `${view.playerId}:${view.diceType}:result:${view.steps}`;
@@ -158,11 +172,30 @@ function getDiceAssetKey(view: DiceRollDisplayView) {
   return `${view.playerId}:${view.diceType}:rolling:${view.startedAt}`;
 }
 
+function getDiceUpgradeAssetKey(view: Exclude<DiceUpgradeView, { status: 'idle' }>) {
+  return `${view.playerId}:${view.fromDice}:${view.toDice || 'pending'}:${view.face}:${view.status}:${view.entryKey}`;
+}
+
 function getDiceTypeForRank(rank: number) {
   if (rank === 1) return 'gold';
   if (rank === 2) return 'silver';
   if (rank === 3) return 'copper';
   return 'wood';
+}
+
+function getUpgradedDiceType(diceType: string) {
+  switch (getDiceAssetType(diceType)) {
+    case 'wood':
+      return 'copper';
+    case 'copper':
+      return 'silver';
+    case 'silver':
+      return 'gold';
+    case 'gold':
+      return 'gold';
+    default:
+      return 'copper';
+  }
 }
 
 function rollPreviewDiceFace() {
@@ -187,11 +220,13 @@ export const BoardScene: React.FC = () => {
     diceAssignments,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
+  const [diceUpgradeView, setDiceUpgradeView] = useState<DiceUpgradeView>({ status: 'idle' });
   const [idleDicePreview, setIdleDicePreview] = useState<IdleDicePreview | null>(null);
   const [rolledDiceTurnKey, setRolledDiceTurnKey] = useState('');
   const [handledDiceResultKey, setHandledDiceResultKey] = useState(
     () => getLatestDiceRollResult(playedEntries)?.key || ''
   );
+  const [handledDiceUpgradeKey, setHandledDiceUpgradeKey] = useState('');
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
   const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
@@ -271,8 +306,25 @@ export const BoardScene: React.FC = () => {
       setItemTargetSelection(item);
       return;
     }
+    if (item.type === 'dice_upgrade') {
+      const previewDiceType = availableActions?.dice_type || idleDicePreview?.diceType || miniGameDiceType || 'wood';
+      setDiceUpgradeView({
+        status: 'charging',
+        playerId: currentPlayerId || myPlayerId,
+        fromDice: previewDiceType,
+        toDice: '',
+        face: idleDicePreview?.face ?? rollPreviewDiceFace(),
+        startedAt: Date.now(),
+        entryKey: `pending:${item.id}:${Date.now()}`,
+      });
+    }
     console.log('[BoardScene] 使用道具', item.id);
-    gameService.sendUseItem(item.id);
+    gameService.sendUseItem(item.id).catch((err) => {
+      console.error('[BoardScene] 使用道具失败', err);
+      if (item.type === 'dice_upgrade') {
+        setDiceUpgradeView({ status: 'idle' });
+      }
+    });
   };
 
   /**
@@ -324,7 +376,8 @@ export const BoardScene: React.FC = () => {
     Boolean(actionView) &&
     isMainAction &&
     diceRollView.status !== 'awaiting_result' &&
-    diceRollView.status !== 'rolling';
+    diceRollView.status !== 'rolling' &&
+    diceUpgradeView.status === 'idle';
   const shouldShowIdleDicePreview =
     Boolean(idleDicePreview) &&
     Boolean(currentDicePreviewType) &&
@@ -333,14 +386,18 @@ export const BoardScene: React.FC = () => {
     actionTurnKey !== rolledDiceTurnKey &&
     pendingEntries.length === 0;
   const shouldShowDiceOverlay =
+    diceUpgradeView.status !== 'idle' ||
     shouldShowIdleDicePreview ||
     diceRollView.status === 'awaiting_result' ||
     diceRollView.status === 'rolling' ||
     diceRollView.status === 'result';
+  const isBlockingDiceUpgradeAnimation =
+    diceUpgradeView.status === 'upgraded' || (diceUpgradeView.status === 'charging' && Boolean(diceUpgradeView.toDice));
   const hasPendingAnimations =
     pendingEntries.length > 0 ||
     diceRollView.status === 'rolling' ||
-    diceRollView.status === 'result';
+    diceRollView.status === 'result' ||
+    isBlockingDiceUpgradeAnimation;
   const activeAnimationContext = useMemo(
     () => createLogEntryAnimationContext(playedEntries, pendingEntries),
     [playedEntries, pendingEntries]
@@ -586,6 +643,38 @@ export const BoardScene: React.FC = () => {
   }, [activeAnimationContext, handledDiceResultKey]);
 
   useEffect(() => {
+    if (!activeAnimationContext || activeAnimationContext.entry.action_type !== 'dice_upgrade') return;
+
+    const activeLogEntry = activeAnimationContext.entry;
+    const fromDice = getMetadataString(activeLogEntry.metadata, 'from_dice') || 'wood';
+    const toDice = getMetadataString(activeLogEntry.metadata, 'to_dice') || getUpgradedDiceType(fromDice);
+    const resultKey = `${activeLogEntry.timestamp}:${activeLogEntry.target}:${fromDice}:${toDice}`;
+
+    if (resultKey === handledDiceUpgradeKey) return;
+    setHandledDiceUpgradeKey(resultKey);
+    useGameStore.getState().setDiceAssignments({
+      ...useGameStore.getState().diceAssignments,
+      [activeLogEntry.target]: toDice,
+    });
+
+    setDiceUpgradeView((current) => {
+      const shouldKeepCurrentFace =
+        current.status !== 'idle' && current.playerId === activeLogEntry.target;
+      const startedAt = shouldKeepCurrentFace ? current.startedAt : Date.now();
+
+      return {
+        status: 'charging',
+        playerId: activeLogEntry.target,
+        fromDice,
+        toDice,
+        face: shouldKeepCurrentFace ? current.face : rollPreviewDiceFace(),
+        startedAt,
+        entryKey: resultKey,
+      };
+    });
+  }, [activeAnimationContext, handledDiceUpgradeKey]);
+
+  useEffect(() => {
     if (diceRollView.status !== 'rolling') return;
 
     const elapsed = Date.now() - diceRollView.startedAt;
@@ -602,6 +691,50 @@ export const BoardScene: React.FC = () => {
 
     return () => window.clearTimeout(timeoutId);
   }, [diceRollView]);
+
+  useEffect(() => {
+    if (diceUpgradeView.status !== 'charging' || !diceUpgradeView.toDice) return;
+
+    const elapsed = Date.now() - diceUpgradeView.startedAt;
+    const delay = Math.max(0, DICE_UPGRADE_FLASH_MS - elapsed);
+    const timeoutId = window.setTimeout(() => {
+      setDiceUpgradeView((current) =>
+        current.status === 'charging' && current.entryKey === diceUpgradeView.entryKey
+          ? { ...current, status: 'upgraded', startedAt: Date.now() }
+          : current
+      );
+    }, delay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diceUpgradeView]);
+
+  useEffect(() => {
+    if (diceUpgradeView.status !== 'upgraded') return;
+
+    const timeoutId = window.setTimeout(() => {
+      setDiceUpgradeView((current) =>
+        current.status === 'upgraded' && current.entryKey === diceUpgradeView.entryKey
+          ? { status: 'idle' }
+          : current
+      );
+    }, DICE_UPGRADE_RESULT_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diceUpgradeView]);
+
+  useEffect(() => {
+    if (diceUpgradeView.status !== 'charging' || diceUpgradeView.toDice) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setDiceUpgradeView((current) =>
+        current.status === 'charging' && !current.toDice && current.entryKey === diceUpgradeView.entryKey
+          ? { status: 'idle' }
+          : current
+      );
+    }, 8000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diceUpgradeView]);
 
   useEffect(() => {
     if (diceRollView.status !== 'result') return;
@@ -874,7 +1007,33 @@ export const BoardScene: React.FC = () => {
               <div style={getDiceResultNumberStyle(diceRollView.diceType)}>{diceRollView.steps}</div>
             )}
             <div style={styles.diceOverlay} aria-live="polite">
-              {shouldShowIdleDicePreview && idleDicePreview ? (
+              {diceUpgradeView.status !== 'idle' ? (
+                <>
+                  {diceUpgradeView.status === 'upgraded' && (
+                    <div
+                      key={`sparkle:${diceUpgradeView.entryKey}`}
+                      className="paradice-sparkle-sprite"
+                      style={styles.diceUpgradeSparkle}
+                    />
+                  )}
+                  <img
+                    key={getDiceUpgradeAssetKey(diceUpgradeView)}
+                    src={getDiceResultSrc(
+                      diceUpgradeView.status === 'upgraded' && diceUpgradeView.toDice
+                        ? diceUpgradeView.toDice
+                        : diceUpgradeView.fromDice,
+                      diceUpgradeView.face
+                    )}
+                    alt=""
+                    className={
+                      diceUpgradeView.status === 'upgraded'
+                        ? 'paradice-dice-upgrade-result'
+                        : 'paradice-dice-upgrade-charging'
+                    }
+                    style={styles.diceImage}
+                  />
+                </>
+              ) : shouldShowIdleDicePreview && idleDicePreview ? (
                 <img
                   key={idleDicePreview.key}
                   src={getDiceResultSrc(idleDicePreview.diceType, idleDicePreview.face)}
@@ -1363,6 +1522,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: '50%',
     top: '52%',
     transform: 'translate(-50%, -50%)',
+    overflow: 'visible',
     padding: '14px 18px',
     borderRadius: '8px',
     backgroundColor: 'rgba(12, 18, 26, 0.48)',
@@ -1370,12 +1530,30 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 18px 42px rgba(0, 0, 0, 0.32)',
   },
   diceImage: {
+    position: 'relative',
+    zIndex: 1,
     width: '192px',
     height: '156px',
     display: 'block',
     objectFit: 'contain',
     imageRendering: 'pixelated',
     filter: 'drop-shadow(0 10px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 18px 22px rgba(0, 0, 0, 0.28))',
+  },
+  diceUpgradeSparkle: {
+    position: 'absolute',
+    zIndex: 0,
+    left: '50%',
+    top: '50%',
+    width: '256px',
+    height: '208px',
+    transform: 'translate(-50%, -50%)',
+    backgroundImage: 'url("/assets/effects/sparkle.png")',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: '0 0',
+    backgroundSize: '1280px 208px',
+    imageRendering: 'pixelated',
+    opacity: 0.92,
+    pointerEvents: 'none',
   },
   diceResultNumber: {
     pointerEvents: 'none',

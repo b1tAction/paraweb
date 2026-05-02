@@ -52,6 +52,7 @@ export interface StateSync {
  * - boss_attack: attack_type, damage
  * - boss_skill: skill_type, targets
  * - dice_roll: dice_type, dice_steps
+ * - dice_upgrade: from_dice, to_dice
  * - state: from, to
  */
 export interface LogEntry {

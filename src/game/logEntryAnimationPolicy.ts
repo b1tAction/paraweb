@@ -3,6 +3,8 @@ import {
   DEFAULT_ACTION_ANIMATION_DELAY_MS,
   DICE_RESULT_DISPLAY_MS,
   DICE_ROLL_MIN_MS,
+  DICE_UPGRADE_FLASH_MS,
+  DICE_UPGRADE_RESULT_MS,
   MOVE_STEP_MS,
   getMetadataNumberArray,
   getMetadataString,
@@ -35,6 +37,10 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
   dice_roll: {
     renderOnBoard: false,
     delayMs: DICE_ROLL_MIN_MS + DICE_RESULT_DISPLAY_MS,
+  },
+  dice_upgrade: {
+    renderOnBoard: false,
+    delayMs: DICE_UPGRADE_FLASH_MS + DICE_UPGRADE_RESULT_MS,
   },
   move: {
     renderOnBoard: true,
