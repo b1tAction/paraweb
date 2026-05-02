@@ -101,6 +101,11 @@ function formatEntry(entry: LogEntry, players: Player[]): string {
       const diceSteps = getMetaNum(meta, 'dice_steps') ?? 0;
       return `[dice_roll] ${targetName} rolled ${diceType} dice: ${diceSteps} steps`;
     }
+    case 'dice_upgrade': {
+      const fromDice = getMetaStr(meta, 'from_dice');
+      const toDice = getMetaStr(meta, 'to_dice');
+      return `[dice_upgrade] ${targetName} upgraded dice ${fromDice} -> ${toDice} from ${sourceName}`;
+    }
     case 'fell_down': {
       const position = getMetaNum(meta, 'position') ?? 0;
       const hpChange = getMetaNum(meta, 'hp_change') ?? 0;
@@ -163,7 +168,7 @@ function getEntryColor(actionType: string): string {
   const healTypes = ['heal'];
   const buffTypes = ['add_buff'];
   const debuffTypes = ['remove_buff', 'steal_buff'];
-  const moveTypes = ['move', 'teleport', 'dice_roll'];
+  const moveTypes = ['move', 'teleport', 'dice_roll', 'dice_upgrade'];
   const drawTypes = ['draw_event', 'draw_item'];
 
   if (damageTypes.includes(actionType)) return '#ef5350';
