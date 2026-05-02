@@ -431,7 +431,107 @@ export const styles: Record<string, CSSProperties> = {
     color: '#333',
     margin: '10px 0',
     fontFamily: 'monospace', // Better for counting
-  }
+  },
+
+  // Unified Leaderboard Styles
+  leaderboardContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: '500px',
+    gap: '12px',
+  },
+  leaderboardHeader: {
+    fontSize: '32px',
+    fontWeight: '900',
+    color: '#1a1a1a',
+    marginBottom: '20px',
+    textTransform: 'uppercase',
+    letterSpacing: '3px',
+    textAlign: 'center',
+    textShadow: '0 2px 10px rgba(0,0,0,0.1)',
+  },
+  leaderboardRow: {
+    display: 'flex',
+    alignItems: 'center',
+    width: '100%',
+    padding: '16px 24px',
+    borderRadius: '20px',
+    background: 'rgba(255, 255, 255, 0.5)',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    boxShadow: '0 8px 32px rgba(31, 38, 135, 0.1)',
+    backdropFilter: 'blur(4px)',
+    transition: 'all 0.3s ease',
+  },
+  leaderboardRank: {
+    fontSize: '32px',
+    fontWeight: '900',
+    width: '48px',
+    marginRight: '16px',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  leaderboardInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+  },
+  leaderboardName: {
+    fontSize: '20px',
+    fontWeight: '800',
+    color: '#2c3e50',
+    marginBottom: '4px',
+  },
+  leaderboardDetail: {
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#7f8c8d',
+  },
+  leaderboardDiceArea: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '4px',
+  },
+  diceBadge: {
+    padding: '4px 12px',
+    borderRadius: '100px',
+    fontSize: '12px',
+    color: '#fff',
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: '1px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+  },
+  diceDesc: {
+    fontSize: '11px',
+    color: '#95a5a6',
+    fontWeight: '600',
+  },
+  // Specific Rank Styles
+  rank1: { 
+    background: 'linear-gradient(135deg, rgba(255,215,0,0.1) 0%, rgba(255,215,0,0.3) 100%)', 
+    border: '1.5px solid #FFD700',
+    boxShadow: '0 8px 32px rgba(255, 215, 0, 0.2)',
+  },
+  rank2: { 
+    background: 'linear-gradient(135deg, rgba(192,192,192,0.1) 0%, rgba(192,192,192,0.3) 100%)', 
+    border: '1.5px solid #C0C0C0' 
+  },
+  rank3: { 
+    background: 'linear-gradient(135deg, rgba(205,127,50,0.1) 0%, rgba(205,127,50,0.3) 100%)', 
+    border: '1.5px solid #CD7F32' 
+  },
+  rank4: { 
+    background: 'linear-gradient(135deg, rgba(139,69,19,0.05) 0%, rgba(139,69,19,0.15) 100%)', 
+    border: '1.5px solid #8B4513' 
+  },
+  badgeGold: { backgroundColor: '#FFD700', color: '#000' },
+  badgeSilver: { backgroundColor: '#C0C0C0', color: '#000' },
+  badgeCopper: { backgroundColor: '#CD7F32' },
+  badgeWood: { backgroundColor: '#8B4513' },
 };
 
 // Dice face dot positions in 3x3 grid (0=top-left, 8=bottom-right)
