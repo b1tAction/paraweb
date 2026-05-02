@@ -2,20 +2,19 @@ import type { LogEntry } from '../types/protocol';
 import { getMetadataString } from './logEntryPlayback';
 
 export type EventAnimationType =
-  | 'heal_pop'      // 绿色弹出治疗效果
-  | 'damage_flash'  // 红色闪烁伤害效果
-  | 'buff_glow'     // 金色发光增益效果
-  | 'debuff_spin'   // 紫色旋转减益效果
-  | 'item_sparkle'  // 金色闪烁道具效果
-  | 'teleport_swap' // 蓝色交换传送效果
-  | 'curse_cloud'   // 黑色诅咒云雾效果
-  | 'lightning_strike' // 黄色雷击效果
-  | 'ghost_attack'  // 灰色幽灵攻击效果
-  | 'steal_flash'   // 橙色偷窃闪烁效果
-  | 'neutral_pulse'; // 白色中性脉冲效果
+  | 'heal_pop'      // green healing pop effect
+  | 'damage_flash'  // red damage flash effect
+  | 'buff_glow'     // golden buff glow effect
+  | 'debuff_spin'   // purple debuff spin effect
+  | 'item_sparkle'  // golden item sparkle effect
+  | 'teleport_swap' // blue teleport swap effect
+  | 'curse_cloud'   // dark curse cloud effect
+  | 'lightning_strike' // yellow lightning strike effect
+  | 'ghost_attack'  // grey ghost attack effect
+  | 'steal_flash'   // orange steal flash effect
+  | 'neutral_pulse'; // white neutral pulse effect
 
 export type EventEffectConfig = {
-  label: string;
   color: number;
   textColor: string;
   animationType: EventAnimationType;
@@ -24,11 +23,11 @@ export type EventEffectConfig = {
   duration?: number;
 };
 
-// 事件类型到动画效果的映射
+// Event type → animation effect mapping
+// Display names (label) are no longer hardcoded here; they come from DefinitionsConfig.
 export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
-  // 🥰 良性事件
+  // Good events
   'herb': {
-    label: '采集到草药',
     color: 0x66bb6a,
     textColor: '#e8f5e9',
     animationType: 'heal_pop',
@@ -37,7 +36,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'milk_tea': {
-    label: '捡到奶茶，一口就吃到了猪猪欸',
     color: 0xffca28,
     textColor: '#fffde7',
     animationType: 'heal_pop',
@@ -46,7 +44,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'relic': {
-    label: '捡到勇士的圣遗物',
     color: 0xffd700,
     textColor: '#fff9c4',
     animationType: 'item_sparkle',
@@ -55,7 +52,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'divine_bless': {
-    label: '受到天使眷顾',
     color: 0x42a5f5,
     textColor: '#e3f2fd',
     animationType: 'buff_glow',
@@ -64,9 +60,8 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
 
-  // 🫥 中性事件
+  // Neutral events
   'hidden_buff': {
-    label: '麻了',
     color: 0x757575,
     textColor: '#f5f5f5',
     animationType: 'neutral_pulse',
@@ -75,7 +70,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'exchange': {
-    label: '位置交换',
     color: 0x29b6f6,
     textColor: '#e1f5fe',
     animationType: 'teleport_swap',
@@ -84,7 +78,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'taste_test': {
-    label: '这是什么？尝一口',
     color: 0x8d6e63,
     textColor: '#efebe9',
     animationType: 'neutral_pulse',
@@ -93,9 +86,8 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
 
-  // 🤮 恶性事件
+  // Bad events
   'mosquito': {
-    label: '被蚊虫叮咬',
     color: 0xef5350,
     textColor: '#ffebee',
     animationType: 'damage_flash',
@@ -104,7 +96,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'ghost_hit': {
-    label: '偶遇孤魂野鬼',
     color: 0x616161,
     textColor: '#f5f5f5',
     animationType: 'ghost_attack',
@@ -113,7 +104,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'dog_poop': {
-    label: '踩到了狗屎',
     color: 0x8d6e63,
     textColor: '#efebe9',
     animationType: 'damage_flash',
@@ -122,7 +112,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'thief': {
-    label: '啊？！贼',
     color: 0xff7043,
     textColor: '#fff3e0',
     animationType: 'steal_flash',
@@ -131,7 +120,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'curse_buddha': {
-    label: '虔诚拜三拜路边野佛',
     color: 0x7b1fa2,
     textColor: '#f3e5f5',
     animationType: 'curse_cloud',
@@ -140,7 +128,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'lost_way': {
-    label: '迷途',
     color: 0xbf360c,
     textColor: '#ffebee',
     animationType: 'debuff_spin',
@@ -149,7 +136,6 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     duration: 2500
   },
   'thunder': {
-    label: '雷劫',
     color: 0xffd600,
     textColor: '#fffde7',
     animationType: 'lightning_strike',
@@ -157,14 +143,14 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     particleCount: 20,
     duration: 2800
   }
-}
+};
 
 /**
- * 获取事件动画配置
+ * Get event animation config (visual parameters only).
+ * Display names come from DefinitionsConfig, not this mapping.
  */
 export function getEventEffectConfig(eventType: string): EventEffectConfig {
   return EVENT_TYPE_EFFECTS[eventType] || {
-    label: eventType,
     color: 0xffffff,
     textColor: '#ffffff',
     animationType: 'neutral_pulse',
@@ -173,8 +159,8 @@ export function getEventEffectConfig(eventType: string): EventEffectConfig {
 }
 
 /**
- * 从 LogEntry 中提取事件类型
+ * Extract event type from LogEntry metadata.
  */
 export function getEventTypeFromEntry(entry: LogEntry): string {
-  return getMetadataString(entry.metadata, 'event_type') || '未知事件';
+  return getMetadataString(entry.metadata, 'event_type') || '';
 }
