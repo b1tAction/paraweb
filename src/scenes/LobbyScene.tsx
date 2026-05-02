@@ -1,11 +1,41 @@
 /**
  * LobbyScene - 房间等待场景
- * 
- * 显示房间玩家列表，房主可以开始游戏 
+ *
+ * 显示房间玩家列表，房主可以开始游戏。
  */
 import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
+
+const factionMeta: Record<string, { label: string; figure: string }> = {
+  qing_long: { label: '青龙', figure: '/assets/figures/green_idle.png' },
+  zhu_que: { label: '朱雀', figure: '/assets/figures/red_idle.png' },
+  bai_hu: { label: '白虎', figure: '/assets/figures/white_idle.png' },
+  xuan_wu: { label: '玄武', figure: '/assets/figures/black_idle.png' },
+};
+
+const playerSlots = [
+  {
+    key: 'left',
+    position: { left: '37.5%', top: '73%' },
+    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' },
+  },
+  {
+    key: 'top',
+    position: { left: '50%', top: '61%' },
+    panel: { left: '50%', top: '70%', transform: 'translateX(-50%)', textAlign: 'center' },
+  },
+  {
+    key: 'right',
+    position: { left: '62.5%', top: '73%' },
+    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' },
+  },
+  {
+    key: 'bottom',
+    position: { left: '50%', top: '88%' },
+    panel: { left: '50%', top: '88%', transform: 'translateX(-50%)', textAlign: 'center' },
+  },
+] as const;
 
 export const LobbyScene: React.FC = () => {
   const { waitingSync, myPlayerId, matchId } = useGameStore();
@@ -13,26 +43,23 @@ export const LobbyScene: React.FC = () => {
   const [startError, setStartError] = useState('');
 
   if (!waitingSync) {
-    return <div>加载中...</div>;
+    return <div style={styles.loading}>加载中...</div>;
   }
 
-  const { 
-    match_id, 
-    host_user_id, 
-    players, 
-    player_count, 
-    min_players, 
-    max_players, 
-    can_start, 
-    message, 
+  const {
+    match_id,
+    host_user_id,
+    players,
+    player_count,
+    min_players,
+    max_players,
+    can_start,
+    message,
   } = waitingSync;
 
   const isHost = myPlayerId === host_user_id;
   const displayMatchId = match_id || matchId;
 
-  /**
-   * 处理开始游戏 
-   */
   const handleStartGame = async () => {
     try {
       setStartError('');
@@ -48,171 +75,254 @@ export const LobbyScene: React.FC = () => {
     }
   };
 
-  // 补全截断的返回逻辑
   return (
-    <div style={styles.pageWrapper}>
-      <div style={styles.container}>
-        <h2 style={styles.title}>房间等待</h2>
-
-        <div style={styles.infoSection}>
-          <div style={styles.info}>房间ID: {displayMatchId}</div>
-          <button 
-            style={styles.copyButton} 
-            onClick={() => displayMatchId && navigator.clipboard.writeText(displayMatchId)}
+    <main style={styles.page}>
+      <section style={styles.roomHeader} aria-label="房间信息">
+        <h1 style={styles.title}>房间等待</h1>
+        <button
+          type="button"
+          style={styles.roomId}
+          title="复制房间 ID"
+          onClick={() => displayMatchId && navigator.clipboard.writeText(displayMatchId)}
+        >
+          房间 ID: {displayMatchId || '-'}
+        </button>
+        <div style={styles.roomMeta}>
+          {player_count} / {max_players} 人
+          {player_count < min_players ? ` · 至少 ${min_players} 人` : ''}
+        </div>
+        {isHost ? (
+          <button
+            type="button"
+            style={{
+              ...styles.startButton,
+              ...(!can_start || isStarting ? styles.startButtonDisabled : undefined),
+            }}
+            onClick={handleStartGame}
+            disabled={!can_start || isStarting}
           >
-            复制房间号
+            {isStarting ? '启动中...' : '开始游戏'}
           </button>
-          <div style={styles.info}>
-            人数: {player_count} / {max_players} (最少 {min_players} 人)
+        ) : (
+          <div style={styles.waitingText}>等待房主开始游戏</div>
+        )}
+        {(message || startError) && (
+          <div style={{ ...styles.notice, ...(startError ? styles.errorNotice : undefined) }}>
+            {startError || message}
           </div>
-          {message && <div style={styles.message}>{message}</div>}
-        </div>
+        )}
+      </section>
 
-        <div style={styles.playerList}>
-          {players?.map((player: any, index: number) => {
-            const isMe = player.user_id === myPlayerId;
-            const isPlayerHost = player.user_id === host_user_id;
-            return (
-              <div key={player.user_id || index} style={styles.playerItem}>
-                <span style={styles.playerName}>
-                  {player.display_name || player.user_id}
-                  {isPlayerHost ? ' 👑(房主)' : ''}
-                  {isMe ? ' (我)' : ''}
-                </span>
-                <span style={styles.playerFaction}>已加入</span>
-              </div>
-            );
-          })}
-        </div>
+      <section style={styles.playerStage} aria-label="房间玩家">
+        {players?.slice(0, 4).map((player, index) => {
+          const slot = playerSlots[index];
+          const faction = factionMeta[player.faction] ?? factionMeta.qing_long;
+          const isMe = player.user_id === myPlayerId;
+          const isPlayerHost = player.user_id === host_user_id;
 
-        <div style={styles.statusSection}>
-          {isHost ? (
-            <button
+          return (
+            <div
+              key={player.user_id || index}
               style={{
-                ...styles.startButton,
-                backgroundColor: can_start ? '#4CAF50' : '#ccc',
-                cursor: can_start ? 'pointer' : 'not-allowed',
+                ...styles.playerSlot,
+                ...slot.position,
               }}
-              onClick={handleStartGame}
-              disabled={!can_start || isStarting}
             >
-              {isStarting ? '启动中...' : '开始游戏'}
-            </button>
-          ) : (
-            <div style={styles.waiting}>等待房主开始游戏...</div>
-          )}
-          {startError && <div style={styles.error}>{startError}</div>}
-        </div>
-      </div>
-    </div>
+              <div style={styles.figureViewport} aria-hidden="true">
+                <img
+                  src={faction.figure}
+                  alt=""
+                  className="paradice-figure-idle"
+                  draggable={false}
+                  style={styles.figureSprite}
+                />
+              </div>
+              <div style={{ ...styles.playerPanel, ...slot.panel }}>
+                <div style={styles.playerName}>{player.display_name || player.user_id}</div>
+                <div style={styles.playerTags}>
+                  <span>{faction.label}</span>
+                  {isPlayerHost && <span>房主</span>}
+                  {isMe && <span>我</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </section>
+    </main>
   );
 };
 
-// 适当美化后的样式
 const styles: Record<string, React.CSSProperties> = {
-  // 新增外层包裹，用于设置全屏背景图和居中
-  pageWrapper: {
-    minHeight: '100vh',
+  page: {
+    position: 'fixed',
+    inset: 0,
+    width: '100vw',
+    height: '100vh',
+    overflow: 'hidden',
+    backgroundImage: 'url("/assets/waiting.png")',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    fontFamily: 'Zpix, sans-serif',
+  },
+  loading: {
+    position: 'fixed',
+    inset: 0,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundImage: 'url("/assets/waiting.png")', // public目录下的图片可以直接这样引用
+    color: '#fff7d6',
+    backgroundImage: 'url("/assets/waiting.png")',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
-    padding: '20px',
+    fontFamily: 'Zpix, sans-serif',
   },
-  // 改造成半透明毛玻璃面板
-  container: {
-    width: '100%',
-    maxWidth: '500px',
-    padding: '30px',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)', // 85%透明度的白色底
-    backdropFilter: 'blur(10px)', // 毛玻璃模糊效果
-    borderRadius: '16px',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)', // 增加立体阴影
-    margin: '0 auto',
+  roomHeader: {
+    position: 'absolute',
+    left: '50%',
+    top: '10%',
+    transform: 'translateX(-50%)',
+    width: 'min(680px, calc(100vw - 32px))',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '8px',
+    color: '#fff8d7',
+    textAlign: 'center',
+    textShadow: '0 3px 0 rgba(62, 38, 29, 0.72), 0 10px 24px rgba(0, 0, 0, 0.4)',
+    pointerEvents: 'auto',
   },
   title: {
-    textAlign: 'center',
-    fontSize: '24px',
-    fontWeight: 'bold',
-    marginBottom: '20px',
-    color: '#333',
+    margin: 0,
+    fontSize: 'clamp(34px, 5vw, 62px)',
+    lineHeight: 1,
+    fontWeight: 900,
+    letterSpacing: 0,
   },
-  infoSection: {
-    padding: '16px',
-    backgroundColor: 'rgba(0, 0, 0, 0.04)',
-    borderRadius: '12px',
-    marginBottom: '20px',
-  },
-  info: {
-    fontSize: '15px',
-    marginBottom: '6px',
-    color: '#444',
-  },
-  copyButton: {
-    marginTop: '6px',
-    marginBottom: '12px',
-    padding: '6px 12px',
-    border: '1px solid #3f51b5',
-    backgroundColor: 'transparent',
-    color: '#3f51b5',
-    borderRadius: '6px',
+  roomId: {
+    maxWidth: '100%',
+    padding: '8px 14px',
+    color: '#fff6d6',
+    background: 'rgba(41, 45, 49, 0.32)',
+    border: '1px solid rgba(255, 238, 184, 0.42)',
+    borderRadius: '8px',
     cursor: 'pointer',
-    fontSize: '13px',
-    transition: 'all 0.2s',
+    fontFamily: 'inherit',
+    fontSize: 'clamp(12px, 1.4vw, 16px)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    backdropFilter: 'blur(2px)',
+    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.22)',
   },
-  message: {
-    fontSize: '14px',
-    color: '#666',
-    marginTop: '8px',
-  },
-  playerList: {
-    padding: '8px 16px',
-    backgroundColor: '#fff',
-    border: '1px solid #eaeaea',
-    borderRadius: '12px',
-    marginBottom: '20px',
-  },
-  playerItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '12px 0',
-    borderBottom: '1px solid #f0f0f0',
-  },
-  playerName: {
-    fontSize: '16px',
-    fontWeight: '500',
-    color: '#333',
-  },
-  playerFaction: {
-    fontSize: '14px',
-    color: '#666',
-  },
-  statusSection: {
-    textAlign: 'center',
-    padding: '8px',
-  },
-  waiting: {
-    fontSize: '16px',
-    color: '#555',
-    fontWeight: '500',
-  },
-  error: {
-    marginTop: '12px',
-    color: '#d32f2f',
-    fontSize: '14px',
+  roomMeta: {
+    fontSize: 'clamp(12px, 1.3vw, 15px)',
+    color: '#f8e9bb',
   },
   startButton: {
-    width: '100%',
-    padding: '14px 32px',
-    fontSize: '18px',
-    fontWeight: 'bold',
-    color: 'white',
+    marginTop: '4px',
+    minWidth: '144px',
+    minHeight: '44px',
+    padding: '8px 18px',
+    color: '#3c3833',
+    backgroundColor: 'transparent',
+    backgroundImage: 'url("/assets/button/button_up.png")',
+    backgroundSize: '100% 100%',
+    backgroundRepeat: 'no-repeat',
     border: 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '17px',
+    textShadow: '0 1px 0 rgba(255,255,255,0.75)',
+    imageRendering: 'pixelated',
+  },
+  startButtonDisabled: {
+    filter: 'grayscale(0.75)',
+    opacity: 0.72,
+    cursor: 'not-allowed',
+  },
+  waitingText: {
+    marginTop: '4px',
+    padding: '7px 12px',
+    color: '#f8e9bb',
+    background: 'rgba(15, 24, 28, 0.32)',
     borderRadius: '8px',
-    transition: 'background-color 0.2s',
+    fontSize: '14px',
+    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.18)',
+  },
+  notice: {
+    maxWidth: 'min(520px, 90vw)',
+    padding: '6px 10px',
+    color: '#fff6d6',
+    background: 'rgba(15, 24, 28, 0.38)',
+    borderRadius: '8px',
+    fontSize: '12px',
+  },
+  errorNotice: {
+    color: '#ffd7cf',
+    background: 'rgba(90, 24, 16, 0.5)',
+  },
+  playerStage: {
+    position: 'absolute',
+    inset: 0,
+    pointerEvents: 'none',
+  },
+  playerSlot: {
+    position: 'absolute',
+    transform: 'translate(-50%, -100%)',
+    width: 'clamp(168px, 14.6vw, 256px)',
+    aspectRatio: '1 / 1',
+    display: 'flex',
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    filter: 'drop-shadow(0 12px 12px rgba(0, 0, 0, 0.45))',
+  },
+  figureViewport: {
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    imageRendering: 'pixelated',
+  },
+  figureSprite: {
+    width: '400%',
+    maxWidth: 'none',
+    height: '100%',
+    objectFit: 'fill',
+    flex: '0 0 auto',
+    imageRendering: 'pixelated',
+  },
+  playerPanel: {
+    position: 'absolute',
+    minWidth: 'clamp(110px, 10vw, 160px)',
+    maxWidth: 'min(220px, 22vw)',
+    padding: '7px 9px',
+    color: '#fdf5d0',
+    background: 'rgba(29, 35, 35, 0.72)',
+    border: '1px solid rgba(255, 232, 166, 0.4)',
+    borderRadius: '8px',
+    boxShadow: '0 9px 18px rgba(0, 0, 0, 0.28)',
+    backdropFilter: 'blur(2px)',
+    pointerEvents: 'none',
+  },
+  playerName: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: 'clamp(12px, 1.15vw, 15px)',
+    fontWeight: 900,
+    lineHeight: 1.3,
+    textShadow: '0 2px 4px rgba(0, 0, 0, 0.65)',
+  },
+  playerTags: {
+    marginTop: '5px',
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: '4px',
+    color: '#e9d393',
+    fontSize: 'clamp(10px, 0.95vw, 12px)',
+    lineHeight: 1.2,
   },
 };
 

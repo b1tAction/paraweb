@@ -19,6 +19,7 @@ import type {
   StartGameAck,
   MapConfig,
 } from '../types/protocol';
+import { normalizePlayerStats } from '../game/logEntryPlayback';
 
 // ========== 场景枚举 ==========
 
@@ -197,6 +198,8 @@ interface GameState {
 
   /** 重置状态 (用于退出游戏) */
   reset: () => void;
+  /** 清空当前对局状态但保留登录态 */
+  resetMatchState: () => void;
 }
 
 // ========== 创建 Store ==========
@@ -295,7 +298,7 @@ export const useGameStore = create<GameState>((set) => ({
       stateSyncQueue: restQueue,
       globalState: nextSync.global_state as GlobalState,
       turnState: nextSync.turn_state as TurnState,
-      players: nextSync.players || state.players,
+      players: nextSync.players?.map(normalizePlayerStats) || state.players,
       currentPlayerId: nextSync.current_player_id,
       round: nextSync.round ?? state.round,
       turn: nextSync.turn ?? state.turn,
@@ -303,7 +306,7 @@ export const useGameStore = create<GameState>((set) => ({
     };
   }),
 
-  setPlayers: (players) => set({ players }),
+  setPlayers: (players) => set({ players: players.map(normalizePlayerStats) }),
 
   setCurrentPlayerId: (playerId) => set({ currentPlayerId: playerId }),
   setRoundTurn: (round, turn) => set({ round, turn }),
@@ -338,6 +341,33 @@ export const useGameStore = create<GameState>((set) => ({
       miniGameResultPending: false,
       pendingScene: null,
     }),
+
+  resetMatchState: () =>
+    set((state) => ({
+      match: null,
+      currentScene: Scene.Home,
+      globalState: 'match_init',
+      turnState: '',
+      matchId: '',
+      players: [],
+      currentPlayerId: '',
+      round: 0,
+      turn: 0,
+      decisionRequest: null,
+      availableActions: null,
+      waitingSync: null,
+      stateSyncQueue: [],
+      miniGameStart: null,
+      miniGameResult: null,
+      gameOver: null,
+      playedEntries: [],
+      pendingEntries: [],
+      startGameAck: null,
+      mapConfig: null,
+      miniGameResultPending: false,
+      pendingScene: null,
+      faction: state.faction,
+    })),
 }));
 
 export default useGameStore;

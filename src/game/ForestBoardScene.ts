@@ -8,6 +8,10 @@ import {
   getMetadataNumberArray,
 } from './logEntryPlayback';
 import { getEventEffectConfig, getEventTypeFromEntry } from './eventAnimations';
+import {
+  shouldRenderBoardLogEntryAnimation,
+  type LogEntryAnimationContext,
+} from './logEntryAnimationPolicy';
 
 type PathNode = {
   index: number;
@@ -26,6 +30,13 @@ type TilesetImageConfig = {
   key: string;
   url: string;
 };
+
+type CellMarkerView = {
+  sprite: Phaser.GameObjects.Sprite;
+  label: Phaser.GameObjects.Text;
+};
+
+type BoardAnimationRenderer = (context: LogEntryAnimationContext) => void;
 
 const TILESET_IMAGES: TilesetImageConfig[] = [
   {
@@ -53,15 +64,6 @@ const TILESET_IMAGES: TilesetImageConfig[] = [
   },
 ];
 
-const CELL_COLORS: Record<string, number> = {
-  normal: 0xffffff,
-  checkpoint: 0x4fc3f7,
-  fragile: 0xffb74d,
-  fog: 0x9575cd,
-  event: 0x81c784,
-  boss: 0xef5350,
-};
-
 // 【新增】定义你所有可用的人物前缀（文件名）
 const AVAILABLE_CHARACTERS = ['red', 'green', 'white', 'black'];
 
@@ -75,12 +77,20 @@ const FACTION_TO_PREFIX: Record<string, string> = {
 
 const CAMERA_VIEW_TILES_X = 30;
 const CAMERA_VIEW_TILES_Y = 20;
+const GAME_FONT_FAMILY = 'Zpix, sans-serif';
+const PLAYER_NAME_SCREEN_FONT_SIZE = 14;
+const CELL_LABEL_SCREEN_FONT_SIZE = 12;
+const PLAYER_NAME_TEXTURE_RESOLUTION = 2;
+const LOGIC_CELL_MARKER_SCALE = 1.5;
+const SHRINE_TEXTURE_KEY = 'map-shrine';
+const SHRINE_TILESET_NAME = 'shrine';
 
 export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
   private players: Player[] =[];
   private followPlayerId?: string | null;
-  private activeLogEntry?: LogEntry | null;
+  private selfPlayerId?: string | null;
+  private activeAnimationContext?: LogEntryAnimationContext | null;
   private settlementPlayer?: Player | null;
   private mapTileWidth = 32;
   private mapTileHeight = 32;
@@ -88,7 +98,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private pathNodes = new Map<number, PathNode>();
   private cellViews = new Map<number, BoardCellView>();
 
-  private cellMarkers: Phaser.GameObjects.GameObject[] =[];
+  private cellMarkers = new Map<number, CellMarkerView>();
   // 【修改点 1】把 Arc 改成 Sprite
   private playerMarkers = new Map<string, Phaser.GameObjects.Sprite>();
   private playerNames = new Map<string, Phaser.GameObjects.Text>();
@@ -96,6 +106,10 @@ export class ForestBoardScene extends Phaser.Scene {
   private logDrivenPositions = new Map<string, number>();
   private activeMoveAnimations = new Set<string>();
   private lastEffectKey = '';
+  private readonly boardAnimationRenderers: Record<string, BoardAnimationRenderer> = {
+    move: (context) => this.playMoveAnimation(context),
+    draw_event: (context) => this.playDrawEventAnimation(context),
+  };
 
   private ready = false;
 
@@ -107,13 +121,15 @@ export class ForestBoardScene extends Phaser.Scene {
     mapConfig: MapConfig;
     players: Player[];
     followPlayerId?: string | null;
-    activeLogEntry?: LogEntry | null;
+    selfPlayerId?: string | null;
+    activeAnimationContext?: LogEntryAnimationContext | null;
     settlementPlayer?: Player | null;
   }) {
     this.mapConfig = data.mapConfig;
     this.players = data.players ??[];
     this.followPlayerId = data.followPlayerId;
-    this.activeLogEntry = data.activeLogEntry;
+    this.selfPlayerId = data.selfPlayerId;
+    this.activeAnimationContext = data.activeAnimationContext;
     this.settlementPlayer = data.settlementPlayer;
   }
 
@@ -123,6 +139,9 @@ export class ForestBoardScene extends Phaser.Scene {
     for (const tileset of TILESET_IMAGES) {
       this.load.image(tileset.key, tileset.url);
     }
+    this.load.image('logic-cell-off', '/assets/tilesets/block/off.png');
+    this.load.image('logic-cell-on', '/assets/tilesets/block/on.png');
+    this.load.image(SHRINE_TEXTURE_KEY, '/assets/shrine/shrine.png');
 
     // 【修改】使用循环批量加载所有定义好的人物资源
     AVAILABLE_CHARACTERS.forEach(prefix => {
@@ -165,6 +184,7 @@ export class ForestBoardScene extends Phaser.Scene {
             layer.setDepth(layerIndex * 10);
         }
     });
+    this.renderShrines(map);
 
      AVAILABLE_CHARACTERS.forEach(prefix => {
       // 创建待机动画
@@ -192,7 +212,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.rebuildCellsFromBackendConfig();
     this.renderCellMarkers();
     this.syncPlayers(this.players);
-    this.playLogEntryEffect(this.activeLogEntry);
+    this.playLogEntryEffect(this.activeAnimationContext);
 
     this.ready = true;
   
@@ -204,7 +224,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.playerNames.forEach((text, playerId) => {
         const marker = this.playerMarkers.get(playerId);
         if (marker) {
-            text.setPosition(marker.x, marker.y - 30);
+            text.setPosition(Math.round(marker.x), Math.round(marker.y - 30));
             text.setDepth(marker.depth + 1); // 名字永远在人物上方
         } else {
             text.destroy();
@@ -217,21 +237,24 @@ export class ForestBoardScene extends Phaser.Scene {
     mapConfig: MapConfig,
     players: Player[],
     followPlayerId?: string | null,
-    activeLogEntry?: LogEntry | null,
+    selfPlayerId?: string | null,
+    activeAnimationContext?: LogEntryAnimationContext | null,
     settlementPlayer?: Player | null
   ) {
     const mapChanged = this.mapConfig !== mapConfig;
     const followChanged = this.followPlayerId !== followPlayerId;
+    const selfChanged = this.selfPlayerId !== selfPlayerId;
 
     this.mapConfig = mapConfig;
     this.players = players ??[];
     this.followPlayerId = followPlayerId;
-    this.activeLogEntry = activeLogEntry;
+    this.selfPlayerId = selfPlayerId;
+    this.activeAnimationContext = activeAnimationContext;
     this.settlementPlayer = settlementPlayer;
 
     if (!this.ready) return;
 
-    if (!activeLogEntry && !settlementPlayer && this.activeMoveAnimations.size === 0) {
+    if (!activeAnimationContext && !settlementPlayer && this.activeMoveAnimations.size === 0) {
       this.logDrivenPositions.clear();
     }
 
@@ -241,7 +264,11 @@ export class ForestBoardScene extends Phaser.Scene {
     }
 
     this.syncPlayers(this.players);
-    this.playLogEntryEffect(this.activeLogEntry);
+    this.playLogEntryEffect(this.activeAnimationContext);
+
+    if (selfChanged) {
+      this.refreshPlayerNameStyles();
+    }
 
     if (followChanged) {
       this.followTargetPlayer();
@@ -258,6 +285,41 @@ export class ForestBoardScene extends Phaser.Scene {
     camera.roundPixels = true;
   }
 
+  private getCameraZoom() {
+    return this.cameras.main.zoom || 1;
+  }
+
+  private getWorldFontSize(screenFontSize: number) {
+    return Math.max(1, Math.round(screenFontSize / this.getCameraZoom()));
+  }
+
+  private getTextTextureResolution() {
+    return Math.max(PLAYER_NAME_TEXTURE_RESOLUTION, Math.ceil(this.getCameraZoom() * PLAYER_NAME_TEXTURE_RESOLUTION));
+  }
+
+  private configurePlayerNameText(text: Phaser.GameObjects.Text) {
+    text.setResolution(this.getTextTextureResolution());
+    text.setScale(1 / PLAYER_NAME_TEXTURE_RESOLUTION);
+  }
+
+  private getPlayerNameColor(playerId: string) {
+    return playerId === this.selfPlayerId ? '#ffee58' : '#ffffff';
+  }
+
+  private applyPlayerNameStyle(playerId: string, text: Phaser.GameObjects.Text, displayName?: string) {
+    text.setText(displayName || playerId);
+    text.setColor(this.getPlayerNameColor(playerId));
+  }
+
+  private refreshPlayerNameStyles() {
+    this.players.forEach((player) => {
+      const nameText = this.playerNames.get(player.player_id);
+      if (nameText) {
+        this.applyPlayerNameStyle(player.player_id, nameText, player.display_name);
+      }
+    });
+  }
+
   private followTargetPlayer() {
     const targetPlayerId = this.followPlayerId ?? this.players[0]?.player_id;
 
@@ -268,6 +330,33 @@ export class ForestBoardScene extends Phaser.Scene {
     if (!marker) return;
 
     this.cameras.main.startFollow(marker, true, 0.12, 0.12);
+  }
+
+  private renderShrines(map: Phaser.Tilemaps.Tilemap) {
+    const shrineCollection = map.imageCollections.find((collection) => collection.name === SHRINE_TILESET_NAME);
+    if (!shrineCollection) return;
+    const shrineImages = new Map<number, { width: number; height: number }>(
+      shrineCollection.images.map((image: { gid: number; width: number; height: number }) => [
+        image.gid,
+        { width: image.width, height: image.height },
+      ])
+    );
+
+    map.objects.forEach((objectLayer) => {
+      if (objectLayer.visible === false) return;
+
+      objectLayer.objects.forEach((obj: any) => {
+        const shrineImage = shrineImages.get(obj.gid);
+        if (obj.visible === false || !shrineImage) return;
+
+        const shrine = this.add.image(obj.x, obj.y, SHRINE_TEXTURE_KEY);
+        shrine.setOrigin(0, 1);
+        shrine.setDisplaySize(obj.width || shrineImage.width, obj.height || shrineImage.height);
+        shrine.setRotation(Phaser.Math.DegToRad(obj.rotation || 0));
+        shrine.setAlpha((typeof obj.opacity === 'number' ? obj.opacity : 1) * objectLayer.opacity);
+        shrine.setDepth((obj.y || 0) + 40);
+      });
+    });
   }
 
   private extractPathNodes(map: Phaser.Tilemaps.Tilemap) {
@@ -286,6 +375,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
     objectLayer.objects.forEach((obj: any, fallbackIndex: number) => {
       if (obj.visible === false) return;
+      if (!obj.point || obj.gid) return;
 
       const index = Number(
         getTiledProperty<number>(obj, 'index', fallbackIndex)
@@ -333,30 +423,56 @@ export class ForestBoardScene extends Phaser.Scene {
   }
 
   private renderCellMarkers() {
-    for (const marker of this.cellMarkers) {
-      marker.destroy();
-    }
+    this.cellMarkers.forEach(({ sprite, label }) => {
+      sprite.destroy();
+      label.destroy();
+    });
 
-    this.cellMarkers =[];
+    this.cellMarkers.clear();
 
     for (const cell of this.cellViews.values()) {
-      const color = CELL_COLORS[cell.cell_type] ?? 0xffffff;
+      const sprite = this.add.sprite(cell.x, cell.y, 'logic-cell-off');
+      sprite.setScale(LOGIC_CELL_MARKER_SCALE);
+      sprite.setDepth(cell.y + 50);
 
-      const circle = this.add.circle(cell.x, cell.y, 12, color, 0.35);
-      circle.setStrokeStyle(2, color, 0.9);
-      circle.setDepth(cell.y + 50);
-
-      const label = this.add.text(cell.x, cell.y - 24, String(cell.index), {
-        fontSize: '12px',
+      const label = this.add.text(cell.x, cell.y, String(cell.index), {
+        fontFamily: GAME_FONT_FAMILY,
+        fontSize: `${this.getWorldFontSize(CELL_LABEL_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`,
         color: '#ffffff',
         stroke: '#000000',
         strokeThickness: 3,
       });
       label.setOrigin(0.5, 0.5);
-      label.setDepth(cell.y + 51);
+      this.configurePlayerNameText(label);
+      label.setDepth(cell.y + 55);
 
-      this.cellMarkers.push(circle, label);
+      this.cellMarkers.set(cell.index, { sprite, label });
     }
+
+    this.refreshCellMarkerStates();
+  }
+
+  private collectOccupiedCellIndices(players: Player[]) {
+    const occupied = new Set<number>();
+
+    players.forEach((player) => {
+      if (this.activeMoveAnimations.has(player.player_id)) return;
+
+      const visualPosition = this.logDrivenPositions.get(player.player_id) ?? player.position;
+      if (this.cellViews.has(visualPosition)) {
+        occupied.add(visualPosition);
+      }
+    });
+
+    return occupied;
+  }
+
+  private refreshCellMarkerStates(players: Player[] = this.players) {
+    const occupied = this.collectOccupiedCellIndices(players);
+
+    this.cellMarkers.forEach(({ sprite }, cellIndex) => {
+      sprite.setTexture(occupied.has(cellIndex) ? 'logic-cell-on' : 'logic-cell-off');
+    });
   }
 
  private syncPlayers(players: Player[]) {
@@ -378,6 +494,11 @@ export class ForestBoardScene extends Phaser.Scene {
       const targetY = cell.y - 16; 
 
       let marker = this.playerMarkers.get(player.player_id);
+
+      const nameText = this.playerNames.get(player.player_id);
+      if (nameText) {
+        this.applyPlayerNameStyle(player.player_id, nameText, player.display_name);
+      }
 
       // =========================================================
       // 首次创建人物
@@ -404,15 +525,16 @@ export class ForestBoardScene extends Phaser.Scene {
         this.playerMarkers.set(player.player_id, marker);
 
         // 5. 创建名字标签
-        const isMe = player.player_id === this.followPlayerId; 
         const nameText = this.add.text(targetX, targetY - 30, player.display_name, {
-          fontFamily: 'Arial, sans-serif',
-          fontSize: '14px',
-          color: isMe ? '#ffee58' : '#ffffff', 
+          fontFamily: GAME_FONT_FAMILY,
+          fontSize: `${this.getWorldFontSize(PLAYER_NAME_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`,
+          color: this.getPlayerNameColor(player.player_id), 
           stroke: '#000000',
           strokeThickness: 3,
         });
         nameText.setOrigin(0.5, 0.5);
+        this.configurePlayerNameText(nameText);
+        this.applyPlayerNameStyle(player.player_id, nameText, player.display_name);
         nameText.setDepth(targetY + 200); 
         this.playerNames.set(player.player_id, nameText);
 
@@ -462,27 +584,25 @@ export class ForestBoardScene extends Phaser.Scene {
       }
     });
 
+    this.refreshCellMarkerStates(players);
     this.followTargetPlayer();
 }
 
-  private playLogEntryEffect(entry?: LogEntry | null) {
-    if (!entry || (entry.type !== 'action' && entry.type !== 'boss')) return;
+  private playLogEntryEffect(context?: LogEntryAnimationContext | null) {
+    if (!context || !shouldRenderBoardLogEntryAnimation(context)) return;
 
-    const effectKey = `${entry.timestamp}:${entry.type}:${entry.action_type}:${entry.target}:${entry.source}`;
+    const { entry } = context;
+
+    const effectKey = `${context.sequenceIndex}:${entry.timestamp}:${entry.type}:${entry.action_type}:${entry.target}:${entry.source}`;
     if (effectKey === this.lastEffectKey) return;
     this.lastEffectKey = effectKey;
 
-    if (entry.action_type === 'dice_roll') return;
+    const renderer = this.boardAnimationRenderers[entry.action_type] ?? this.playGenericLogEntryEffect;
+    renderer(context);
+  }
 
-    if (entry.action_type === 'move') {
-      this.playMoveAnimation(entry);
-      return;
-    }
-
-    if (entry.action_type === 'draw_event') {
-      this.playDrawEventAnimation(entry);
-      return;
-    }
+  private playGenericLogEntryEffect = (context: LogEntryAnimationContext) => {
+    const { entry } = context;
 
     if (this.shouldSuppressSettlementEffect(entry)) return;
 
@@ -498,7 +618,7 @@ export class ForestBoardScene extends Phaser.Scene {
     ring.setDepth(y + 210);
 
     const text = this.add.text(x, y - 42, effect.label, {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: GAME_FONT_FAMILY,
       fontSize: '22px',
       fontStyle: 'bold',
       color: effect.textColor,
@@ -537,7 +657,7 @@ export class ForestBoardScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onComplete: () => text.destroy(),
     });
-  }
+  };
 
   private shouldSuppressSettlementEffect(entry: LogEntry) {
     if (!this.settlementPlayer || entry.target !== this.settlementPlayer.player_id) return false;
@@ -552,7 +672,8 @@ export class ForestBoardScene extends Phaser.Scene {
     ].includes(entry.action_type);
   }
 
- private playMoveAnimation(entry: LogEntry) {
+ private playMoveAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
     const marker = this.playerMarkers.get(entry.target);
     if (!marker) return;
 
@@ -564,6 +685,7 @@ export class ForestBoardScene extends Phaser.Scene {
       if (endPos !== null) {
         console.log('📍 [ForestBoardScene] 直接设置玩家位置:', endPos);
         this.logDrivenPositions.set(entry.target, endPos);
+        this.refreshCellMarkerStates();
       }
       return;
     }
@@ -592,6 +714,7 @@ export class ForestBoardScene extends Phaser.Scene {
     marker.play(`${charPrefix}_move_anim`, true);
 
     this.activeMoveAnimations.add(entry.target);
+    this.refreshCellMarkerStates();
 
     // Kill any existing tweens on this marker (e.g. from syncPlayers) to prevent competition
     this.tweens.killTweensOf(marker);
@@ -604,6 +727,7 @@ export class ForestBoardScene extends Phaser.Scene {
         // 恢复到对应外观的 idle 动画
         marker.play(`${charPrefix}_idle_anim`, true);
         this.activeMoveAnimations.delete(entry.target);
+        this.refreshCellMarkerStates();
         return;
       }
 
@@ -625,6 +749,7 @@ export class ForestBoardScene extends Phaser.Scene {
         },
         onComplete: () => {
           this.logDrivenPositions.set(entry.target, point.cellIndex);
+          this.refreshCellMarkerStates();
           index += 1;
           runNext();
         },
@@ -634,7 +759,8 @@ export class ForestBoardScene extends Phaser.Scene {
     runNext();
   }
 
-private playDrawEventAnimation(entry: LogEntry) {
+private playDrawEventAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
   const marker = this.playerMarkers.get(entry.target);
   if (!marker) return;
 
@@ -660,7 +786,7 @@ private playDrawEventAnimation(entry: LogEntry) {
 
   // 3. 创建文字
   const text = this.add.text(0, 0, effect.label, {
-    fontFamily: 'Arial, sans-serif',
+    fontFamily: GAME_FONT_FAMILY,
     fontSize: '24px',
     fontStyle: 'bold',
     color: effect.textColor,

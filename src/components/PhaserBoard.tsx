@@ -1,15 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
-import type { LogEntry, MapConfig, Player } from '../types/protocol';
+import type { MapConfig, Player } from '../types/protocol';
 import { ForestBoardScene } from '../game/ForestBoardScene';
+import type { LogEntryAnimationContext } from '../game/logEntryAnimationPolicy';
 
 type PhaserBoardProps = {
   mapConfig: MapConfig;
   players: Player[];
   /** 摄像头跟随的玩家 ID；通常传当前客户端自己的 myPlayerId */
   followPlayerId?: string | null;
+  selfPlayerId?: string | null;
   /** 当前正在播放的日志条目，用于棋盘上的特效提示 */
-  activeLogEntry?: LogEntry | null;
+  activeAnimationContext?: LogEntryAnimationContext | null;
   /** TurnEnd 结算目标；用于抑制当前玩家附近的 HP/LP/Buff 提示 */
   settlementPlayer?: Player | null;
 };
@@ -18,7 +20,8 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   mapConfig,
   players,
   followPlayerId,
-  activeLogEntry,
+  selfPlayerId,
+  activeAnimationContext,
   settlementPlayer,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -33,6 +36,9 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   width: 1280,
   height: 960,
   pixelArt: true,
+  antialias: false,
+  antialiasGL: false,
+  roundPixels: true,
   scale: { mode: Phaser.Scale.ENVELOP, autoCenter: Phaser.Scale.CENTER_BOTH },
   // 添加 preload 配置
   scene: {
@@ -49,7 +55,8 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       mapConfig,
       players,
       followPlayerId,
-      activeLogEntry,
+      selfPlayerId,
+      activeAnimationContext,
       settlementPlayer,
     });
 
@@ -66,8 +73,8 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       'ForestBoardScene'
     ) as ForestBoardScene | undefined;
 
-    scene?.updateFromReact(mapConfig, players, followPlayerId, activeLogEntry, settlementPlayer);
-  }, [mapConfig, players, followPlayerId, activeLogEntry, settlementPlayer]);
+    scene?.updateFromReact(mapConfig, players, followPlayerId, selfPlayerId, activeAnimationContext, settlementPlayer);
+  }, [mapConfig, players, followPlayerId, selfPlayerId, activeAnimationContext, settlementPlayer]);
 
   return (
     <div
