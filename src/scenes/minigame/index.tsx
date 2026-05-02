@@ -16,14 +16,15 @@ import { CountSecondsMiniGame } from './CountSecondsMiniGame';
 import { MathCalcMiniGame } from './MathCalcMiniGame';
 import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
 import { VernierMiniGame } from './VernierMiniGame';
+import { MiniGameLeaderboard } from './MiniGameLeaderboard';
 import { styles } from './MiniGameStyles';
 
 // ========== Game Phase ==========
 
 type GamePhase = 'playing' | 'result';
 
-// Result display duration before transitioning to next// 展示小游戏结果的时长
-const RESULT_DISPLAY_DURATION_MS = 3000;
+// Result display duration before transitioning to next
+const RESULT_DISPLAY_DURATION_MS = 5000;
 
 // ========== MiniGameSubmitRankScene ==========
 
@@ -125,41 +126,15 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   // ========== Result rendering ==========
 
-  const renderGameDataDetail = (entry: { player_id: string; rank: number; game_data?: Record<string, any> }) => {
-    if (!entry.game_data) return null;
-
-    switch (gameType) {
-      case 'dice_race':
-        const d1 = entry.game_data.dice1;
-        const d2 = entry.game_data.dice2;
-        const score = entry.game_data.score;
-        return <span style={styles.gameDataDetail}>{d1} + {d2} = {score}</span>;
-      case 'count_seconds':
-        const elapsed = entry.game_data.elapsed;
-        const deviation = entry.game_data.deviation;
-        return <span style={styles.gameDataDetail}>{elapsed?.toFixed(2)}s (偏差: {deviation?.toFixed(2)}s)</span>;
-      default:
-        return null;
-    }
-  };
 
   const renderResult = () => {
     if (!miniGameResult) return null;
 
     return (
-      <div style={styles.resultContainer}>
-        <p style={styles.resultTitle}>Mini-Game Results</p>
-        {miniGameResult.rankings.map((entry) => (
-          <div key={entry.player_id} style={styles.rankingRow}>
-            <span style={styles.rankBadge}>
-              {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
-            </span>
-            <span style={styles.playerName}>{entry.display_name || entry.player_id}</span>
-            {renderGameDataDetail(entry)}
-          </div>
-        ))}
-        <p style={styles.waitingText}>Waiting for next phase...</p>
-      </div>
+      <MiniGameLeaderboard 
+        gameType={gameType} 
+        result={miniGameResult} 
+      />
     );
   };
 
@@ -202,12 +177,9 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   }
 
   // ========== Result phase ==========
-  // For 'math_calc' and 'rainbow_memory', we keep rendering the game component itself even in result phase
-  // so users can see the final detailed ranking inside the game UI for 3s.
-  if (gamePhase === 'result' && gameType !== 'math_calc' && gameType !== 'rainbow_memory' && gameType !== 'vernier') {
+  if (gamePhase === 'result') {
     return (
       <div style={styles.modalContainer}>
-        <h2 style={styles.title}>{getGameTitle()} - Results</h2>
         {renderResult()}
       </div>
     );
