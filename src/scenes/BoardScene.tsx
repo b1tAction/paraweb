@@ -26,6 +26,7 @@ import {
 import {
   createLogEntryAnimationContext,
   getLogEntryAnimationDelay,
+  isReverseClockLostBuffEntry,
   isLogEntryAnimationCandidate,
   shouldRenderBoardLogEntryAnimation,
 } from '../game/logEntryAnimationPolicy';
@@ -165,6 +166,14 @@ type DiceUpgradeView =
       entryKey: string;
     };
 
+type ReverseClockBuffFlight = {
+  key: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+};
+
 function getDiceAssetKey(view: DiceRollDisplayView) {
   if (view.status === 'result') {
     return `${view.playerId}:${view.diceType}:result:${view.steps}`;
@@ -236,6 +245,9 @@ export const BoardScene: React.FC = () => {
   const lastAppliedEntryRef = useRef('');
   const roundReadySentKeyRef = useRef('');
   const debugLogContentRef = useRef<HTMLDivElement>(null);
+  const playerCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const handledReverseClockFlightKeyRef = useRef('');
+  const [reverseClockBuffFlight, setReverseClockBuffFlight] = useState<ReverseClockBuffFlight | null>(null);
 
   // #region agent instrumentation - Hypothesis C
   useEffect(() => {
@@ -342,6 +354,7 @@ export const BoardScene: React.FC = () => {
   const boardPlayers = renderedPlayers.filter((player) => !isBossPlayer(player));
   const bossPlayer = renderedPlayers.find(isBossPlayer);
   const myPlayer = renderedPlayers.find((player) => player.player_id === myPlayerId);
+  const itemTargetPlayers = renderedPlayers.filter((player) => player.player_id !== myPlayerId);
   const myBuffs = myPlayer?.buffs ?? [];
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
@@ -415,6 +428,30 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === settlementPlayerId) ||
       null
     : null;
+
+  useEffect(() => {
+    const entry = activeAnimationContext?.entry;
+    if (!isReverseClockLostBuffEntry(entry)) return;
+
+    const key = getLogEntryKey(entry);
+    if (handledReverseClockFlightKeyRef.current === key) return;
+    handledReverseClockFlightKeyRef.current = key;
+
+    const targetCard = playerCardRefs.current[entry.target];
+    const targetRect = targetCard?.getBoundingClientRect();
+    const startX = window.innerWidth / 2;
+    const startY = window.innerHeight / 2;
+    const endX = targetRect ? targetRect.left + targetRect.width * 0.66 : startX;
+    const endY = targetRect ? targetRect.top + targetRect.height * 0.7 : startY - 160;
+
+    setReverseClockBuffFlight({ key, startX, startY, endX, endY });
+
+    const timeoutId = window.setTimeout(() => {
+      setReverseClockBuffFlight((current) => (current?.key === key ? null : current));
+    }, 1850);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeAnimationContext]);
 
   useEffect(() => {
     if (!actionTurnKey || !currentDicePreviewType || !currentPlayerId) {
@@ -796,6 +833,9 @@ export const BoardScene: React.FC = () => {
               return (
                 <div
                   key={player.player_id}
+                  ref={(node) => {
+                    playerCardRefs.current[player.player_id] = node;
+                  }}
                   style={{
                     ...styles.pixelPlayerCard,
                     backgroundImage: `url(${getPlayerCardImage(player.faction)})`,
@@ -933,6 +973,29 @@ export const BoardScene: React.FC = () => {
                 />
               </div>
             ))}
+          </div>
+        )}
+
+        {reverseClockBuffFlight && (
+          <div
+            key={reverseClockBuffFlight.key}
+            className="paradice-reverse-clock-flight"
+            style={
+              {
+                '--start-x': `${reverseClockBuffFlight.startX}px`,
+                '--start-y': `${reverseClockBuffFlight.startY}px`,
+                '--end-x': `${reverseClockBuffFlight.endX}px`,
+                '--end-y': `${reverseClockBuffFlight.endY}px`,
+              } as React.CSSProperties
+            }
+            aria-hidden="true"
+          >
+            <img
+              className="paradice-reverse-clock-flight__icon"
+              src="/assets/buff/lost.png"
+              alt=""
+              draggable={false}
+            />
           </div>
         )}
 
@@ -1091,7 +1154,7 @@ export const BoardScene: React.FC = () => {
                 请为道具 {itemTargetSelection.name} 选择一个作用目标
               </p>
               <div style={styles.decisionOptions}>
-                {renderedPlayers.map((player) => (
+                {itemTargetPlayers.map((player) => (
                   <button
                     key={player.player_id}
                     onClick={() => {
@@ -1101,7 +1164,7 @@ export const BoardScene: React.FC = () => {
                     }}
                     style={styles.decisionButton}
                   >
-                    {player.display_name || player.player_id} {player.player_id === myPlayerId ? '(自己)' : ''}
+                    {player.display_name || player.player_id}
                   </button>
                 ))}
               </div>
