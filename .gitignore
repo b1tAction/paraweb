@@ -6,3 +6,6 @@ images
 *.tar
 *.tar.gz
 .DS_Store
+
+.*
+.gitignore

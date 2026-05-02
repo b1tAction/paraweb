@@ -4,36 +4,37 @@
  * 显示房间玩家列表，房主可以开始游戏。
  */
 import React, { useState } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
+import { useGameStore } from '../store/gameStore';
 
-const factionMeta: Record<string, { label: string; figure: string }> = {
-  qing_long: { label: '青龙', figure: '/assets/figures/green_idle.png' },
-  zhu_que: { label: '朱雀', figure: '/assets/figures/red_idle.png' },
-  bai_hu: { label: '白虎', figure: '/assets/figures/white_idle.png' },
-  xuan_wu: { label: '玄武', figure: '/assets/figures/black_idle.png' },
+const factionMeta: Record<string, { label: string }> = {
+  qing_long: { label: '青龙' },
+  zhu_que: { label: '朱雀' },
+  bai_hu: { label: '白虎' },
+  xuan_wu: { label: '玄武' },
 };
 
 const playerSlots = [
   {
     key: 'left',
     position: { left: '37.5%', top: '73%' },
-    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' },
+    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' as const },
   },
   {
     key: 'top',
     position: { left: '50%', top: '61%' },
-    panel: { left: '50%', top: '70%', transform: 'translateX(-50%)', textAlign: 'center' },
+    panel: { left: '50%', top: '70%', transform: 'translateX(-50%)', textAlign: 'center' as const },
   },
   {
     key: 'right',
     position: { left: '62.5%', top: '73%' },
-    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' },
+    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' as const },
   },
   {
     key: 'bottom',
     position: { left: '50%', top: '88%' },
-    panel: { left: '50%', top: '88%', transform: 'translateX(-50%)', textAlign: 'center' },
+    panel: { left: '50%', top: '88%', transform: 'translateX(-50%)', textAlign: 'center' as const },
   },
 ] as const;
 
@@ -89,7 +90,7 @@ export const LobbyScene: React.FC = () => {
         </button>
         <div style={styles.roomMeta}>
           {player_count} / {max_players} 人
-          {player_count < min_players ? ` · 至少 ${min_players} 人` : ''}
+          {player_count < min_players ? `，至少需要 ${min_players} 人` : ''}
         </div>
         {isHost ? (
           <button
@@ -129,12 +130,11 @@ export const LobbyScene: React.FC = () => {
               }}
             >
               <div style={styles.figureViewport} aria-hidden="true">
-                <img
-                  src={faction.figure}
-                  alt=""
-                  className="paradice-figure-idle"
-                  draggable={false}
-                  style={styles.figureSprite}
+                <PhaserCharacterPreview
+                  faction={player.faction}
+                  width={256}
+                  height={256}
+                  style={styles.figureCanvas}
                 />
               </div>
               <div style={{ ...styles.playerPanel, ...slot.panel }}>
@@ -284,13 +284,9 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     imageRendering: 'pixelated',
   },
-  figureSprite: {
-    width: '400%',
-    maxWidth: 'none',
+  figureCanvas: {
+    width: '100%',
     height: '100%',
-    objectFit: 'fill',
-    flex: '0 0 auto',
-    imageRendering: 'pixelated',
   },
   playerPanel: {
     position: 'absolute',

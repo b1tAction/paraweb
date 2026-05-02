@@ -1,19 +1,21 @@
-import React, { useEffect, useRef } from 'react';
+﻿import React, { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
 import type { MapConfig, Player } from '../types/protocol';
 import { ForestBoardScene } from '../game/ForestBoardScene';
 import type { LogEntryAnimationContext } from '../game/logEntryAnimationPolicy';
+import type { CharacterRenderOptions } from '../game/characterRenderConfig';
 
 type PhaserBoardProps = {
   mapConfig: MapConfig;
   players: Player[];
-  /** 摄像头跟随的玩家 ID；通常传当前客户端自己的 myPlayerId */
+  /** 相机跟随的玩家 ID，通常传当前客户端自己的 `myPlayerId`。 */
   followPlayerId?: string | null;
   selfPlayerId?: string | null;
-  /** 当前正在播放的日志条目，用于棋盘上的特效提示 */
+  /** 当前正在播放的日志动画上下文，用于棋盘上的特效提示。 */
   activeAnimationContext?: LogEntryAnimationContext | null;
-  /** TurnEnd 结算目标；用于抑制当前玩家附近的 HP/LP/Buff 提示 */
+  /** TurnEnd 结算目标，用于抑制当前玩家附近的 HP/LP/Buff 提示。 */
   settlementPlayer?: Player | null;
+  characterRenderOptions?: CharacterRenderOptions;
 };
 
 export const PhaserBoard: React.FC<PhaserBoardProps> = ({
@@ -23,6 +25,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   selfPlayerId,
   activeAnimationContext,
   settlementPlayer,
+  characterRenderOptions,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
@@ -31,25 +34,16 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
     if (!containerRef.current || gameRef.current) return;
 
     const game = new Phaser.Game({
-  type: Phaser.WEBGL,
-  parent: containerRef.current,
-  width: 1280,
-  height: 960,
-  pixelArt: true,
-  antialias: false,
-  antialiasGL: false,
-  roundPixels: true,
-  scale: { mode: Phaser.Scale.ENVELOP, autoCenter: Phaser.Scale.CENTER_BOTH },
-  // 添加 preload 配置
-  scene: {
-    preload: function(this: Phaser.Scene) {
-      this.load.spritesheet('red_idle', 'assets/figures/red_idle.png', {
-        frameWidth: 68,
-        frameHeight: 68
-      });
-    }
-  },
-});
+      type: Phaser.WEBGL,
+      parent: containerRef.current,
+      width: 1280,
+      height: 960,
+      pixelArt: true,
+      antialias: false,
+      antialiasGL: false,
+      roundPixels: true,
+      scale: { mode: Phaser.Scale.ENVELOP, autoCenter: Phaser.Scale.CENTER_BOTH },
+    });
 
     game.scene.add('ForestBoardScene', ForestBoardScene, true, {
       mapConfig,
@@ -58,6 +52,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       selfPlayerId,
       activeAnimationContext,
       settlementPlayer,
+      characterRenderOptions,
     });
 
     gameRef.current = game;
@@ -73,8 +68,16 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       'ForestBoardScene'
     ) as ForestBoardScene | undefined;
 
-    scene?.updateFromReact(mapConfig, players, followPlayerId, selfPlayerId, activeAnimationContext, settlementPlayer);
-  }, [mapConfig, players, followPlayerId, selfPlayerId, activeAnimationContext, settlementPlayer]);
+    scene?.updateFromReact(
+      mapConfig,
+      players,
+      followPlayerId,
+      selfPlayerId,
+      activeAnimationContext,
+      settlementPlayer,
+      characterRenderOptions
+    );
+  }, [mapConfig, players, followPlayerId, selfPlayerId, activeAnimationContext, settlementPlayer, characterRenderOptions]);
 
   return (
     <div
@@ -88,3 +91,4 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
     />
   );
 };
+
