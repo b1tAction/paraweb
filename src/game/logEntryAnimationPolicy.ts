@@ -42,6 +42,10 @@ export function isReverseClockLostBuffEntry(entry?: LogEntry | null): entry is L
   );
 }
 
+export function isAnyDoorTeleportEntry(entry?: LogEntry | null): entry is LogEntry {
+  return Boolean(entry && entry.action_type === 'teleport' && entry.source === 'item_any_door');
+}
+
 export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = {
   dice_roll: {
     renderOnBoard: false,
@@ -57,6 +61,10 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
       const path = getMetadataNumberArray(entry.metadata, 'path');
       return Math.max(700, Math.min(3200, Math.max(1, path.length - 1) * MOVE_STEP_MS + 250));
     },
+  },
+  teleport: {
+    renderOnBoard: true,
+    delayMs: ({ entry }) => (isAnyDoorTeleportEntry(entry) ? 2600 : DEFAULT_ACTION_ANIMATION_DELAY_MS),
   },
   draw_event: {
     renderOnBoard: true,

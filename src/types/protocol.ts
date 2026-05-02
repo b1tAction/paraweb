@@ -146,6 +146,8 @@ export interface Item {
   type: string;
   /** 中文显示名称 */
   name: string;
+  /** 是否需要选择目标 */
+  targetable?: boolean;
 }
 
 /**
