@@ -116,6 +116,7 @@ export class ForestBoardScene extends Phaser.Scene {
     move: (context) => this.playMoveAnimation(context),
     teleport: (context) => this.playTeleportAnimation(context),
     damage: (context) => this.playDamageAnimation(context),
+    heal: (context) => this.playHealAnimation(context),
     death: (context) => this.playDeathAnimation(context),
     fell_down: (context) => this.playDeathAnimation(context),
     respawn: (context) => this.playRespawnAnimation(context),
@@ -166,10 +167,21 @@ export class ForestBoardScene extends Phaser.Scene {
       frameWidth: 72,
       frameHeight: 72
     });
-    
 
-    // Load lightning bolt effect sprite sheet for thunder event
-    this.load.spritesheet('lightning-bolt', '/assets/effects/Lightning-bolt.png', {
+    // Load heal effect sprite sheet for heal action
+    this.load.spritesheet('heal-effect', '/assets/effects/heal.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    // Load herb effect sprite sheet for herb event
+    this.load.spritesheet('herb-effect', '/assets/effects/herb.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    // Load wind gust effect sprite sheet for wind_gust event
+    this.load.spritesheet('wind-gust-effect', '/assets/effects/wind-gust.png', {
       frameWidth: 72,
       frameHeight: 72
     });
@@ -220,6 +232,30 @@ export class ForestBoardScene extends Phaser.Scene {
       key: 'lightning_strike_anim',
       frames: this.anims.generateFrameNumbers('lightning-bolt', { start: 0, end: 9 }),
       frameRate: 15,
+      repeat: 0
+    });
+
+    // Create heal animation for heal action
+    this.anims.create({
+      key: 'heal_anim',
+      frames: this.anims.generateFrameNumbers('heal-effect', { start: 0, end: 7 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    // Create herb animation for herb event
+    this.anims.create({
+      key: 'herb_anim',
+      frames: this.anims.generateFrameNumbers('herb-effect', { start: 0, end: 7 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    // Create wind gust animation for wind_gust event
+    this.anims.create({
+      key: 'wind_gust_anim',
+      frames: this.anims.generateFrameNumbers('wind-gust-effect', { start: 0, end: 5 }),
+      frameRate: 12,
       repeat: 0
     });
 
@@ -1018,6 +1054,162 @@ export class ForestBoardScene extends Phaser.Scene {
     });
   }
 
+private playHerbAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const x = marker.x;
+  const y = marker.y;
+  const effect = getEventEffectConfig('herb');
+  const duration = effect.duration || 2500;
+
+  // Resolve event display name from DefinitionsConfig
+  const definitions = useGameStore.getState().definitions;
+  const eventName = definitions?.events['herb']?.name || 'herb';
+
+  // Character half-height ≈ 96 * 0.65 / 2 ≈ 31px; feet level
+  const CHARACTER_HALF_HEIGHT = 31;
+  const feetY = y + CHARACTER_HALF_HEIGHT;
+
+  // Play herb sprite animation at the character's feet, growing upward
+  const herbSprite = this.add.sprite(x, feetY, 'herb-effect');
+  herbSprite.setScale(1.0);
+  herbSprite.setOrigin(0.5, 1.0);
+  herbSprite.setDepth(feetY + 220);
+  herbSprite.play('herb_anim');
+
+  // Destroy sprite after animation completes
+  herbSprite.on('animationcomplete', () => {
+    herbSprite.destroy();
+  });
+
+  // Display floating event name text label
+  const text = this.add.text(x, y - 42, eventName, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '24px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  // Text float up and fade out
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    duration: duration,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
+private playWindGustAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const x = marker.x;
+  const y = marker.y;
+  const effect = getEventEffectConfig('wind_gust');
+  const duration = effect.duration || 2500;
+
+  // Resolve event display name from DefinitionsConfig
+  const definitions = useGameStore.getState().definitions;
+  const eventName = definitions?.events['wind_gust']?.name || 'wind_gust';
+
+  // Character half-height ≈ 96 * 0.65 / 2 ≈ 31px; feet level
+  const CHARACTER_HALF_HEIGHT = 31;
+  const feetY = y + CHARACTER_HALF_HEIGHT;
+
+  // Play wind gust sprite animation at the character's feet, growing upward
+  const windSprite = this.add.sprite(x, feetY, 'wind-gust-effect');
+  windSprite.setScale(2.0);
+  windSprite.setOrigin(0.5, 1.0);
+  windSprite.setDepth(feetY + 220);
+  windSprite.play('wind_gust_anim');
+
+  // Destroy sprite after animation completes
+  windSprite.on('animationcomplete', () => {
+    windSprite.destroy();
+  });
+
+  // Display floating event name text label
+  const text = this.add.text(x, y - 42, eventName, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '24px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  // Text float up and fade out
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    duration: duration,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
+private playHealAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) {
+    this.playGenericLogEntryEffect(context);
+    return;
+  }
+
+  const x = marker.x;
+  const y = marker.y;
+
+  // Play heal sprite animation centered on the character
+  const healSprite = this.add.sprite(x, y, 'heal-effect');
+  healSprite.setScale(2.0);
+  healSprite.setOrigin(0.5, 0.5);
+  healSprite.setDepth(y + 220);
+  healSprite.play('heal_anim');
+
+  // Destroy sprite after animation completes
+  healSprite.on('animationcomplete', () => {
+    healSprite.destroy();
+  });
+
+  // Display floating "HP +N" text label (no flash ring)
+  const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
+  const text = this.add.text(x, y - 42, effect.label, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '22px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    scale: 1.15,
+    duration: 1050,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
 private playDrawEventAnimation(context: LogEntryAnimationContext) {
   const { entry } = context;
   const eventType = getEventTypeFromEntry(entry);
@@ -1025,6 +1217,18 @@ private playDrawEventAnimation(context: LogEntryAnimationContext) {
   // Route thunder event to dedicated lightning strike animation
   if (eventType === 'thunder') {
     this.playLightningStrikeAnimation(context);
+    return;
+  }
+
+  // Route herb event to dedicated herb sprite animation
+  if (eventType === 'herb') {
+    this.playHerbAnimation(context);
+    return;
+  }
+
+  // Route wind_gust event to dedicated wind gust sprite animation
+  if (eventType === 'wind_gust') {
+    this.playWindGustAnimation(context);
     return;
   }
 
