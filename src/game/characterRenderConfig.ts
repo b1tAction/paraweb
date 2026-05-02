@@ -1,7 +1,8 @@
 import * as Phaser from 'phaser';
 import type { Player } from '../types/protocol';
 
-export type CharacterAnimationState = 'idle' | 'move';
+export type CharacterCoreAnimationState = 'idle' | 'move';
+export type CharacterAnimationState = CharacterCoreAnimationState | 'hurt' | 'dead';
 
 export type CharacterSheetConfig = {
   textureKey?: string;
@@ -18,7 +19,8 @@ export type CharacterRenderProfile = {
   id: string;
   scale?: number;
   offsetY?: number;
-  animations: Record<CharacterAnimationState, CharacterSheetConfig>;
+  animations: Record<CharacterCoreAnimationState, CharacterSheetConfig>
+    & Partial<Record<Exclude<CharacterAnimationState, CharacterCoreAnimationState>, CharacterSheetConfig>>;
   avatarState?: CharacterAnimationState;
   avatarFrame?: number;
 };
@@ -35,6 +37,11 @@ export type CharacterPhaserRenderer = {
   preload(scene: Phaser.Scene, profile: CharacterRenderProfile): void;
   ensureAnimations(scene: Phaser.Scene, profile: CharacterRenderProfile): void;
   createSprite(context: CharacterSpriteContext): Phaser.GameObjects.Sprite;
+  hasAnimation?(
+    scene: Phaser.Scene,
+    profile: CharacterRenderProfile,
+    state: CharacterAnimationState
+  ): boolean;
   play(
     scene: Phaser.Scene,
     sprite: Phaser.GameObjects.Sprite,
@@ -101,6 +108,24 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         frameRate: 10,
         repeat: -1,
       },
+      hurt: {
+        textureUrl: '/assets/figures/witch_red/Hurt.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 5,
+        frameRate: 10,
+        repeat: 0,
+      },
+      dead: {
+        textureUrl: '/assets/figures/witch_red/Dead.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 4,
+        frameRate: 8,
+        repeat: 0,
+      },
     },
   },
   green: {
@@ -127,6 +152,24 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         frameCount: 10,
         frameRate: 10,
         repeat: -1,
+      },
+      hurt: {
+        textureUrl: '/assets/figures/witch_green/Hurt.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 4,
+        frameRate: 10,
+        repeat: 0,
+      },
+      dead: {
+        textureUrl: '/assets/figures/witch_green/Dead.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 4,
+        frameRate: 8,
+        repeat: 0,
       },
     },
   },
@@ -155,6 +198,24 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         frameRate: 10,
         repeat: -1,
       },
+      hurt: {
+        textureUrl: '/assets/figures/wizard_blue/Hurt.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 3,
+        frameRate: 10,
+        repeat: 0,
+      },
+      dead: {
+        textureUrl: '/assets/figures/wizard_blue/Dead.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 6,
+        frameRate: 8,
+        repeat: 0,
+      },
     },
   },
   black: {
@@ -181,6 +242,24 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         frameCount: 8,
         frameRate: 10,
         repeat: -1,
+      },
+      hurt: {
+        textureUrl: '/assets/figures/wizard_black/Hurt.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 4,
+        frameRate: 10,
+        repeat: 0,
+      },
+      dead: {
+        textureUrl: '/assets/figures/wizard_black/Dead.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 4,
+        frameRate: 8,
+        repeat: 0,
       },
     },
   },
@@ -222,8 +301,31 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
     return sprite;
   },
 
-  play(_scene, sprite, profile, state) {
-    sprite.play(getAnimationKey(profile, state), true);
+  hasAnimation(scene, profile, state) {
+    const animationConfig = profile.animations[state];
+    if (!animationConfig) return false;
+
+    return scene.anims.exists(getAnimationKey(profile, state));
+  },
+
+  play(scene, sprite, profile, state) {
+    const preferredState = profile.animations[state] ? state : 'idle';
+    const preferredKey = getAnimationKey(profile, preferredState);
+
+    if (scene.anims.exists(preferredKey)) {
+      sprite.play(preferredKey, true);
+      return;
+    }
+
+    const idleKey = getAnimationKey(profile, 'idle');
+    if (preferredState !== 'idle' && scene.anims.exists(idleKey)) {
+      sprite.play(idleKey, true);
+      return;
+    }
+
+    console.warn(
+      `[characterRenderConfig] Missing animation key "${preferredKey}" for profile "${profile.id}".`
+    );
   },
 
   getAvatarDataUrl(_scene, _sprite, profile) {
@@ -234,7 +336,8 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
 };
 
 export function getTextureKey(profile: CharacterRenderProfile, state: CharacterAnimationState) {
-  return profile.animations[state].textureKey ?? `${profile.id}_${state}`;
+  const animation = profile.animations[state] ?? profile.animations.idle;
+  return animation.textureKey ?? `${profile.id}_${state}`;
 }
 
 export function getAnimationKey(profile: CharacterRenderProfile, state: CharacterAnimationState) {

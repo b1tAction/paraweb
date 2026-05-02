@@ -108,6 +108,7 @@ function getLogEntryKey(entry: { timestamp: string; action_type: string; target:
 function shouldApplyImmediatePlayerStatUpdate(actionType: string) {
   return (
     actionType === 'damage' ||
+    actionType === 'death' ||
     actionType === 'heal' ||
     actionType === 'modify_lp' ||
     actionType === 'fell_down' ||

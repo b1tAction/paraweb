@@ -115,6 +115,9 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
       }
       break;
     }
+    case 'death':
+      next.is_dead = true;
+      break;
     case 'boss_damage':
       next.hp = bossRemainingHp ?? next.hp - damage;
       break;
@@ -197,6 +200,8 @@ export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
     case 'damage':
     case 'fell_down':
       return { label: `HP ${signed(num('hp_change'))}`, color: 0xef5350, textColor: '#ffebee' };
+    case 'death':
+      return { label: 'DEAD', color: 0xb71c1c, textColor: '#ffebee' };
     case 'heal':
       return { label: `HP +${Math.abs(num('hp_change'))}`, color: 0x66bb6a, textColor: '#e8f5e9' };
     case 'modify_lp':
