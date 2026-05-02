@@ -33,6 +33,15 @@ const DEFAULT_ANIMATION_RULE: Required<LogEntryAnimationRule> = {
   delayMs: DEFAULT_ACTION_ANIMATION_DELAY_MS,
 };
 
+export function isReverseClockLostBuffEntry(entry?: LogEntry | null): entry is LogEntry {
+  return Boolean(
+    entry &&
+      entry.action_type === 'add_buff' &&
+      entry.source === 'item_reverse_clock_buff' &&
+      getMetadataString(entry.metadata, 'buff_type') === 'lost'
+  );
+}
+
 export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = {
   dice_roll: {
     renderOnBoard: false,
@@ -56,6 +65,10 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
       const config = getEventEffectConfig(eventType);
       return config.duration || DEFAULT_ACTION_ANIMATION_DELAY_MS;
     },
+  },
+  add_buff: {
+    renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry),
+    delayMs: ({ entry }) => (isReverseClockLostBuffEntry(entry) ? 1800 : DEFAULT_ACTION_ANIMATION_DELAY_MS),
   },
   remove_item: {
     renderOnBoard: false,
