@@ -9,6 +9,7 @@ import {
 } from './logEntryPlayback';
 import { getEventEffectConfig, getEventTypeFromEntry } from './eventAnimations';
 import {
+  isAnyDoorTeleportEntry,
   shouldRenderBoardLogEntryAnimation,
   type LogEntryAnimationContext,
 } from './logEntryAnimationPolicy';
@@ -82,6 +83,11 @@ const PLAYER_NAME_TEXTURE_RESOLUTION = 2;
 const LOGIC_CELL_MARKER_SCALE = 1.5;
 const SHRINE_TEXTURE_KEY = 'map-shrine';
 const SHRINE_TILESET_NAME = 'shrine';
+const WARP_DOOR_TEXTURE_KEY = 'warp-door';
+const WARP_DOOR_ANIMATION_KEY = 'warp-door-swirl';
+const WARP_DOOR_CELL_OFFSET_Y = 1;
+const WARP_DOOR_DEPTH_OFFSET = 52;
+const WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET = 76;
 
 export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
@@ -107,6 +113,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private lastEffectKey = '';
   private readonly boardAnimationRenderers: Record<string, BoardAnimationRenderer> = {
     move: (context) => this.playMoveAnimation(context),
+    teleport: (context) => this.playTeleportAnimation(context),
     damage: (context) => this.playDamageAnimation(context),
     death: (context) => this.playDeathAnimation(context),
     fell_down: (context) => this.playDeathAnimation(context),
@@ -147,6 +154,10 @@ export class ForestBoardScene extends Phaser.Scene {
     this.load.image('logic-cell-off', '/assets/tilesets/block/off.png');
     this.load.image('logic-cell-on', '/assets/tilesets/block/on.png');
     this.load.image(SHRINE_TEXTURE_KEY, '/assets/shrine/shrine.png');
+    this.load.spritesheet(WARP_DOOR_TEXTURE_KEY, '/assets/effects/warp-door.png', {
+      frameWidth: 64,
+      frameHeight: 64
+    });
     
 
     // Load lightning bolt effect sprite sheet for thunder event
@@ -210,6 +221,15 @@ export class ForestBoardScene extends Phaser.Scene {
       frameRate: 15,
       repeat: 0
     });
+
+    if (!this.anims.exists(WARP_DOOR_ANIMATION_KEY)) {
+      this.anims.create({
+        key: WARP_DOOR_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(WARP_DOOR_TEXTURE_KEY, { start: 0, end: 8 }),
+        frameRate: 12,
+        repeat: -1
+      });
+    }
 
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     this.configureFollowCamera();
@@ -751,7 +771,7 @@ export class ForestBoardScene extends Phaser.Scene {
     ].includes(entry.action_type);
   }
 
- private playMoveAnimation(context: LogEntryAnimationContext) {
+  private playMoveAnimation(context: LogEntryAnimationContext) {
     const { entry } = context;
     const marker = this.playerMarkers.get(entry.target);
     if (!marker) return;
@@ -818,6 +838,183 @@ export class ForestBoardScene extends Phaser.Scene {
       });
     };
     runNext();
+  }
+
+  private playTeleportAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    if (!isAnyDoorTeleportEntry(entry)) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const marker = this.playerMarkers.get(entry.target);
+    const fromPos = getMetadataNumber(entry.metadata, 'from_pos');
+    const toPos = getMetadataNumber(entry.metadata, 'to_pos');
+
+    if (!marker || fromPos === null || toPos === null) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const fromCell = this.cellViews.get(fromPos);
+    const toCell = this.cellViews.get(toPos);
+    if (!fromCell || !toCell) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const currentOffsetX = marker.x - fromCell.x;
+    const currentOffsetY = marker.y - fromCell.y;
+    const targetX = toCell.x + currentOffsetX;
+    const targetY = toCell.y + currentOffsetY;
+    const travelSign = targetX >= marker.x ? 1 : -1;
+    const originalScaleX = Math.abs(marker.scaleX) || 1;
+    const originalScaleY = Math.abs(marker.scaleY) || 1;
+    const originalAlpha = marker.alpha || 1;
+    const entranceDoorX = marker.x + travelSign * 30;
+    const doorOffsetY = this.mapTileHeight * WARP_DOOR_CELL_OFFSET_Y;
+    const entranceDoorY = marker.y + 18 + doorOffsetY;
+    const exitDoorX = targetX - travelSign * 30;
+    const exitDoorY = targetY + 18 + doorOffsetY;
+    const depthBase = Math.max(entranceDoorY, exitDoorY) + 260;
+    const entrancePlayerDepth = entranceDoorY + WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET;
+    const exitPlayerDepth = exitDoorY + WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET;
+
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const doors: Phaser.GameObjects.GameObject[] = [];
+    const doorGlows: Phaser.GameObjects.Sprite[] = [];
+
+    const makeDoor = (x: number, y: number, flipX: boolean) => {
+      const door = this.add.sprite(x, y, WARP_DOOR_TEXTURE_KEY);
+      door.setOrigin(0.5, 1);
+      door.setScale(0.76);
+      door.setAlpha(0);
+      door.setFlipX(flipX);
+      door.setDepth(y + WARP_DOOR_DEPTH_OFFSET);
+      door.play(WARP_DOOR_ANIMATION_KEY);
+      doors.push(door);
+      return door;
+    };
+
+    const makeGlow = (x: number, y: number, flipX: boolean) => {
+      const glow = this.add.sprite(x, y, WARP_DOOR_TEXTURE_KEY);
+      glow.setOrigin(0.5, 1);
+      glow.setScale(1.1);
+      glow.setAlpha(0);
+      glow.setFlipX(flipX);
+      glow.setTint(0x8fefff);
+      glow.setDepth(y + WARP_DOOR_DEPTH_OFFSET - 10);
+      glow.setBlendMode(Phaser.BlendModes.ADD);
+      glow.play(WARP_DOOR_ANIMATION_KEY);
+      doors.push(glow);
+      doorGlows.push(glow);
+      return glow;
+    };
+
+    const entranceDoor = makeDoor(entranceDoorX, entranceDoorY, false);
+    const exitDoor = makeDoor(exitDoorX, exitDoorY, true);
+    makeGlow(entranceDoorX, entranceDoorY, false);
+    makeGlow(exitDoorX, exitDoorY, true);
+    const label = this.add.text((entranceDoorX + exitDoorX) / 2, Math.min(entranceDoorY, exitDoorY) - 76, `${fromPos} -> ${toPos}`, {
+      fontFamily: GAME_FONT_FAMILY,
+      fontSize: '20px',
+      fontStyle: 'bold',
+      color: '#e1f5fe',
+      stroke: '#062333',
+      strokeThickness: 5,
+    });
+    label.setOrigin(0.5, 0.5);
+    label.setDepth(depthBase);
+    label.setAlpha(0);
+    doors.push(label);
+
+    this.logDrivenPositions.set(entry.target, fromPos);
+    this.activeMoveAnimations.add(entry.target);
+    this.refreshCellMarkerStates();
+    this.tweens.killTweensOf(marker);
+
+    this.tweens.add({
+      targets: [entranceDoor, exitDoor],
+      alpha: 1,
+      scale: 1.22,
+      duration: 220,
+      ease: 'Back.easeOut',
+    });
+    this.tweens.add({
+      targets: doorGlows,
+      alpha: 0.58,
+      scale: 1.34,
+      duration: 420,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Sine.easeInOut',
+    });
+    this.tweens.add({
+      targets: label,
+      alpha: { from: 0, to: 1 },
+      y: label.y - 16,
+      duration: 360,
+      yoyo: true,
+      hold: 900,
+      ease: 'Cubic.easeOut',
+    });
+
+    marker.setFlipX(travelSign < 0);
+    renderer.play(this, marker, profile, 'move');
+    this.tweens.add({
+      targets: marker,
+      x: marker.x + travelSign * 14,
+      duration: 260,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => marker.setDepth(entrancePlayerDepth),
+      onComplete: () => {
+        this.tweens.add({
+          targets: marker,
+          x: entranceDoorX - travelSign * 3,
+          alpha: 0,
+          duration: 420,
+          ease: 'Cubic.easeIn',
+          onComplete: () => {
+            this.logDrivenPositions.set(entry.target, toPos);
+            this.refreshCellMarkerStates();
+            marker.setPosition(exitDoorX + travelSign * 3, targetY);
+            marker.setScale(originalScaleX, originalScaleY);
+            marker.setAlpha(0);
+            marker.setFlipX(travelSign < 0);
+            marker.setDepth(exitPlayerDepth);
+
+            this.time.delayedCall(120, () => {
+              this.tweens.add({
+                targets: marker,
+                x: targetX,
+                y: targetY,
+                alpha: originalAlpha,
+                duration: 520,
+                ease: 'Cubic.easeOut',
+                onUpdate: () => marker.setDepth(exitPlayerDepth),
+                onComplete: () => {
+                  renderer.play(this, marker, profile, 'idle');
+                  this.activeMoveAnimations.delete(entry.target);
+                  this.refreshCellMarkerStates();
+                },
+              });
+            });
+          },
+        });
+      },
+    });
+
+    this.time.delayedCall(2100, () => {
+      this.tweens.add({
+        targets: doors,
+        alpha: 0,
+        scale: 0.92,
+        duration: 360,
+        ease: 'Cubic.easeIn',
+        onComplete: () => doors.forEach((object) => object.destroy()),
+      });
+    });
   }
 
 private playDrawEventAnimation(context: LogEntryAnimationContext) {

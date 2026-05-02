@@ -69,6 +69,7 @@ const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   dice_upgrade: 'dice_upgrade.png',
   reverse_clock: 'reverse_clock.png',
 };
+const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door']);
 
 function getFactionMeta(faction: string) {
   return FACTION_META[faction] ?? { label: faction || '未知', color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
@@ -315,7 +316,7 @@ export const BoardScene: React.FC = () => {
    * 处理使用道具
    */
   const handleUseItem = (item: Item) => {
-    if (item.type === 'reverse_clock') {
+    if (TARGET_PLAYER_ITEM_TYPES.has(item.type) || item.targetable) {
       setItemTargetSelection(item);
       return;
     }
@@ -355,7 +356,7 @@ export const BoardScene: React.FC = () => {
   const boardPlayers = renderedPlayers.filter((player) => !isBossPlayer(player));
   const bossPlayer = renderedPlayers.find(isBossPlayer);
   const myPlayer = renderedPlayers.find((player) => player.player_id === myPlayerId);
-  const itemTargetPlayers = renderedPlayers.filter((player) => player.player_id !== myPlayerId);
+  const itemTargetPlayers = renderedPlayers.filter((player) => player.player_id !== myPlayerId && !isBossPlayer(player));
   const myBuffs = myPlayer?.buffs ?? [];
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
@@ -1160,12 +1161,15 @@ export const BoardScene: React.FC = () => {
                     key={player.player_id}
                     onClick={() => {
                       console.log('[BoardScene] 选择目标使用了道具', itemTargetSelection.id, player.player_id);
-                      gameService.sendUseItem(itemTargetSelection.id, player.player_id);
+                      gameService.sendUseItem(itemTargetSelection.id, player.player_id).catch((err) => {
+                        console.error('[BoardScene] 选择目标使用道具失败', err);
+                      });
                       setItemTargetSelection(null);
                     }}
                     style={styles.decisionButton}
                   >
-                    {player.display_name || player.player_id}
+                    <span style={styles.targetPlayerName}>{player.display_name || player.player_id}</span>
+                    <span style={styles.targetPlayerPosition}>位置 {player.position}</span>
                   </button>
                 ))}
               </div>
@@ -1679,6 +1683,21 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '3px',
+    minWidth: '116px',
+  },
+  targetPlayerName: {
+    fontSize: '14px',
+    fontWeight: 800,
+    lineHeight: 1.1,
+  },
+  targetPlayerPosition: {
+    fontSize: '12px',
+    lineHeight: 1.1,
+    opacity: 0.86,
   },
   debugLogPanel: {
     pointerEvents: 'auto',
