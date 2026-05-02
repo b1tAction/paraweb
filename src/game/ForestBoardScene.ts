@@ -13,6 +13,7 @@ import {
   type LogEntryAnimationContext,
 } from './logEntryAnimationPolicy';
 import {
+  getAnimationKey,
   getCharacterOffsetY,
   getCharacterProfiles,
   getCharacterRenderer,
@@ -106,6 +107,10 @@ export class ForestBoardScene extends Phaser.Scene {
   private lastEffectKey = '';
   private readonly boardAnimationRenderers: Record<string, BoardAnimationRenderer> = {
     move: (context) => this.playMoveAnimation(context),
+    damage: (context) => this.playDamageAnimation(context),
+    death: (context) => this.playDeathAnimation(context),
+    fell_down: (context) => this.playDeathAnimation(context),
+    respawn: (context) => this.playRespawnAnimation(context),
     draw_event: (context) => this.playDrawEventAnimation(context),
   };
 
@@ -540,6 +545,7 @@ export class ForestBoardScene extends Phaser.Scene {
         return;
       }
       marker.setData('characterProfileId', profile.id);
+      this.restoreLivingPlayerAnimation(marker, player, profile);
       if (this.activeMoveAnimations.has(player.player_id)) {
         marker.setDepth((marker.y ?? targetY) + 100);
       } else {
@@ -558,6 +564,25 @@ export class ForestBoardScene extends Phaser.Scene {
     this.refreshCellMarkerStates(players);
     this.followTargetPlayer();
   }
+
+  private restoreLivingPlayerAnimation(
+    marker: Phaser.GameObjects.Sprite,
+    player: Player,
+    profile: CharacterRenderProfile
+  ) {
+    if (player.is_dead) return;
+    if (this.activeMoveAnimations.has(player.player_id)) return;
+
+    const currentAnimationKey = marker.anims.currentAnim?.key;
+    if (!currentAnimationKey) return;
+
+    const deadAnimationKey = getAnimationKey(profile, 'dead');
+    if (currentAnimationKey !== deadAnimationKey) return;
+
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    renderer.play(this, marker, profile, 'idle');
+  }
+
   private resolveCharacterProfileForPlayer(player: Player, order: number): CharacterRenderProfile {
     return resolveCharacterProfile(player, order, this.characterRenderOptions);
   }
@@ -653,6 +678,65 @@ export class ForestBoardScene extends Phaser.Scene {
       onComplete: () => text.destroy(),
     });
   };
+
+  private playDamageAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const marker = this.playerMarkers.get(entry.target);
+    if (!marker) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+
+    if (profile.animations.hurt && renderer.hasAnimation?.(this, profile, 'hurt')) {
+      const hurtAnimationEvent = `animationcomplete-${getAnimationKey(profile, 'hurt')}`;
+      marker.removeAllListeners(hurtAnimationEvent);
+      renderer.play(this, marker, profile, 'hurt');
+      marker.once(hurtAnimationEvent, () => {
+        const nextState = this.activeMoveAnimations.has(entry.target) ? 'move' : 'idle';
+        renderer.play(this, marker, profile, nextState);
+      });
+    }
+
+    this.playGenericLogEntryEffect(context);
+  }
+
+  private playDeathAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const marker = this.playerMarkers.get(entry.target);
+    if (!marker) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+
+    if (profile.animations.dead && renderer.hasAnimation?.(this, profile, 'dead')) {
+      const deadAnimationEvent = `animationcomplete-${getAnimationKey(profile, 'dead')}`;
+      marker.removeAllListeners(deadAnimationEvent);
+      renderer.play(this, marker, profile, 'dead');
+    }
+
+    this.playGenericLogEntryEffect(context);
+  }
+
+  private playRespawnAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const marker = this.playerMarkers.get(entry.target);
+    if (!marker) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    renderer.play(this, marker, profile, 'idle');
+
+    this.playGenericLogEntryEffect(context);
+  }
 
   private shouldSuppressSettlementEffect(entry: LogEntry) {
     if (!this.settlementPlayer || entry.target !== this.settlementPlayer.player_id) return false;
