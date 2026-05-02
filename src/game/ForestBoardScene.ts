@@ -1,4 +1,4 @@
-import * as Phaser from 'phaser';
+﻿import * as Phaser from 'phaser';
 import type { LogEntry, MapConfig, MapCellConfig, Player } from '../types/protocol';
 import { getTiledProperty } from './tiledHelpers';
 import {
@@ -8,10 +8,21 @@ import {
   getMetadataNumberArray,
 } from './logEntryPlayback';
 import { getEventEffectConfig, getEventTypeFromEntry } from './eventAnimations';
+import { useGameStore } from '../store/gameStore';
 import {
+  isAnyDoorTeleportEntry,
   shouldRenderBoardLogEntryAnimation,
   type LogEntryAnimationContext,
 } from './logEntryAnimationPolicy';
+import {
+  getAnimationKey,
+  getCharacterOffsetY,
+  getCharacterProfiles,
+  getCharacterRenderer,
+  resolveCharacterProfile,
+  type CharacterRenderOptions,
+  type CharacterRenderProfile,
+} from './characterRenderConfig';
 
 type PathNode = {
   index: number;
@@ -64,17 +75,6 @@ const TILESET_IMAGES: TilesetImageConfig[] = [
   },
 ];
 
-// 【新增】定义你所有可用的人物前缀（文件名）
-const AVAILABLE_CHARACTERS = ['red', 'green', 'white', 'black'];
-
-// 【新增】根据后端玩家数据里的 faction 字段，映射到具体的人物前缀
-const FACTION_TO_PREFIX: Record<string, string> = {
-  'zhu_que': 'red',     // 朱雀 -> red_idle.png
-  'qing_long': 'green',   // 青龙 -> green_idle.png
-  'bai_hu': 'white',    // 白虎 -> white_idle.png
-  'xuan_wu': 'black'    // 玄武 -> black_idle.png
-};
-
 const CAMERA_VIEW_TILES_X = 30;
 const CAMERA_VIEW_TILES_Y = 20;
 const GAME_FONT_FAMILY = 'Zpix, sans-serif';
@@ -84,6 +84,11 @@ const PLAYER_NAME_TEXTURE_RESOLUTION = 2;
 const LOGIC_CELL_MARKER_SCALE = 1.5;
 const SHRINE_TEXTURE_KEY = 'map-shrine';
 const SHRINE_TILESET_NAME = 'shrine';
+const WARP_DOOR_TEXTURE_KEY = 'warp-door';
+const WARP_DOOR_ANIMATION_KEY = 'warp-door-swirl';
+const WARP_DOOR_CELL_OFFSET_Y = 1;
+const WARP_DOOR_DEPTH_OFFSET = 52;
+const WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET = 76;
 
 export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
@@ -92,6 +97,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private selfPlayerId?: string | null;
   private activeAnimationContext?: LogEntryAnimationContext | null;
   private settlementPlayer?: Player | null;
+  private characterRenderOptions?: CharacterRenderOptions;
   private mapTileWidth = 32;
   private mapTileHeight = 32;
 
@@ -99,7 +105,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private cellViews = new Map<number, BoardCellView>();
 
   private cellMarkers = new Map<number, CellMarkerView>();
-  // 【修改点 1】把 Arc 改成 Sprite
+  // Player markers are rendered as sprites so they can play animation clips.
   private playerMarkers = new Map<string, Phaser.GameObjects.Sprite>();
   private playerNames = new Map<string, Phaser.GameObjects.Text>();
 
@@ -108,6 +114,11 @@ export class ForestBoardScene extends Phaser.Scene {
   private lastEffectKey = '';
   private readonly boardAnimationRenderers: Record<string, BoardAnimationRenderer> = {
     move: (context) => this.playMoveAnimation(context),
+    teleport: (context) => this.playTeleportAnimation(context),
+    damage: (context) => this.playDamageAnimation(context),
+    death: (context) => this.playDeathAnimation(context),
+    fell_down: (context) => this.playDeathAnimation(context),
+    respawn: (context) => this.playRespawnAnimation(context),
     draw_event: (context) => this.playDrawEventAnimation(context),
   };
 
@@ -124,6 +135,7 @@ export class ForestBoardScene extends Phaser.Scene {
     selfPlayerId?: string | null;
     activeAnimationContext?: LogEntryAnimationContext | null;
     settlementPlayer?: Player | null;
+    characterRenderOptions?: CharacterRenderOptions;
   }) {
     this.mapConfig = data.mapConfig;
     this.players = data.players ??[];
@@ -131,6 +143,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.selfPlayerId = data.selfPlayerId;
     this.activeAnimationContext = data.activeAnimationContext;
     this.settlementPlayer = data.settlementPlayer;
+    this.characterRenderOptions = data.characterRenderOptions;
   }
 
   preload() {
@@ -142,17 +155,28 @@ export class ForestBoardScene extends Phaser.Scene {
     this.load.image('logic-cell-off', '/assets/tilesets/block/off.png');
     this.load.image('logic-cell-on', '/assets/tilesets/block/on.png');
     this.load.image(SHRINE_TEXTURE_KEY, '/assets/shrine/shrine.png');
+    this.load.spritesheet(WARP_DOOR_TEXTURE_KEY, '/assets/effects/warp-door.png', {
+      frameWidth: 64,
+      frameHeight: 64
+    });
+    
 
-    // 【修改】使用循环批量加载所有定义好的人物资源
-    AVAILABLE_CHARACTERS.forEach(prefix => {
-      this.load.spritesheet(`${prefix}_idle`, `/assets/figures/${prefix}_idle.png`, {
-        frameWidth: 68,
-        frameHeight: 68
-      });
-      this.load.spritesheet(`${prefix}_move`, `/assets/figures/${prefix}_move.png`, {
-        frameWidth: 68,
-        frameHeight: 68
-      });
+    // Load lightning bolt effect sprite sheet for thunder event
+    this.load.spritesheet('lightning-bolt', '/assets/effects/Lightning-bolt.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+    
+
+    // Load lightning bolt effect sprite sheet for thunder event
+    this.load.spritesheet('lightning-bolt', '/assets/effects/Lightning-bolt.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    Object.values(getCharacterProfiles(this.characterRenderOptions)).forEach((profile) => {
+      renderer.preload(this, profile);
     });
   }
 
@@ -170,7 +194,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
         if (!result) {
           console.warn(
-            `[ForestBoardScene] 找不到 tileset: ${tileset.tiledNames.join(' / ')}。请检查 Tiled 中的 tileset 名称和 TILESET_IMAGES 配置。`
+            `[ForestBoardScene] Missing tileset: ${tileset.tiledNames.join(' / ')}. Check the Tiled tileset name and TILESET_IMAGES mapping.`
           );
         }
 
@@ -186,24 +210,27 @@ export class ForestBoardScene extends Phaser.Scene {
     });
     this.renderShrines(map);
 
-     AVAILABLE_CHARACTERS.forEach(prefix => {
-      // 创建待机动画
-      this.anims.create({
-        key: `${prefix}_idle_anim`,
-        frames: this.anims.generateFrameNumbers(`${prefix}_idle`, { start: 0, end: 3 }),
-        frameRate: 6,
-        repeat: -1
-      });
-
-      // 创建移动动画
-      this.anims.create({
-        key: `${prefix}_move_anim`,
-        // ⚠️ 注意：这里假设所有移动动画都是6帧。如果有不同帧数的，需要额外处理。
-        frames: this.anims.generateFrameNumbers(`${prefix}_move`, { start: 0, end: 5 }),
-        frameRate: 10,
-        repeat: -1
-      });
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    Object.values(getCharacterProfiles(this.characterRenderOptions)).forEach((profile) => {
+      renderer.ensureAnimations(this, profile);
     });
+
+    // Create lightning strike animation for thunder event
+    this.anims.create({
+      key: 'lightning_strike_anim',
+      frames: this.anims.generateFrameNumbers('lightning-bolt', { start: 0, end: 9 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    if (!this.anims.exists(WARP_DOOR_ANIMATION_KEY)) {
+      this.anims.create({
+        key: WARP_DOOR_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(WARP_DOOR_TEXTURE_KEY, { start: 0, end: 8 }),
+        frameRate: 12,
+        repeat: -1
+      });
+    }
 
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     this.configureFollowCamera();
@@ -219,13 +246,12 @@ export class ForestBoardScene extends Phaser.Scene {
   }
 
   update() {
-
-     // 确保名字每帧跟随 marker
+    // Keep player labels aligned with their markers every frame.
     this.playerNames.forEach((text, playerId) => {
         const marker = this.playerMarkers.get(playerId);
         if (marker) {
             text.setPosition(Math.round(marker.x), Math.round(marker.y - 30));
-            text.setDepth(marker.depth + 1); // 名字永远在人物上方
+            text.setDepth(marker.depth + 1);
         } else {
             text.destroy();
             this.playerNames.delete(playerId);
@@ -239,7 +265,8 @@ export class ForestBoardScene extends Phaser.Scene {
     followPlayerId?: string | null,
     selfPlayerId?: string | null,
     activeAnimationContext?: LogEntryAnimationContext | null,
-    settlementPlayer?: Player | null
+    settlementPlayer?: Player | null,
+    characterRenderOptions?: CharacterRenderOptions
   ) {
     const mapChanged = this.mapConfig !== mapConfig;
     const followChanged = this.followPlayerId !== followPlayerId;
@@ -251,6 +278,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.selfPlayerId = selfPlayerId;
     this.activeAnimationContext = activeAnimationContext;
     this.settlementPlayer = settlementPlayer;
+    this.characterRenderOptions = characterRenderOptions;
 
     if (!this.ready) return;
 
@@ -366,7 +394,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
     if (!objectLayer) {
       console.error(
-        '[ForestBoardScene] 找不到 path_nodes 对象层。请在 Tiled 中把路径点对象层命名为 path_nodes。'
+        '[ForestBoardScene] Missing path_nodes object layer. Rename the Tiled object layer to path_nodes.'
       );
       return;
     }
@@ -382,7 +410,7 @@ export class ForestBoardScene extends Phaser.Scene {
       );
 
       if (!Number.isFinite(index)) {
-        console.warn('[ForestBoardScene] 路径点缺少合法 index:', obj);
+        console.warn('[ForestBoardScene] Path node is missing a valid index:', obj);
         return;
       }
 
@@ -396,7 +424,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
     if (this.mapConfig && this.pathNodes.size !== this.mapConfig.length) {
       console.warn(
-        `[ForestBoardScene] Tiled 路径点数量(${this.pathNodes.size}) 与后端地图长度(${this.mapConfig.length}) 不一致。`
+        `[ForestBoardScene] Path node count (${this.pathNodes.size}) does not match map length (${this.mapConfig.length}).`
       );
     }
   }
@@ -409,7 +437,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
       if (!node) {
         console.warn(
-          `[ForestBoardScene] 后端 cell.index=${cell.index} 没有对应的 Tiled path_node。`
+          `[ForestBoardScene] Backend cell.index=${cell.index} has no matching Tiled path_node.`
         );
         continue;
       }
@@ -476,99 +504,70 @@ export class ForestBoardScene extends Phaser.Scene {
   }
 
  private syncPlayers(players: Player[]) {
-    //console.log('正在渲染的玩家数据:', players); 
-
     players.forEach((player, order) => {
       const visualPosition = this.logDrivenPositions.get(player.player_id) ?? player.position;
       const cell = this.cellViews.get(visualPosition);
-
       if (!cell) {
         console.warn(
-          `[ForestBoardScene] 玩家 ${player.display_name} 的 position=${player.position} 没有对应点位。`
+          `[ForestBoardScene] player ${player.display_name} position=${player.position} has no mapped cell.`
         );
         return;
       }
-
+      const profile = this.resolveCharacterProfileForPlayer(player, order);
       const offsetX = (order % 4) * 10 - 15;
       const targetX = cell.x + offsetX;
-      const targetY = cell.y - 16; 
-
+      const targetY = cell.y + getCharacterOffsetY(profile);
       let marker = this.playerMarkers.get(player.player_id);
-
       const nameText = this.playerNames.get(player.player_id);
       if (nameText) {
         this.applyPlayerNameStyle(player.player_id, nameText, player.display_name);
       }
-
-      // =========================================================
-      // 首次创建人物
-      // =========================================================
       if (!marker) {
-        // 1. 优先根据玩家的阵营(faction)去配置表里查找对应的人物前缀
-        let charPrefix = player.faction ? FACTION_TO_PREFIX[player.faction] : null;
-
-        // 2. 如果没找到，则按加入顺序轮流分配
-        if (!charPrefix || !AVAILABLE_CHARACTERS.includes(charPrefix)) {
-            charPrefix = AVAILABLE_CHARACTERS[order % AVAILABLE_CHARACTERS.length];
-            console.warn(`玩家 ${player.display_name} 阵营 ${player.faction} 未配置，已自动分配外观: ${charPrefix}`);
-        }
-
-        // 3. 创建精灵和播放动画
-        marker = this.add.sprite(targetX, targetY, `${charPrefix}_idle`);
-        marker.setScale(0.65);
-        marker.play(`${charPrefix}_idle_anim`);
+        const renderer = getCharacterRenderer(this.characterRenderOptions);
+        marker = renderer.createSprite({
+          scene: this,
+          player,
+          profile,
+          x: targetX,
+          y: targetY,
+        });
+        renderer.play(this, marker, profile, 'idle');
         marker.setDepth(targetY + 100);
-        
-        // 4. 把前缀存起来方便移动时调用
-        marker.setData('charPrefix', charPrefix);
-
+        marker.setData('characterProfileId', profile.id);
         this.playerMarkers.set(player.player_id, marker);
-
-        // 5. 创建名字标签
-        const nameText = this.add.text(targetX, targetY - 30, player.display_name, {
+        const playerName = this.add.text(targetX, targetY - 30, player.display_name, {
           fontFamily: GAME_FONT_FAMILY,
           fontSize: `${this.getWorldFontSize(PLAYER_NAME_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`,
-          color: this.getPlayerNameColor(player.player_id), 
+          color: this.getPlayerNameColor(player.player_id),
           stroke: '#000000',
           strokeThickness: 3,
         });
-        nameText.setOrigin(0.5, 0.5);
-        this.configurePlayerNameText(nameText);
-        this.applyPlayerNameStyle(player.player_id, nameText, player.display_name);
-        nameText.setDepth(targetY + 200); 
-        this.playerNames.set(player.player_id, nameText);
-
+        playerName.setOrigin(0.5, 0.5);
+        this.configurePlayerNameText(playerName);
+        this.applyPlayerNameStyle(player.player_id, playerName, player.display_name);
+        playerName.setDepth(targetY + 200);
+        this.playerNames.set(player.player_id, playerName);
         if (player.player_id === this.followPlayerId) {
           this.followTargetPlayer();
         }
-
-        // =========================================================
-        // 【新增】提取第一帧头像并发送给 React
-        // =========================================================
-        // 把原来的 this.events.emit 替换成这个：
         try {
-          const avatarBase64 = this.textures.getBase64(`${charPrefix}_idle`, 0);
-          
-          // 使用 window 发送全局事件，跨越 Phaser 和 React 的边界
-          window.dispatchEvent(new CustomEvent('ui-player-avatar', {
-            detail: {
-              playerId: player.player_id,
-              avatarUrl: avatarBase64
-            }
-          }));
+          const avatarBase64 = renderer.getAvatarDataUrl?.(this, marker, profile) ?? null;
+          if (avatarBase64) {
+            window.dispatchEvent(new CustomEvent('ui-player-avatar', {
+              detail: {
+                playerId: player.player_id,
+                avatarUrl: avatarBase64,
+              },
+            }));
+          }
         } catch (e) {
-          console.warn(`无法提取 ${player.display_name} 的头像`, e);
+          console.warn(`Failed to extract avatar for ${player.display_name}.`, e);
         }
-
         return;
       }
-
-      // =========================================================
-      // 更新人物位置（移动）
-      // =========================================================
+      marker.setData('characterProfileId', profile.id);
+      this.restoreLivingPlayerAnimation(marker, player, profile);
       if (this.activeMoveAnimations.has(player.player_id)) {
-        // Move animation is already controlling this player's position.
-        // Only update depth to keep z-order correct.
         marker.setDepth((marker.y ?? targetY) + 100);
       } else {
         this.tweens.add({
@@ -583,10 +582,52 @@ export class ForestBoardScene extends Phaser.Scene {
         });
       }
     });
-
     this.refreshCellMarkerStates(players);
     this.followTargetPlayer();
-}
+  }
+
+  private restoreLivingPlayerAnimation(
+    marker: Phaser.GameObjects.Sprite,
+    player: Player,
+    profile: CharacterRenderProfile
+  ) {
+    if (player.is_dead) return;
+    if (this.activeMoveAnimations.has(player.player_id)) return;
+
+    const currentAnimationKey = marker.anims.currentAnim?.key;
+    if (!currentAnimationKey) return;
+
+    const deadAnimationKey = getAnimationKey(profile, 'dead');
+    if (currentAnimationKey !== deadAnimationKey) return;
+
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    renderer.play(this, marker, profile, 'idle');
+  }
+
+  private resolveCharacterProfileForPlayer(player: Player, order: number): CharacterRenderProfile {
+    return resolveCharacterProfile(player, order, this.characterRenderOptions);
+  }
+
+  private resolveCharacterProfileFromMarker(
+    marker: Phaser.GameObjects.Sprite,
+    playerId: string
+  ): CharacterRenderProfile {
+    const profileId = marker.getData('characterProfileId');
+    const profiles = getCharacterProfiles(this.characterRenderOptions);
+    if (typeof profileId === 'string' && profiles[profileId]) {
+      return profiles[profileId];
+    }
+    const playerIndex = this.players.findIndex((player) => player.player_id === playerId);
+    const player = this.players[playerIndex];
+    if (player) {
+      return this.resolveCharacterProfileForPlayer(player, Math.max(0, playerIndex));
+    }
+    const fallbackProfile = Object.values(profiles)[0];
+    if (!fallbackProfile) {
+      throw new Error('[ForestBoardScene] No character render profile available.');
+    }
+    return fallbackProfile;
+  }
 
   private playLogEntryEffect(context?: LogEntryAnimationContext | null) {
     if (!context || !shouldRenderBoardLogEntryAnimation(context)) return;
@@ -609,7 +650,7 @@ export class ForestBoardScene extends Phaser.Scene {
     const marker = this.playerMarkers.get(entry.target) ?? this.playerMarkers.get(this.followPlayerId || '');
     if (!marker) return;
 
-    const effect = describeLogEntryEffect(entry);
+    const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
     const x = marker.x;
     const y = marker.y;
 
@@ -629,7 +670,7 @@ export class ForestBoardScene extends Phaser.Scene {
     text.setOrigin(0.5, 0.5);
     text.setDepth(y + 230);
 
-    // 【修改点 5】缩放特效调低，因为原图已经缩放过了
+    // Use a light scale punch because the base sprite is already scaled down.
     this.tweens.add({
       targets: marker,
       scale: 0.9,
@@ -659,6 +700,65 @@ export class ForestBoardScene extends Phaser.Scene {
     });
   };
 
+  private playDamageAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const marker = this.playerMarkers.get(entry.target);
+    if (!marker) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+
+    if (profile.animations.hurt && renderer.hasAnimation?.(this, profile, 'hurt')) {
+      const hurtAnimationEvent = `animationcomplete-${getAnimationKey(profile, 'hurt')}`;
+      marker.removeAllListeners(hurtAnimationEvent);
+      renderer.play(this, marker, profile, 'hurt');
+      marker.once(hurtAnimationEvent, () => {
+        const nextState = this.activeMoveAnimations.has(entry.target) ? 'move' : 'idle';
+        renderer.play(this, marker, profile, nextState);
+      });
+    }
+
+    this.playGenericLogEntryEffect(context);
+  }
+
+  private playDeathAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const marker = this.playerMarkers.get(entry.target);
+    if (!marker) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+
+    if (profile.animations.dead && renderer.hasAnimation?.(this, profile, 'dead')) {
+      const deadAnimationEvent = `animationcomplete-${getAnimationKey(profile, 'dead')}`;
+      marker.removeAllListeners(deadAnimationEvent);
+      renderer.play(this, marker, profile, 'dead');
+    }
+
+    this.playGenericLogEntryEffect(context);
+  }
+
+  private playRespawnAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const marker = this.playerMarkers.get(entry.target);
+    if (!marker) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    renderer.play(this, marker, profile, 'idle');
+
+    this.playGenericLogEntryEffect(context);
+  }
+
   private shouldSuppressSettlementEffect(entry: LogEntry) {
     if (!this.settlementPlayer || entry.target !== this.settlementPlayer.player_id) return false;
 
@@ -672,24 +772,22 @@ export class ForestBoardScene extends Phaser.Scene {
     ].includes(entry.action_type);
   }
 
- private playMoveAnimation(context: LogEntryAnimationContext) {
+  private playMoveAnimation(context: LogEntryAnimationContext) {
     const { entry } = context;
     const marker = this.playerMarkers.get(entry.target);
     if (!marker) return;
-
     const path = getMetadataNumberArray(entry.metadata, 'path');
     if (path.length < 2) {
       const endPos = entry.metadata && Object.prototype.hasOwnProperty.call(entry.metadata, 'end_pos')
         ? getMetadataNumber(entry.metadata, 'end_pos')
         : null;
       if (endPos !== null) {
-        console.log('📍 [ForestBoardScene] 直接设置玩家位置:', endPos);
+        console.log('[ForestBoardScene] Directly setting player position from end_pos:', endPos);
         this.logDrivenPositions.set(entry.target, endPos);
         this.refreshCellMarkerStates();
       }
       return;
     }
-
     const startCell = this.cellViews.get(path[0]);
     const currentOffsetX = startCell ? marker.x - startCell.x : 0;
     const currentOffsetY = startCell ? marker.y - startCell.y : -16;
@@ -702,42 +800,27 @@ export class ForestBoardScene extends Phaser.Scene {
         y: cell.y + currentOffsetY,
         cellIndex: cell.index,
       }));
-
     if (points.length === 0) return;
-    
-    // 1. 从移动的 Sprite 身上，读取它自己的外观前缀 (我们在 syncPlayers 里存好的)
-    const charPrefix = marker.getData('charPrefix') || 'red'; // 如果没读到，默认用 'red'
-
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
     let index = 0;
-    
-    // 2. 开始移动前，播放对应外观的 move 动画
-    marker.play(`${charPrefix}_move_anim`, true);
-
+    renderer.play(this, marker, profile, 'move');
     this.activeMoveAnimations.add(entry.target);
     this.refreshCellMarkerStates();
-
-    // Kill any existing tweens on this marker (e.g. from syncPlayers) to prevent competition
     this.tweens.killTweensOf(marker);
-
     const runNext = () => {
       const point = points[index];
-
-      // 3. 如果没有下一个点了（抵达终点）
       if (!point) {
-        // 恢复到对应外观的 idle 动画
-        marker.play(`${charPrefix}_idle_anim`, true);
+        renderer.play(this, marker, profile, 'idle');
         this.activeMoveAnimations.delete(entry.target);
         this.refreshCellMarkerStates();
         return;
       }
-
-      // 4. 自动判断朝向 (向左走翻转，向右走恢复)
       if (point.x < marker.x) {
         marker.setFlipX(true);
       } else if (point.x > marker.x) {
         marker.setFlipX(false);
       }
-
       this.tweens.add({
         targets: marker,
         x: point.x,
@@ -755,37 +838,224 @@ export class ForestBoardScene extends Phaser.Scene {
         },
       });
     };
-
     runNext();
+  }
+
+  private playTeleportAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    if (!isAnyDoorTeleportEntry(entry)) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const marker = this.playerMarkers.get(entry.target);
+    const fromPos = getMetadataNumber(entry.metadata, 'from_pos');
+    const toPos = getMetadataNumber(entry.metadata, 'to_pos');
+
+    if (!marker || fromPos === null || toPos === null) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const fromCell = this.cellViews.get(fromPos);
+    const toCell = this.cellViews.get(toPos);
+    if (!fromCell || !toCell) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const currentOffsetX = marker.x - fromCell.x;
+    const currentOffsetY = marker.y - fromCell.y;
+    const targetX = toCell.x + currentOffsetX;
+    const targetY = toCell.y + currentOffsetY;
+    const travelSign = targetX >= marker.x ? 1 : -1;
+    const originalScaleX = Math.abs(marker.scaleX) || 1;
+    const originalScaleY = Math.abs(marker.scaleY) || 1;
+    const originalAlpha = marker.alpha || 1;
+    const entranceDoorX = marker.x + travelSign * 30;
+    const doorOffsetY = this.mapTileHeight * WARP_DOOR_CELL_OFFSET_Y;
+    const entranceDoorY = marker.y + 18 + doorOffsetY;
+    const exitDoorX = targetX - travelSign * 30;
+    const exitDoorY = targetY + 18 + doorOffsetY;
+    const depthBase = Math.max(entranceDoorY, exitDoorY) + 260;
+    const entrancePlayerDepth = entranceDoorY + WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET;
+    const exitPlayerDepth = exitDoorY + WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET;
+
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const doors: Phaser.GameObjects.GameObject[] = [];
+    const doorGlows: Phaser.GameObjects.Sprite[] = [];
+
+    const makeDoor = (x: number, y: number, flipX: boolean) => {
+      const door = this.add.sprite(x, y, WARP_DOOR_TEXTURE_KEY);
+      door.setOrigin(0.5, 1);
+      door.setScale(0.76);
+      door.setAlpha(0);
+      door.setFlipX(flipX);
+      door.setDepth(y + WARP_DOOR_DEPTH_OFFSET);
+      door.play(WARP_DOOR_ANIMATION_KEY);
+      doors.push(door);
+      return door;
+    };
+
+    const makeGlow = (x: number, y: number, flipX: boolean) => {
+      const glow = this.add.sprite(x, y, WARP_DOOR_TEXTURE_KEY);
+      glow.setOrigin(0.5, 1);
+      glow.setScale(1.1);
+      glow.setAlpha(0);
+      glow.setFlipX(flipX);
+      glow.setTint(0x8fefff);
+      glow.setDepth(y + WARP_DOOR_DEPTH_OFFSET - 10);
+      glow.setBlendMode(Phaser.BlendModes.ADD);
+      glow.play(WARP_DOOR_ANIMATION_KEY);
+      doors.push(glow);
+      doorGlows.push(glow);
+      return glow;
+    };
+
+    const entranceDoor = makeDoor(entranceDoorX, entranceDoorY, false);
+    const exitDoor = makeDoor(exitDoorX, exitDoorY, true);
+    makeGlow(entranceDoorX, entranceDoorY, false);
+    makeGlow(exitDoorX, exitDoorY, true);
+    const label = this.add.text((entranceDoorX + exitDoorX) / 2, Math.min(entranceDoorY, exitDoorY) - 76, `${fromPos} -> ${toPos}`, {
+      fontFamily: GAME_FONT_FAMILY,
+      fontSize: '20px',
+      fontStyle: 'bold',
+      color: '#e1f5fe',
+      stroke: '#062333',
+      strokeThickness: 5,
+    });
+    label.setOrigin(0.5, 0.5);
+    label.setDepth(depthBase);
+    label.setAlpha(0);
+    doors.push(label);
+
+    this.logDrivenPositions.set(entry.target, fromPos);
+    this.activeMoveAnimations.add(entry.target);
+    this.refreshCellMarkerStates();
+    this.tweens.killTweensOf(marker);
+
+    this.tweens.add({
+      targets: [entranceDoor, exitDoor],
+      alpha: 1,
+      scale: 1.22,
+      duration: 220,
+      ease: 'Back.easeOut',
+    });
+    this.tweens.add({
+      targets: doorGlows,
+      alpha: 0.58,
+      scale: 1.34,
+      duration: 420,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Sine.easeInOut',
+    });
+    this.tweens.add({
+      targets: label,
+      alpha: { from: 0, to: 1 },
+      y: label.y - 16,
+      duration: 360,
+      yoyo: true,
+      hold: 900,
+      ease: 'Cubic.easeOut',
+    });
+
+    marker.setFlipX(travelSign < 0);
+    renderer.play(this, marker, profile, 'move');
+    this.tweens.add({
+      targets: marker,
+      x: marker.x + travelSign * 14,
+      duration: 260,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => marker.setDepth(entrancePlayerDepth),
+      onComplete: () => {
+        this.tweens.add({
+          targets: marker,
+          x: entranceDoorX - travelSign * 3,
+          alpha: 0,
+          duration: 420,
+          ease: 'Cubic.easeIn',
+          onComplete: () => {
+            this.logDrivenPositions.set(entry.target, toPos);
+            this.refreshCellMarkerStates();
+            marker.setPosition(exitDoorX + travelSign * 3, targetY);
+            marker.setScale(originalScaleX, originalScaleY);
+            marker.setAlpha(0);
+            marker.setFlipX(travelSign < 0);
+            marker.setDepth(exitPlayerDepth);
+
+            this.time.delayedCall(120, () => {
+              this.tweens.add({
+                targets: marker,
+                x: targetX,
+                y: targetY,
+                alpha: originalAlpha,
+                duration: 520,
+                ease: 'Cubic.easeOut',
+                onUpdate: () => marker.setDepth(exitPlayerDepth),
+                onComplete: () => {
+                  renderer.play(this, marker, profile, 'idle');
+                  this.activeMoveAnimations.delete(entry.target);
+                  this.refreshCellMarkerStates();
+                },
+              });
+            });
+          },
+        });
+      },
+    });
+
+    this.time.delayedCall(2100, () => {
+      this.tweens.add({
+        targets: doors,
+        alpha: 0,
+        scale: 0.92,
+        duration: 360,
+        ease: 'Cubic.easeIn',
+        onComplete: () => doors.forEach((object) => object.destroy()),
+      });
+    });
   }
 
 private playDrawEventAnimation(context: LogEntryAnimationContext) {
   const { entry } = context;
+  const eventType = getEventTypeFromEntry(entry);
+
+  // Route thunder event to dedicated lightning strike animation
+  if (eventType === 'thunder') {
+    this.playLightningStrikeAnimation(context);
+    return;
+  }
+
   const marker = this.playerMarkers.get(entry.target);
   if (!marker) return;
 
-  const eventType = getEventTypeFromEntry(entry);
   const effect = getEventEffectConfig(eventType);
   const duration = effect.duration || 2500;
 
-  // 1. 边界检测：计算摄像机视口，防止文字超出屏幕
+  // Resolve event display name from DefinitionsConfig
+  const definitions = useGameStore.getState().definitions;
+  const eventName = definitions?.events[eventType]?.name || eventType;
+
+  // Keep the floating label inside the camera viewport.
   const cam = this.cameras.main;
   const screenWidth = cam.width / cam.zoom;
-  const padding = 120; // 边缘留白
+  const padding = 120;
   const isTooFarLeft = marker.x < cam.scrollX + padding;
   const isTooFarRight = marker.x > cam.scrollX + screenWidth - padding;
   
   let offsetX = 0;
-  if (isTooFarLeft) offsetX = 80;    // 靠近左边，向右推
-  if (isTooFarRight) offsetX = -80;  // 靠近右边，向左推
+  if (isTooFarLeft) offsetX = 80;
+  if (isTooFarRight) offsetX = -80;
 
-  // 2. 创建容器
+  // Container for icon + text.
   const container = this.add.container(marker.x + offsetX, marker.y - 20);
   container.setDepth(marker.y + 230);
   container.setAlpha(0);
 
-  // 3. 创建文字
-  const text = this.add.text(0, 0, effect.label, {
+  // Main text label.
+  const text = this.add.text(0, 0, eventName, {
     fontFamily: GAME_FONT_FAMILY,
     fontSize: '24px',
     fontStyle: 'bold',
@@ -795,17 +1065,17 @@ private playDrawEventAnimation(context: LogEntryAnimationContext) {
   });
   text.setOrigin(0, 0.5);
 
-  // 强制长度限制：如果文字太长，自动缩小字号
+  // Shrink long labels so they do not overflow too far.
   if (text.width > 220) {
     text.setFontSize(18);
   }
 
-  // 4. 创建 Emoji 并组合
+  // Optional emoji icon shown to the left of the label.
   if (effect.iconEmoji) {
     const emojiText = this.add.text(0, 0, effect.iconEmoji, { fontSize: '28px' });
     emojiText.setOrigin(0.5, 0.5);
     
-    // 排列：Emoji 在左，Text 在右
+    // Layout: emoji on the left, text on the right.
     emojiText.setPosition(- (text.width / 2) - 10, 0);
     text.setPosition(- (text.width / 2) + 20, 0);
     
@@ -815,26 +1085,114 @@ private playDrawEventAnimation(context: LogEntryAnimationContext) {
     container.add(text);
   }
 
-  // 5. 动画效果：浮现动画
+  // Entrance animation.
   this.tweens.add({
     targets: container,
     alpha: { from: 0, to: 1 },
-    y: marker.y - 60,                // 向上飘动
-    scale: { from: 0.8, to: 1 },     // 轻微放大
+    y: marker.y - 60,
+    scale: { from: 0.8, to: 1 },
     duration: 600,
-    ease: 'Back.easeOut',            // 自然弹跳效果
+    ease: 'Back.easeOut',
   });
 
-  // 6. 停留并淡出
+  // Hold briefly, then fade out and destroy.
   this.tweens.add({
     targets: container,
     alpha: { from: 1, to: 0 },
-    delay: duration - 600,           // 持续显示直到最后阶段
+    delay: duration - 600,
     duration: 600,
     ease: 'Power2.easeOut',
     onComplete: () => {
-      container.destroy();           // 自动销毁容器及子项
+      container.destroy();
     }
+  });
+}
+private playLightningStrikeAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  // Find the cell at player.position — the actual grid cell where the player is standing
+  const player = this.players.find(p => p.player_id === entry.target);
+  // Prefer visual/animated position (logDrivenPositions) when available,
+  // otherwise fall back to backend `player.position`.
+  const visualPos = this.logDrivenPositions.get(entry.target) ?? player?.position;
+  const cell = visualPos !== undefined && visualPos !== null ? this.cellViews.get(visualPos) : null;
+
+  // Use cell center as the lightning landing point (ground level)
+  // If cell not found, fall back to marker.y + 16 (marker sits at cell.y - 16)
+  const cellCenterX = cell ? cell.x : marker.x;
+  const cellCenterY = cell ? cell.y : marker.y + 16;
+
+  const effect = getEventEffectConfig('thunder');
+  const duration = effect.duration || 2800;
+
+  // Prefer the visual marker position so lightning lands where the player appears.
+  // Fall back to cell center only if marker is unavailable.
+  // Character half-height ≈ (96 * 0.65) / 2 ≈ 31px; add 8px margin so lightning
+  // bottom extends past the character's visual bottom for full coverage.
+  const CHARACTER_HALF_HEIGHT = 31;
+  const LIGHTNING_BOTTOM_MARGIN = 8;
+  const visualX = marker.x;
+  const visualY = marker.y;
+  const landingX = visualX ?? cellCenterX;
+  const landingY = visualY ? visualY + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN : cellCenterY + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN;
+
+  // 1. Create lightning sprite with origin at bottom center so it lands on the visual position
+  const lightningSprite = this.add.sprite(landingX, landingY, 'lightning-bolt');
+  lightningSprite.setScale(2.0);
+  lightningSprite.setOrigin(0.5, 1.0); // Origin at bottom center: sprite extends upward from the cell
+  lightningSprite.setDepth(landingY + 300);
+  lightningSprite.play('lightning_strike_anim');
+
+  // Destroy lightning sprite after animation completes
+  lightningSprite.on('animationcomplete', () => {
+    lightningSprite.destroy();
+  });
+
+  // 2. Camera flash effect (white flash simulating lightning brightness)
+  this.cameras.main.flash(300, 255, 255, 200);
+
+  // 3. Player marker shake effect (trembling after being struck)
+  this.tweens.add({
+    targets: marker,
+    x: {
+      from: marker.x - 4,
+      to: marker.x,
+    },
+    y: {
+      from: marker.y - 3,
+      to: marker.y,
+    },
+    duration: 80,
+    repeat: 8,
+    ease: 'Linear',
+    yoyo: true,
+  });
+
+  // 4. Display floating text label "⚡ 雷劫"
+  const labelText = effect.iconEmoji || '⚡';
+  const label = this.add.text(landingX, landingY - 50, labelText, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '22px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  label.setOrigin(0.5, 0.5);
+  label.setDepth(landingY + 310);
+
+  // Floating up and fading out animation for the text label
+  this.tweens.add({
+    targets: label,
+    y: cellCenterY - 170,
+    alpha: 0,
+    duration: duration,
+    ease: 'Cubic.easeOut',
+    onComplete: () => {
+      label.destroy();
+    },
   });
 }
 }

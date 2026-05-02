@@ -5,14 +5,15 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 
 const factionOptions = [
-  { value: 'qing_long', label: '青龙', figure: '/assets/figures/green_idle.png' },
-  { value: 'zhu_que', label: '朱雀', figure: '/assets/figures/red_idle.png' },
-  { value: 'bai_hu', label: '白虎', figure: '/assets/figures/white_idle.png' },
-  { value: 'xuan_wu', label: '玄武', figure: '/assets/figures/black_idle.png' },
+  { value: 'qing_long', label: '青龙' },
+  { value: 'zhu_que', label: '朱雀' },
+  { value: 'bai_hu', label: '白虎' },
+  { value: 'xuan_wu', label: '玄武' },
 ] as const;
 
 export const HomeScene: React.FC = () => {
@@ -97,10 +98,7 @@ export const HomeScene: React.FC = () => {
     return '未知错误';
   };
 
-  // Login form state (username only)
   const [username, setUsername] = useState<string>('');
-
-  // Server config
   const [serverHost, setServerHost] = useState<string>('');
   const [serverPort, setServerPort] = useState<string>('');
   const [serverSSL, setServerSSL] = useState<boolean>(false);
@@ -108,15 +106,9 @@ export const HomeScene: React.FC = () => {
   const [showServerConfig, setShowServerConfig] = useState<boolean>(false);
   const [isStartPressed, setIsStartPressed] = useState<boolean>(false);
   const [pressedRoomAction, setPressedRoomAction] = useState<'create' | 'join' | null>(null);
-
-  // Create room form
   const [faction, setFaction] = useState<string>('qing_long');
   const [maxPlayers, setMaxPlayers] = useState<number>(4);
-
-  // Join room form
   const [joinMatchId, setJoinMatchId] = useState<string>('');
-
-  // Error message
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
@@ -126,9 +118,6 @@ export const HomeScene: React.FC = () => {
     setServerSSL(cfg.useSSL);
   }, []);
 
-  /**
-   * Handle username-only login (no password required)
-   */
   const handleConnect = async () => {
     if (!username.trim()) {
       setError('请输入昵称');
@@ -181,9 +170,6 @@ export const HomeScene: React.FC = () => {
 
   const selectedFaction = factionOptions.find((option) => option.value === faction) ?? factionOptions[0];
 
-  /**
-   * 处理创建房间
-   */
   const handleCreateRoom = async () => {
     try {
       setError('');
@@ -197,9 +183,6 @@ export const HomeScene: React.FC = () => {
     }
   };
 
-  /**
-   * 处理加入房间
-   */
   const handleJoinRoom = async () => {
     if (!joinMatchId) {
       setError('请输入房间 ID');
@@ -218,7 +201,6 @@ export const HomeScene: React.FC = () => {
     }
   };
 
-  // 已登录状态
   if (session) {
     return (
       <div style={{ ...styles.page, ...styles.sessionPage }}>
@@ -319,12 +301,13 @@ export const HomeScene: React.FC = () => {
                 role="img"
                 aria-label={selectedFaction.label}
               >
-                <img
-                  src={selectedFaction.figure}
-                  alt=""
-                  aria-hidden="true"
-                  className="paradice-figure-idle"
-                  style={styles.factionFigureSprite}
+                <PhaserCharacterPreview
+                  faction={selectedFaction.value}
+                  width={500}
+                  height={500}
+                  xOffset={-105}
+                  yOffset={-130}
+                  style={styles.factionFigureCanvas}
                 />
               </div>
             </div>
@@ -353,7 +336,6 @@ export const HomeScene: React.FC = () => {
     );
   }
 
-  // 未登录状态
   return (
     <div style={styles.page}>
       <div style={styles.leftColumn}>
@@ -471,7 +453,6 @@ export const HomeScene: React.FC = () => {
   );
 };
 
-// Styles
 const styles: Record<string, React.CSSProperties> = {
   container: {
     padding: '20px',
@@ -606,7 +587,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontSize: '14px',
   },
-  // page background and mask styles
   page: {
     minHeight: '100vh',
     width: '100%',
@@ -718,33 +698,33 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: '240px',
     minHeight: '320px',
     display: 'flex',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'center',
-    padding: '18px',
+    padding: '28px 24px 22px',
     boxSizing: 'border-box',
-    background: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))',
-    border: '1px solid rgba(255,255,255,0.18)',
-    borderRadius: '14px',
-    boxShadow: '0 24px 44px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.14)',
-    backdropFilter: 'blur(2px)',
+    backgroundColor: 'transparent',
+    backgroundImage: "url('/assets/frame/paper.png')",
+    backgroundSize: '100% 100%',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    border: 'none',
+    borderRadius: 0,
+    boxShadow: '0 20px 38px rgba(0,0,0,0.28)',
+    imageRendering: 'pixelated',
   },
   factionFigureViewport: {
     width: 'min(500px, 100%)',
     aspectRatio: '1 / 1',
     overflow: 'hidden',
     display: 'flex',
-    alignItems: 'stretch',
-    justifyContent: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
     imageRendering: 'pixelated',
     filter: 'drop-shadow(0 18px 18px rgba(0,0,0,0.48))',
   },
-  factionFigureSprite: {
-    width: '400%',
-    maxWidth: 'none',
+  factionFigureCanvas: {
+    width: '100%',
     height: '100%',
-    objectFit: 'fill',
-    flex: '0 0 auto',
-    imageRendering: 'pixelated',
   },
   factionName: {
     marginTop: '18px',
@@ -783,7 +763,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 'auto',
     objectFit: 'contain',
     display: 'block',
-    margin: '0 auto 26px auto', // 居中并增加底边距(替代原来h2留下的间隙)
+    margin: '0 auto 26px auto',
     filter: 'drop-shadow(0 8px 14px rgba(70, 37, 14, 0.2))',
   },
   loginPanel: {

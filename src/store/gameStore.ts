@@ -18,6 +18,7 @@ import type {
   LogEntry,
   StartGameAck,
   MapConfig,
+  DefinitionsConfig,
 } from '../types/protocol';
 import { normalizePlayerStats } from '../game/logEntryPlayback';
 
@@ -124,6 +125,8 @@ interface GameState {
   startGameAck: StartGameAck | null;
   /** 地图配置 (用于渲染地图) */
   mapConfig: MapConfig | null;
+  /** 定义目录 (事件/增益/道具元数据，用于查表获取 name/desc) */
+  definitions: DefinitionsConfig | null;
   /** 当前房间 ID */
   matchId: string;
   /** StateSync 等待队列：暂存接收到的状态，等待动画完成后再应用 */
@@ -182,6 +185,8 @@ interface GameState {
   setStartGameAck: (ack: StartGameAck | null) => void;
   /** 设置地图配置 */
   setMapConfig: (config: MapConfig | null) => void;
+  /** 设置定义目录 */
+  setDefinitions: (defs: DefinitionsConfig | null) => void;
 
   /** 设置小游戏结果展示等待标记 */
   setMiniGameResultPending: (pending: boolean) => void;
@@ -233,6 +238,7 @@ export const useGameStore = create<GameState>((set) => ({
   gameOver: null,
   startGameAck: null,
   mapConfig: null,
+  definitions: null,
   matchId: '',
   displayName: '',
   stateSyncQueue: [],
@@ -283,6 +289,7 @@ export const useGameStore = create<GameState>((set) => ({
   setStartGameAck: (ack) => set({ startGameAck: ack }),
 
   setMapConfig: (config) => set({ mapConfig: config }),
+  setDefinitions: (defs) => set({ definitions: defs }),
 
   setMiniGameResultPending: (pending) => set({ miniGameResultPending: pending }),
   setPendingScene: (scene) => set({ pendingScene: scene }),
@@ -345,6 +352,7 @@ export const useGameStore = create<GameState>((set) => ({
       pendingEntries: [],
       startGameAck: null,
       mapConfig: null,
+  definitions: null,
       miniGameResultPending: false,
       pendingScene: null,
     }),
@@ -372,6 +380,7 @@ export const useGameStore = create<GameState>((set) => ({
       pendingEntries: [],
       startGameAck: null,
       mapConfig: null,
+  definitions: null,
       miniGameResultPending: false,
       pendingScene: null,
       faction: state.faction,

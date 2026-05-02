@@ -43,6 +43,7 @@ export interface StateSync {
  * - remove_buff: buff_type
  * - draw_event: event_type
  * - draw_item: item_type
+ * - draw_buff: buff_type
  * - teleport: from_pos, to_pos
  * - steal_buff: stolen_by, buff_type
  * - fell_down: position, hp_change
@@ -51,6 +52,7 @@ export interface StateSync {
  * - boss_attack: attack_type, target
  * - boss_skill: skill_type, targets
  * - dice_roll: dice_type, dice_steps
+ * - dice_upgrade: from_dice, to_dice
  * - state: from, to
  */
 export interface LogEntry {
@@ -106,6 +108,8 @@ export interface Player {
   position: number;
   /** 生命值 */
   hp: number;
+  /** 最大生命值 (用于血条渲染) */
+  max_hp: number;
   /** 幸运值 */
   lp: number;
   /** 增益效果列表 */
@@ -146,6 +150,8 @@ export interface Item {
   type: string;
   /** 中文显示名称 */
   name: string;
+  /** 是否需要选择目标 */
+  targetable?: boolean;
 }
 
 /**
@@ -318,6 +324,8 @@ export interface WaitingPlayer {
 export interface StartGameAck {
   /** 完整地图配置 */
   map_config: MapConfig;
+  /** 定义目录 (事件/增益/道具的完整元数据) */
+  definitions: DefinitionsConfig;
 }
 
 /**
@@ -358,6 +366,64 @@ export interface MapCellConfig {
   prob_neutral: number;
   /** 坏事件概率权重 */
   prob_bad: number;
+}
+
+// ========== 定义目录类型 ==========
+
+/**
+ * DefinitionsConfig - 定义目录
+ * 通过 OpStartGameAck 推送，客户端用于查表获取 name/desc
+ */
+export interface DefinitionsConfig {
+  /** 事件定义 */
+  events: Record<string, EventDefinitionConfig>;
+  /** 增益定义 */
+  buffs: Record<string, BuffDefinitionConfig>;
+  /** 道具定义 */
+  items: Record<string, ItemDefinitionConfig>;
+}
+
+/**
+ * EventDefinitionConfig - 事件定义配置
+ */
+export interface EventDefinitionConfig {
+  type: string;
+  evaluation: number;
+  category: string; // "good"/"neutral"/"bad"
+  english_name: string;
+  name: string;
+  desc: string;
+}
+
+/**
+ * BuffDefinitionConfig - 增益定义配置
+ */
+export interface BuffDefinitionConfig {
+  type: string;
+  evaluation: number;
+  category: string; // "good"/"neutral"/"bad"
+  english_name: string;
+  name: string;
+  desc: string;
+  duration: number;
+  is_positive: boolean;
+  is_negative: boolean;
+  is_hidden: boolean;
+  is_boss: boolean;
+  is_faction: boolean;
+  is_draw: boolean;
+}
+
+/**
+ * ItemDefinitionConfig - 道具定义配置
+ */
+export interface ItemDefinitionConfig {
+  type: string;
+  evaluation: number;
+  category: string; // "good"/"neutral"/"bad"
+  english_name: string;
+  name: string;
+  desc: string;
 }
 
 // ========== 客户端 -> 服务端消息类型 ==========

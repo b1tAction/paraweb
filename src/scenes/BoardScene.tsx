@@ -13,6 +13,8 @@ import { DebugLogEntry } from '../components/DebugLogEntry';
 import {
   DICE_RESULT_DISPLAY_MS,
   DICE_ROLL_MIN_MS,
+  DICE_UPGRADE_FLASH_MS,
+  DICE_UPGRADE_RESULT_MS,
   PLAYER_STAT_MAX,
   applyLogEntryToPlayer,
   clonePlayer,
@@ -24,6 +26,7 @@ import {
 import {
   createLogEntryAnimationContext,
   getLogEntryAnimationDelay,
+  isReverseClockLostBuffEntry,
   isLogEntryAnimationCandidate,
   shouldRenderBoardLogEntryAnimation,
 } from '../game/logEntryAnimationPolicy';
@@ -66,6 +69,7 @@ const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   dice_upgrade: 'dice_upgrade.png',
   reverse_clock: 'reverse_clock.png',
 };
+const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door']);
 
 function getFactionMeta(faction: string) {
   return FACTION_META[faction] ?? { label: faction || '未知', color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
@@ -105,6 +109,7 @@ function getLogEntryKey(entry: { timestamp: string; action_type: string; target:
 function shouldApplyImmediatePlayerStatUpdate(actionType: string) {
   return (
     actionType === 'damage' ||
+    actionType === 'death' ||
     actionType === 'heal' ||
     actionType === 'modify_lp' ||
     actionType === 'fell_down' ||
@@ -151,6 +156,26 @@ type DiceRollView =
 type DiceRollDisplayView = Exclude<DiceRollView, { status: 'idle' }>;
 type IdleDicePreview = { key: string; playerId: string; diceType: string; face: number };
 
+type DiceUpgradeView =
+  | { status: 'idle' }
+  | {
+      status: 'charging' | 'upgraded';
+      playerId: string;
+      fromDice: string;
+      toDice: string;
+      face: number;
+      startedAt: number;
+      entryKey: string;
+    };
+
+type ReverseClockBuffFlight = {
+  key: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+};
+
 function getDiceAssetKey(view: DiceRollDisplayView) {
   if (view.status === 'result') {
     return `${view.playerId}:${view.diceType}:result:${view.steps}`;
@@ -158,11 +183,30 @@ function getDiceAssetKey(view: DiceRollDisplayView) {
   return `${view.playerId}:${view.diceType}:rolling:${view.startedAt}`;
 }
 
+function getDiceUpgradeAssetKey(view: Exclude<DiceUpgradeView, { status: 'idle' }>) {
+  return `${view.playerId}:${view.fromDice}:${view.toDice || 'pending'}:${view.face}:${view.status}:${view.entryKey}`;
+}
+
 function getDiceTypeForRank(rank: number) {
   if (rank === 1) return 'gold';
   if (rank === 2) return 'silver';
   if (rank === 3) return 'copper';
   return 'wood';
+}
+
+function getUpgradedDiceType(diceType: string) {
+  switch (getDiceAssetType(diceType)) {
+    case 'wood':
+      return 'copper';
+    case 'copper':
+      return 'silver';
+    case 'silver':
+      return 'gold';
+    case 'gold':
+      return 'gold';
+    default:
+      return 'copper';
+  }
 }
 
 function rollPreviewDiceFace() {
@@ -187,11 +231,13 @@ export const BoardScene: React.FC = () => {
     diceAssignments,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
+  const [diceUpgradeView, setDiceUpgradeView] = useState<DiceUpgradeView>({ status: 'idle' });
   const [idleDicePreview, setIdleDicePreview] = useState<IdleDicePreview | null>(null);
   const [rolledDiceTurnKey, setRolledDiceTurnKey] = useState('');
   const [handledDiceResultKey, setHandledDiceResultKey] = useState(
     () => getLatestDiceRollResult(playedEntries)?.key || ''
   );
+  const [handledDiceUpgradeKey, setHandledDiceUpgradeKey] = useState('');
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
   const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
@@ -201,6 +247,9 @@ export const BoardScene: React.FC = () => {
   const lastAppliedEntryRef = useRef('');
   const roundReadySentKeyRef = useRef('');
   const debugLogContentRef = useRef<HTMLDivElement>(null);
+  const playerCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const handledReverseClockFlightKeyRef = useRef('');
+  const [reverseClockBuffFlight, setReverseClockBuffFlight] = useState<ReverseClockBuffFlight | null>(null);
 
   // #region agent instrumentation - Hypothesis C
   useEffect(() => {
@@ -267,12 +316,29 @@ export const BoardScene: React.FC = () => {
    * 处理使用道具
    */
   const handleUseItem = (item: Item) => {
-    if (item.type === 'reverse_clock') {
+    if (TARGET_PLAYER_ITEM_TYPES.has(item.type) || item.targetable) {
       setItemTargetSelection(item);
       return;
     }
+    if (item.type === 'dice_upgrade') {
+      const previewDiceType = availableActions?.dice_type || idleDicePreview?.diceType || miniGameDiceType || 'wood';
+      setDiceUpgradeView({
+        status: 'charging',
+        playerId: currentPlayerId || myPlayerId,
+        fromDice: previewDiceType,
+        toDice: '',
+        face: idleDicePreview?.face ?? rollPreviewDiceFace(),
+        startedAt: Date.now(),
+        entryKey: `pending:${item.id}:${Date.now()}`,
+      });
+    }
     console.log('[BoardScene] 使用道具', item.id);
-    gameService.sendUseItem(item.id);
+    gameService.sendUseItem(item.id).catch((err) => {
+      console.error('[BoardScene] 使用道具失败', err);
+      if (item.type === 'dice_upgrade') {
+        setDiceUpgradeView({ status: 'idle' });
+      }
+    });
   };
 
   /**
@@ -290,6 +356,7 @@ export const BoardScene: React.FC = () => {
   const boardPlayers = renderedPlayers.filter((player) => !isBossPlayer(player));
   const bossPlayer = renderedPlayers.find(isBossPlayer);
   const myPlayer = renderedPlayers.find((player) => player.player_id === myPlayerId);
+  const itemTargetPlayers = renderedPlayers.filter((player) => player.player_id !== myPlayerId && !isBossPlayer(player));
   const myBuffs = myPlayer?.buffs ?? [];
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
@@ -324,7 +391,8 @@ export const BoardScene: React.FC = () => {
     Boolean(actionView) &&
     isMainAction &&
     diceRollView.status !== 'awaiting_result' &&
-    diceRollView.status !== 'rolling';
+    diceRollView.status !== 'rolling' &&
+    diceUpgradeView.status === 'idle';
   const shouldShowIdleDicePreview =
     Boolean(idleDicePreview) &&
     Boolean(currentDicePreviewType) &&
@@ -333,14 +401,18 @@ export const BoardScene: React.FC = () => {
     actionTurnKey !== rolledDiceTurnKey &&
     pendingEntries.length === 0;
   const shouldShowDiceOverlay =
+    diceUpgradeView.status !== 'idle' ||
     shouldShowIdleDicePreview ||
     diceRollView.status === 'awaiting_result' ||
     diceRollView.status === 'rolling' ||
     diceRollView.status === 'result';
+  const isBlockingDiceUpgradeAnimation =
+    diceUpgradeView.status === 'upgraded' || (diceUpgradeView.status === 'charging' && Boolean(diceUpgradeView.toDice));
   const hasPendingAnimations =
     pendingEntries.length > 0 ||
     diceRollView.status === 'rolling' ||
-    diceRollView.status === 'result';
+    diceRollView.status === 'result' ||
+    isBlockingDiceUpgradeAnimation;
   const activeAnimationContext = useMemo(
     () => createLogEntryAnimationContext(playedEntries, pendingEntries),
     [playedEntries, pendingEntries]
@@ -358,6 +430,30 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === settlementPlayerId) ||
       null
     : null;
+
+  useEffect(() => {
+    const entry = activeAnimationContext?.entry;
+    if (!isReverseClockLostBuffEntry(entry)) return;
+
+    const key = getLogEntryKey(entry);
+    if (handledReverseClockFlightKeyRef.current === key) return;
+    handledReverseClockFlightKeyRef.current = key;
+
+    const targetCard = playerCardRefs.current[entry.target];
+    const targetRect = targetCard?.getBoundingClientRect();
+    const startX = window.innerWidth / 2;
+    const startY = window.innerHeight / 2;
+    const endX = targetRect ? targetRect.left + targetRect.width * 0.66 : startX;
+    const endY = targetRect ? targetRect.top + targetRect.height * 0.7 : startY - 160;
+
+    setReverseClockBuffFlight({ key, startX, startY, endX, endY });
+
+    const timeoutId = window.setTimeout(() => {
+      setReverseClockBuffFlight((current) => (current?.key === key ? null : current));
+    }, 1850);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeAnimationContext]);
 
   useEffect(() => {
     if (!actionTurnKey || !currentDicePreviewType || !currentPlayerId) {
@@ -586,6 +682,38 @@ export const BoardScene: React.FC = () => {
   }, [activeAnimationContext, handledDiceResultKey]);
 
   useEffect(() => {
+    if (!activeAnimationContext || activeAnimationContext.entry.action_type !== 'dice_upgrade') return;
+
+    const activeLogEntry = activeAnimationContext.entry;
+    const fromDice = getMetadataString(activeLogEntry.metadata, 'from_dice') || 'wood';
+    const toDice = getMetadataString(activeLogEntry.metadata, 'to_dice') || getUpgradedDiceType(fromDice);
+    const resultKey = `${activeLogEntry.timestamp}:${activeLogEntry.target}:${fromDice}:${toDice}`;
+
+    if (resultKey === handledDiceUpgradeKey) return;
+    setHandledDiceUpgradeKey(resultKey);
+    useGameStore.getState().setDiceAssignments({
+      ...useGameStore.getState().diceAssignments,
+      [activeLogEntry.target]: toDice,
+    });
+
+    setDiceUpgradeView((current) => {
+      const shouldKeepCurrentFace =
+        current.status !== 'idle' && current.playerId === activeLogEntry.target;
+      const startedAt = shouldKeepCurrentFace ? current.startedAt : Date.now();
+
+      return {
+        status: 'charging',
+        playerId: activeLogEntry.target,
+        fromDice,
+        toDice,
+        face: shouldKeepCurrentFace ? current.face : rollPreviewDiceFace(),
+        startedAt,
+        entryKey: resultKey,
+      };
+    });
+  }, [activeAnimationContext, handledDiceUpgradeKey]);
+
+  useEffect(() => {
     if (diceRollView.status !== 'rolling') return;
 
     const elapsed = Date.now() - diceRollView.startedAt;
@@ -602,6 +730,50 @@ export const BoardScene: React.FC = () => {
 
     return () => window.clearTimeout(timeoutId);
   }, [diceRollView]);
+
+  useEffect(() => {
+    if (diceUpgradeView.status !== 'charging' || !diceUpgradeView.toDice) return;
+
+    const elapsed = Date.now() - diceUpgradeView.startedAt;
+    const delay = Math.max(0, DICE_UPGRADE_FLASH_MS - elapsed);
+    const timeoutId = window.setTimeout(() => {
+      setDiceUpgradeView((current) =>
+        current.status === 'charging' && current.entryKey === diceUpgradeView.entryKey
+          ? { ...current, status: 'upgraded', startedAt: Date.now() }
+          : current
+      );
+    }, delay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diceUpgradeView]);
+
+  useEffect(() => {
+    if (diceUpgradeView.status !== 'upgraded') return;
+
+    const timeoutId = window.setTimeout(() => {
+      setDiceUpgradeView((current) =>
+        current.status === 'upgraded' && current.entryKey === diceUpgradeView.entryKey
+          ? { status: 'idle' }
+          : current
+      );
+    }, DICE_UPGRADE_RESULT_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diceUpgradeView]);
+
+  useEffect(() => {
+    if (diceUpgradeView.status !== 'charging' || diceUpgradeView.toDice) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setDiceUpgradeView((current) =>
+        current.status === 'charging' && !current.toDice && current.entryKey === diceUpgradeView.entryKey
+          ? { status: 'idle' }
+          : current
+      );
+    }, 8000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diceUpgradeView]);
 
   useEffect(() => {
     if (diceRollView.status !== 'result') return;
@@ -663,6 +835,9 @@ export const BoardScene: React.FC = () => {
               return (
                 <div
                   key={player.player_id}
+                  ref={(node) => {
+                    playerCardRefs.current[player.player_id] = node;
+                  }}
                   style={{
                     ...styles.pixelPlayerCard,
                     backgroundImage: `url(${getPlayerCardImage(player.faction)})`,
@@ -670,7 +845,7 @@ export const BoardScene: React.FC = () => {
                       ? `drop-shadow(0 0 8px ${faction.color}) drop-shadow(0 0 2px #ffffff)`
                       : styles.pixelPlayerCard.filter,
                   }}
-                  title={`${player.display_name || player.player_id}\nHP ${player.hp}/${PLAYER_STAT_MAX}\nLP ${player.lp}/${PLAYER_STAT_MAX}`}
+                  title={`${player.display_name || player.player_id}\nHP ${player.hp}/${player.max_hp}\nLP ${player.lp}/${PLAYER_STAT_MAX}`}
                 >
                   {avatars[player.player_id] && (
                     <img
@@ -694,7 +869,7 @@ export const BoardScene: React.FC = () => {
                     <div
                       style={{
                         ...styles.pixelHpFill,
-                        width: getFillPercent(player.hp, PLAYER_STAT_MAX),
+                        width: getFillPercent(player.hp, player.max_hp),
                       }}
                     />
                   </div>
@@ -803,6 +978,29 @@ export const BoardScene: React.FC = () => {
           </div>
         )}
 
+        {reverseClockBuffFlight && (
+          <div
+            key={reverseClockBuffFlight.key}
+            className="paradice-reverse-clock-flight"
+            style={
+              {
+                '--start-x': `${reverseClockBuffFlight.startX}px`,
+                '--start-y': `${reverseClockBuffFlight.startY}px`,
+                '--end-x': `${reverseClockBuffFlight.endX}px`,
+                '--end-y': `${reverseClockBuffFlight.endY}px`,
+              } as React.CSSProperties
+            }
+            aria-hidden="true"
+          >
+            <img
+              className="paradice-reverse-clock-flight__icon"
+              src="/assets/buff/lost.png"
+              alt=""
+              draggable={false}
+            />
+          </div>
+        )}
+
         {shouldShowActionPanel && actionView && (
           <div style={styles.mapActionPanel}>
             {!isMyTurn && (
@@ -874,7 +1072,33 @@ export const BoardScene: React.FC = () => {
               <div style={getDiceResultNumberStyle(diceRollView.diceType)}>{diceRollView.steps}</div>
             )}
             <div style={styles.diceOverlay} aria-live="polite">
-              {shouldShowIdleDicePreview && idleDicePreview ? (
+              {diceUpgradeView.status !== 'idle' ? (
+                <>
+                  {diceUpgradeView.status === 'upgraded' && (
+                    <div
+                      key={`sparkle:${diceUpgradeView.entryKey}`}
+                      className="paradice-sparkle-sprite"
+                      style={styles.diceUpgradeSparkle}
+                    />
+                  )}
+                  <img
+                    key={getDiceUpgradeAssetKey(diceUpgradeView)}
+                    src={getDiceResultSrc(
+                      diceUpgradeView.status === 'upgraded' && diceUpgradeView.toDice
+                        ? diceUpgradeView.toDice
+                        : diceUpgradeView.fromDice,
+                      diceUpgradeView.face
+                    )}
+                    alt=""
+                    className={
+                      diceUpgradeView.status === 'upgraded'
+                        ? 'paradice-dice-upgrade-result'
+                        : 'paradice-dice-upgrade-charging'
+                    }
+                    style={styles.diceImage}
+                  />
+                </>
+              ) : shouldShowIdleDicePreview && idleDicePreview ? (
                 <img
                   key={idleDicePreview.key}
                   src={getDiceResultSrc(idleDicePreview.diceType, idleDicePreview.face)}
@@ -932,17 +1156,20 @@ export const BoardScene: React.FC = () => {
                 请为道具 {itemTargetSelection.name} 选择一个作用目标
               </p>
               <div style={styles.decisionOptions}>
-                {renderedPlayers.map((player) => (
+                {itemTargetPlayers.map((player) => (
                   <button
                     key={player.player_id}
                     onClick={() => {
                       console.log('[BoardScene] 选择目标使用了道具', itemTargetSelection.id, player.player_id);
-                      gameService.sendUseItem(itemTargetSelection.id, player.player_id);
+                      gameService.sendUseItem(itemTargetSelection.id, player.player_id).catch((err) => {
+                        console.error('[BoardScene] 选择目标使用道具失败', err);
+                      });
                       setItemTargetSelection(null);
                     }}
                     style={styles.decisionButton}
                   >
-                    {player.display_name || player.player_id} {player.player_id === myPlayerId ? '(自己)' : ''}
+                    <span style={styles.targetPlayerName}>{player.display_name || player.player_id}</span>
+                    <span style={styles.targetPlayerPosition}>位置 {player.position}</span>
                   </button>
                 ))}
               </div>
@@ -1363,6 +1590,7 @@ const styles: Record<string, React.CSSProperties> = {
     left: '50%',
     top: '52%',
     transform: 'translate(-50%, -50%)',
+    overflow: 'visible',
     padding: '14px 18px',
     borderRadius: '8px',
     backgroundColor: 'rgba(12, 18, 26, 0.48)',
@@ -1370,12 +1598,30 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: '0 18px 42px rgba(0, 0, 0, 0.32)',
   },
   diceImage: {
+    position: 'relative',
+    zIndex: 1,
     width: '192px',
     height: '156px',
     display: 'block',
     objectFit: 'contain',
     imageRendering: 'pixelated',
     filter: 'drop-shadow(0 10px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 18px 22px rgba(0, 0, 0, 0.28))',
+  },
+  diceUpgradeSparkle: {
+    position: 'absolute',
+    zIndex: 0,
+    left: '50%',
+    top: '50%',
+    width: '256px',
+    height: '208px',
+    transform: 'translate(-50%, -50%)',
+    backgroundImage: 'url("/assets/effects/sparkle.png")',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: '0 0',
+    backgroundSize: '1280px 208px',
+    imageRendering: 'pixelated',
+    opacity: 0.92,
+    pointerEvents: 'none',
   },
   diceResultNumber: {
     pointerEvents: 'none',
@@ -1437,6 +1683,21 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '3px',
+    minWidth: '116px',
+  },
+  targetPlayerName: {
+    fontSize: '14px',
+    fontWeight: 800,
+    lineHeight: 1.1,
+  },
+  targetPlayerPosition: {
+    fontSize: '12px',
+    lineHeight: 1.1,
+    opacity: 0.86,
   },
   debugLogPanel: {
     pointerEvents: 'auto',

@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
+import { useGameStore } from '../store/gameStore';
 import type { Player } from '../types/protocol';
 
-const factionMeta: Record<string, { label: string; figure: string }> = {
-  qing_long: { label: '青龙', figure: '/assets/figures/green_idle.png' },
-  zhu_que: { label: '朱雀', figure: '/assets/figures/red_idle.png' },
-  bai_hu: { label: '白虎', figure: '/assets/figures/white_idle.png' },
-  xuan_wu: { label: '玄武', figure: '/assets/figures/black_idle.png' },
+const factionMeta: Record<string, { label: string }> = {
+  qing_long: { label: '青龙' },
+  zhu_que: { label: '朱雀' },
+  bai_hu: { label: '白虎' },
+  xuan_wu: { label: '玄武' },
 };
 
 const playerSlots = [
@@ -70,9 +71,7 @@ export const GameOverScene: React.FC = () => {
   }
 
   const handleRestart = async () => {
-    if (isRestarting) {
-      return;
-    }
+    if (isRestarting) return;
 
     setIsRestarting(true);
 
@@ -90,7 +89,7 @@ export const GameOverScene: React.FC = () => {
   const winnerFaction = winnerFactionKey ? factionMeta[winnerFactionKey] ?? null : null;
   const winnerDisplayName = winner?.display_name?.trim() || gameOver.winner_id;
   const winnerTagLabel = winnerFaction?.label || winner?.faction?.trim() || '-';
-  const showWinnerFigure = Boolean(winnerFaction);
+  const showWinnerFigure = Boolean(winner);
 
   return (
     <main style={styles.page}>
@@ -105,14 +104,13 @@ export const GameOverScene: React.FC = () => {
             ...(showWinnerFigure ? styles.winnerCardWithFigure : styles.winnerCardTextOnly),
           }}
         >
-          {showWinnerFigure && winnerFaction && (
+          {showWinnerFigure && winner && (
             <div style={styles.winnerFigureViewport} aria-hidden="true">
-              <img
-                src={winnerFaction.figure}
-                alt=""
-                className="paradice-figure-idle"
-                draggable={false}
-                style={styles.winnerFigureSprite}
+              <PhaserCharacterPreview
+                faction={winner.faction}
+                width={160}
+                height={160}
+                style={styles.winnerFigureCanvas}
               />
             </div>
           )}
@@ -120,7 +118,7 @@ export const GameOverScene: React.FC = () => {
             <div style={styles.winnerName}>{winnerDisplayName}</div>
             <div style={styles.winnerTags}>
               <span>{winnerTagLabel}</span>
-              {winner?.player_id === myPlayerId && <span>你</span>}
+              {winner?.player_id === myPlayerId && <span>我</span>}
             </div>
           </div>
         </div>
@@ -142,12 +140,11 @@ export const GameOverScene: React.FC = () => {
               }}
             >
               <div style={styles.figureViewport} aria-hidden="true">
-                <img
-                  src={faction.figure}
-                  alt=""
-                  className="paradice-figure-idle"
-                  draggable={false}
-                  style={styles.figureSprite}
+                <PhaserCharacterPreview
+                  faction={player.faction}
+                  width={224}
+                  height={224}
+                  style={styles.figureCanvas}
                 />
               </div>
               <div
@@ -160,7 +157,7 @@ export const GameOverScene: React.FC = () => {
                 <div style={styles.playerTags}>
                   <span>{faction.label}</span>
                   {isWinner && <span>胜者</span>}
-                  {player.player_id === myPlayerId && <span>你</span>}
+                  {player.player_id === myPlayerId && <span>我</span>}
                 </div>
               </div>
             </div>
@@ -184,25 +181,23 @@ export const GameOverScene: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {summaryRows.map((stat) => {
-                return (
-                  <tr
-                    key={stat.player_id}
-                    style={{
-                      ...styles.row,
-                      ...(stat.isWinner ? styles.winnerRow : undefined),
-                    }}
-                  >
-                    <td style={styles.td}>
-                      {stat.displayName}
-                      {stat.isMe ? ' · 你' : ''}
-                    </td>
-                    <td style={styles.td}>{stat.rounds_won}</td>
-                    <td style={styles.td}>{stat.events_drawn}</td>
-                    <td style={styles.td}>{stat.items_used}</td>
-                  </tr>
-                );
-              })}
+              {summaryRows.map((stat) => (
+                <tr
+                  key={stat.player_id}
+                  style={{
+                    ...styles.row,
+                    ...(stat.isWinner ? styles.winnerRow : undefined),
+                  }}
+                >
+                  <td style={styles.td}>
+                    {stat.displayName}
+                    {stat.isMe ? ' · 我' : ''}
+                  </td>
+                  <td style={styles.td}>{stat.rounds_won}</td>
+                  <td style={styles.td}>{stat.events_drawn}</td>
+                  <td style={styles.td}>{stat.items_used}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -318,13 +313,9 @@ const styles: Record<string, React.CSSProperties> = {
     imageRendering: 'pixelated',
     filter: 'drop-shadow(0 14px 14px rgba(0, 0, 0, 0.5))',
   },
-  winnerFigureSprite: {
-    width: '400%',
-    maxWidth: 'none',
+  winnerFigureCanvas: {
+    width: '100%',
     height: '100%',
-    objectFit: 'fill',
-    flex: '0 0 auto',
-    imageRendering: 'pixelated',
   },
   winnerInfo: {
     width: '100%',
@@ -377,13 +368,9 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     imageRendering: 'pixelated',
   },
-  figureSprite: {
-    width: '400%',
-    maxWidth: 'none',
+  figureCanvas: {
+    width: '100%',
     height: '100%',
-    objectFit: 'fill',
-    flex: '0 0 auto',
-    imageRendering: 'pixelated',
   },
   playerPanel: {
     position: 'absolute',
