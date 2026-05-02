@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
 import { useGameStore } from '../store/gameStore';
-import type { Player } from '../types/protocol';
+import { isBossPlayer } from '../game/bossVisualConfig';
 
 const factionMeta: Record<string, { label: string }> = {
   qing_long: { label: '青龙' },
@@ -18,13 +18,6 @@ const playerSlots = [
   { key: 'bottom', position: { left: '50%', top: '90%' } },
 ] as const;
 
-function isBossPlayer(player: Player) {
-  const maybeBoss = player as Player & { is_boss?: boolean };
-  const normalizedId = player.player_id?.toLowerCase?.() || '';
-  const normalizedName = player.display_name?.toLowerCase?.() || '';
-
-  return Boolean(maybeBoss.is_boss) || normalizedId === 'boss' || normalizedName === 'boss';
-}
 
 export const GameOverScene: React.FC = () => {
   const { gameOver, players, myPlayerId, resetMatchState } = useGameStore();

@@ -1,11 +1,13 @@
-﻿import * as Phaser from 'phaser';
+import * as Phaser from 'phaser';
 import type { LogEntry, MapConfig, MapCellConfig, Player } from '../types/protocol';
 import { getTiledProperty } from './tiledHelpers';
 import {
   MOVE_STEP_MS,
   describeLogEntryEffect,
+  getMetadataBoolean,
   getMetadataNumber,
   getMetadataNumberArray,
+  getMetadataString,
 } from './logEntryPlayback';
 import { getEventEffectConfig, getEventTypeFromEntry } from './eventAnimations';
 import { useGameStore } from '../store/gameStore';
@@ -15,14 +17,17 @@ import {
   type LogEntryAnimationContext,
 } from './logEntryAnimationPolicy';
 import {
+  BOSS_BEAST_CHARACTER_PROFILE,
   getAnimationKey,
   getCharacterOffsetY,
   getCharacterProfiles,
   getCharacterRenderer,
   resolveCharacterProfile,
+  type CharacterAnimationState,
   type CharacterRenderOptions,
   type CharacterRenderProfile,
 } from './characterRenderConfig';
+import { isBossPlayer } from './bossVisualConfig';
 
 type PathNode = {
   index: number;
@@ -120,6 +125,9 @@ export class ForestBoardScene extends Phaser.Scene {
     fell_down: (context) => this.playDeathAnimation(context),
     respawn: (context) => this.playRespawnAnimation(context),
     draw_event: (context) => this.playDrawEventAnimation(context),
+    boss_damage: (context) => this.playBossDamageAnimation(context),
+    boss_attack: (context) => this.playBossAttackAnimation(context),
+    boss_skill: (context) => this.playBossSkillAnimation(context),
   };
 
   private ready = false;
@@ -166,18 +174,14 @@ export class ForestBoardScene extends Phaser.Scene {
       frameWidth: 72,
       frameHeight: 72
     });
-    
-
-    // Load lightning bolt effect sprite sheet for thunder event
-    this.load.spritesheet('lightning-bolt', '/assets/effects/Lightning-bolt.png', {
-      frameWidth: 72,
-      frameHeight: 72
-    });
 
     const renderer = getCharacterRenderer(this.characterRenderOptions);
     Object.values(getCharacterProfiles(this.characterRenderOptions)).forEach((profile) => {
       renderer.preload(this, profile);
     });
+    if (this.players.some(isBossPlayer)) {
+      renderer.preload(this, BOSS_BEAST_CHARACTER_PROFILE);
+    }
   }
 
   create() {
@@ -214,6 +218,9 @@ export class ForestBoardScene extends Phaser.Scene {
     Object.values(getCharacterProfiles(this.characterRenderOptions)).forEach((profile) => {
       renderer.ensureAnimations(this, profile);
     });
+    if (this.players.some(isBossPlayer)) {
+      renderer.ensureAnimations(this, BOSS_BEAST_CHARACTER_PROFILE);
+    }
 
     // Create lightning strike animation for thunder event
     this.anims.create({
@@ -514,7 +521,7 @@ export class ForestBoardScene extends Phaser.Scene {
         return;
       }
       const profile = this.resolveCharacterProfileForPlayer(player, order);
-      const offsetX = (order % 4) * 10 - 15;
+      const offsetX = isBossPlayer(player) ? 0 : (order % 4) * 10 - 15;
       const targetX = cell.x + offsetX;
       const targetY = cell.y + getCharacterOffsetY(profile);
       let marker = this.playerMarkers.get(player.player_id);
@@ -642,6 +649,280 @@ export class ForestBoardScene extends Phaser.Scene {
     renderer(context);
   }
 
+  private getBossPlayer() {
+    return this.players.find(isBossPlayer) ?? null;
+  }
+
+  private getBossMarker() {
+    const bossPlayer = this.getBossPlayer();
+    return bossPlayer ? this.playerMarkers.get(bossPlayer.player_id) ?? null : null;
+  }
+
+  private getBossTargetIds(entry: LogEntry) {
+    const rawTargets = entry.metadata?.targets;
+    if (Array.isArray(rawTargets)) {
+      return rawTargets
+        .map((target) => String(target).trim())
+        .filter(Boolean);
+    }
+
+    return getMetadataString(entry.metadata, 'targets')
+      .split(',')
+      .map((target) => target.trim())
+      .filter(Boolean);
+  }
+
+  private playBossProfileAnimation(
+    marker: Phaser.GameObjects.Sprite,
+    playerId: string,
+    state: CharacterAnimationState,
+    returnToIdle = true
+  ) {
+    const profile = this.resolveCharacterProfileFromMarker(marker, playerId);
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+
+    if (!profile.animations[state] || !renderer.hasAnimation?.(this, profile, state)) return false;
+
+    const animationEvent = `animationcomplete-${getAnimationKey(profile, state)}`;
+    marker.removeAllListeners(animationEvent);
+    renderer.play(this, marker, profile, state);
+
+    if (returnToIdle) {
+      marker.once(animationEvent, () => {
+        renderer.play(this, marker, profile, 'idle');
+      });
+    }
+
+    return true;
+  }
+
+  private playBossPulse(
+    marker: Phaser.GameObjects.Sprite,
+    label: string,
+    color: number,
+    textColor = '#ffebee',
+    scale = 2.2
+  ) {
+    const x = marker.x;
+    const y = marker.y;
+
+    const ring = this.add.circle(x, y, 28, color, 0.14);
+    ring.setStrokeStyle(4, color, 1);
+    ring.setDepth(y + 220);
+
+    const text = this.add.text(x, y - 46, label, {
+      fontFamily: GAME_FONT_FAMILY,
+      fontSize: '22px',
+      fontStyle: 'bold',
+      color: textColor,
+      align: 'center',
+      stroke: '#0b1020',
+      strokeThickness: 5,
+    });
+    text.setOrigin(0.5, 0.5);
+    text.setDepth(y + 235);
+
+    this.tweens.add({
+      targets: ring,
+      scale,
+      alpha: 0,
+      duration: 900,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+
+    this.tweens.add({
+      targets: text,
+      y: y - 92,
+      alpha: 0,
+      scale: 1.08,
+      duration: 1050,
+      ease: 'Cubic.easeOut',
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  private playBossLineEffect(
+    fromMarker: Phaser.GameObjects.Sprite,
+    toMarker: Phaser.GameObjects.Sprite,
+    color: number,
+    label?: string
+  ) {
+    const fromX = fromMarker.x;
+    const fromY = fromMarker.y - 10;
+    const toX = toMarker.x;
+    const toY = toMarker.y - 10;
+    const depth = Math.max(fromMarker.y, toMarker.y) + 260;
+
+    const line = this.add.graphics();
+    line.lineStyle(6, color, 0.92);
+    line.beginPath();
+    line.moveTo(fromX, fromY);
+    line.lineTo(toX, toY);
+    line.strokePath();
+    line.setDepth(depth);
+
+    const impactRing = this.add.circle(toMarker.x, toMarker.y, 18, color, 0.12);
+    impactRing.setStrokeStyle(3, color, 1);
+    impactRing.setDepth(depth + 1);
+
+    const cleanupTargets: Phaser.GameObjects.GameObject[] = [line, impactRing];
+    if (label) {
+      const text = this.add.text((fromX + toX) / 2, (fromY + toY) / 2 - 16, label, {
+        fontFamily: GAME_FONT_FAMILY,
+        fontSize: '18px',
+        fontStyle: 'bold',
+        color: '#ffebee',
+        stroke: '#0b1020',
+        strokeThickness: 4,
+      });
+      text.setOrigin(0.5, 0.5);
+      text.setDepth(depth + 2);
+      cleanupTargets.push(text);
+    }
+
+    this.tweens.add({
+      targets: cleanupTargets,
+      alpha: 0,
+      duration: 760,
+      ease: 'Cubic.easeOut',
+      onComplete: () => cleanupTargets.forEach((target) => target.destroy()),
+    });
+  }
+
+  private playBossThornsPulse(marker: Phaser.GameObjects.Sprite) {
+    this.playBossPulse(marker, 'Boss 荆棘', 0x8e24aa, '#f3e5f5', 2.05);
+
+    const centerX = marker.x;
+    const centerY = marker.y;
+    const spikes = this.add.graphics();
+    spikes.lineStyle(4, 0x8e24aa, 0.95);
+
+    for (let index = 0; index < 10; index += 1) {
+      const angle = (Math.PI * 2 * index) / 10;
+      const innerRadius = 30;
+      const outerRadius = 46;
+      spikes.beginPath();
+      spikes.moveTo(centerX + Math.cos(angle) * innerRadius, centerY + Math.sin(angle) * innerRadius);
+      spikes.lineTo(centerX + Math.cos(angle) * outerRadius, centerY + Math.sin(angle) * outerRadius);
+      spikes.strokePath();
+    }
+
+    spikes.setDepth(centerY + 226);
+    this.tweens.add({
+      targets: spikes,
+      alpha: 0,
+      duration: 1100,
+      ease: 'Cubic.easeOut',
+      onComplete: () => spikes.destroy(),
+    });
+  }
+
+  private playBossDamageAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const bossMarker = this.getBossMarker();
+    if (!bossMarker) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const damage = getMetadataNumber(entry.metadata, 'damage') ?? 0;
+    const isCrit = getMetadataBoolean(entry.metadata, 'is_crit');
+    const label = damage > 0 ? `Boss -${damage}${isCrit ? ' CRIT' : ''}` : `Boss 受击${isCrit ? ' CRIT' : ''}`;
+
+    bossMarker.setTint(0xffffff);
+    this.time.delayedCall(120, () => bossMarker.clearTint());
+    this.playBossPulse(bossMarker, label, isCrit ? 0xff1744 : 0xef5350, '#ffebee', isCrit ? 2.75 : 2.2);
+
+    if (isCrit) {
+      this.cameras.main.flash(120, 255, 235, 235);
+    }
+  }
+
+  private playBossAttackAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const bossPlayer = this.getBossPlayer();
+    const bossMarker = this.getBossMarker();
+    if (!bossPlayer || !bossMarker) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    this.playBossProfileAnimation(bossMarker, bossPlayer.player_id, 'attack');
+
+    const attackType = getMetadataString(entry.metadata, 'attack_type') || 'normal';
+    const isCrit = attackType === 'crit' || getMetadataBoolean(entry.metadata, 'is_crit');
+    const color = isCrit ? 0xff1744 : 0xd32f2f;
+    this.playBossPulse(bossMarker, isCrit ? 'Boss 暴击' : 'Boss 普攻', color, '#ffebee', isCrit ? 2.4 : 2.0);
+
+    const targetMarker = this.playerMarkers.get(entry.target);
+    if (targetMarker) {
+      this.playBossLineEffect(bossMarker, targetMarker, color, isCrit ? 'CRIT' : 'ATTACK');
+    }
+  }
+
+  private playBossSkillAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const bossPlayer = this.getBossPlayer();
+    const bossMarker = this.getBossMarker();
+    if (!bossPlayer || !bossMarker) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    this.playBossProfileAnimation(bossMarker, bossPlayer.player_id, 'skill_cast');
+
+    const skillType = getMetadataString(entry.metadata, 'skill_type') || 'skill';
+    const targetIds = this.getBossTargetIds(entry);
+    const targetMarkers = targetIds
+      .map((targetId) => this.playerMarkers.get(targetId))
+      .filter((marker): marker is Phaser.GameObjects.Sprite => Boolean(marker));
+
+    switch (skillType) {
+      case 'thunder':
+        this.playBossPulse(bossMarker, 'Boss 雷击', 0xfff176, '#fffde7', 2.15);
+        targetIds.forEach((targetId) => {
+          if (!this.playerMarkers.has(targetId)) return;
+          this.playLightningStrikeAnimation({
+            ...context,
+            entry: {
+              ...entry,
+              target: targetId,
+            },
+          });
+        });
+        break;
+      case 'curse':
+        this.playBossPulse(bossMarker, 'Boss 诅咒', 0x7e57c2, '#f3e5f5', 2.1);
+        targetMarkers.forEach((marker) => this.playBossPulse(marker, '诅咒', 0x7e57c2, '#f3e5f5', 1.8));
+        break;
+      case 'rest':
+        this.playBossPulse(bossMarker, 'Boss 回复', 0x66bb6a, '#e8f5e9', 2.2);
+        break;
+      case 'thorns':
+        this.playBossThornsPulse(bossMarker);
+        break;
+      default:
+        this.playBossPulse(bossMarker, `Boss ${skillType}`, 0x90a4ae, '#eceff1', 2.0);
+        break;
+    }
+  }
+
+  private isBossReflectDamage(entry: LogEntry) {
+    if (entry.action_type !== 'damage') return false;
+    return entry.source === 'buff_thorns' || getMetadataString(entry.metadata, 'source') === 'buff_thorns';
+  }
+
+  private playBossReflectAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const bossMarker = this.getBossMarker();
+    const targetMarker = this.playerMarkers.get(entry.target);
+    if (!bossMarker || !targetMarker) return;
+
+    this.playBossThornsPulse(bossMarker);
+    this.playBossLineEffect(bossMarker, targetMarker, 0x8e24aa, '反刺');
+  }
+
   private playGenericLogEntryEffect = (context: LogEntryAnimationContext) => {
     const { entry } = context;
 
@@ -702,6 +983,10 @@ export class ForestBoardScene extends Phaser.Scene {
 
   private playDamageAnimation(context: LogEntryAnimationContext) {
     const { entry } = context;
+    if (this.isBossReflectDamage(entry)) {
+      this.playBossReflectAnimation(context);
+    }
+
     const marker = this.playerMarkers.get(entry.target);
     if (!marker) {
       this.playGenericLogEntryEffect(context);
@@ -734,6 +1019,16 @@ export class ForestBoardScene extends Phaser.Scene {
 
     const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
     const renderer = getCharacterRenderer(this.characterRenderOptions);
+    const targetPlayer = this.players.find((player) => player.player_id === entry.target);
+    if (
+      targetPlayer &&
+      isBossPlayer(targetPlayer) &&
+      this.playBossProfileAnimation(marker, targetPlayer.player_id, 'defeated', false)
+    ) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
 
     if (profile.animations.dead && renderer.hasAnimation?.(this, profile, 'dead')) {
       const deadAnimationEvent = `animationcomplete-${getAnimationKey(profile, 'dead')}`;

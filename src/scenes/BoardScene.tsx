@@ -30,6 +30,7 @@ import {
   isLogEntryAnimationCandidate,
   shouldRenderBoardLogEntryAnimation,
 } from '../game/logEntryAnimationPolicy';
+import { BOSS_BEAST_PORTRAIT_SRC, isBossPlayer } from '../game/bossVisualConfig';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
@@ -98,9 +99,6 @@ function getBottomBarItemIcon(type: string) {
   return `${BOTTOM_BAR_ASSET_BASE}/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`;
 }
 
-function isBossPlayer(player: Player) {
-  return Boolean((player as Player & { is_boss?: boolean }).is_boss) || player.display_name === 'Boss';
-}
 
 function getLogEntryKey(entry: { timestamp: string; action_type: string; target: string; source: string }) {
   return `${entry.timestamp}:${entry.action_type}:${entry.target}:${entry.source}`;
@@ -241,6 +239,7 @@ export const BoardScene: React.FC = () => {
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
   const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
+  const [bossPortraitFailed, setBossPortraitFailed] = useState(false);
   const lastAppliedSettlementEntryRef = useRef('');
   const lastAppliedImmediateStatEntryRef = useRef('');
   const lastAppliedImmediateRespawnRef = useRef('');
@@ -358,6 +357,9 @@ export const BoardScene: React.FC = () => {
   const myPlayer = renderedPlayers.find((player) => player.player_id === myPlayerId);
   const itemTargetPlayers = renderedPlayers.filter((player) => player.player_id !== myPlayerId && !isBossPlayer(player));
   const myBuffs = myPlayer?.buffs ?? [];
+  useEffect(() => {
+    setBossPortraitFailed(false);
+  }, [bossPlayer?.player_id]);
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
   const isRoundEndWait = globalState === 'round_end_wait' || globalState === 'RoundEndWait';
@@ -909,7 +911,21 @@ export const BoardScene: React.FC = () => {
             <div style={styles.rightPanel}>
               <div style={styles.bossSection}>
                 <div style={styles.bossHeader}>
-                  <div style={styles.bossAvatar} />
+                  <div
+                    style={{
+                      ...styles.bossAvatar,
+                      backgroundColor: bossPortraitFailed ? '#ef5350' : '#1b1118',
+                    }}
+                  >
+                    {!bossPortraitFailed && (
+                      <img
+                        src={BOSS_BEAST_PORTRAIT_SRC}
+                        alt={`${bossPlayer.display_name || 'Boss'} 头像`}
+                        style={styles.bossAvatarImage}
+                        onError={() => setBossPortraitFailed(true)}
+                      />
+                    )}
+                  </div>
                   <div style={styles.bossTitleGroup}>
                     <strong style={styles.bossTitle}>Boss</strong>
                     <span style={styles.bossId} title={bossPlayer.player_id}>
@@ -1753,6 +1769,14 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: '#ef5350',
     border: '2px solid rgba(255, 255, 255, 0.85)',
     boxShadow: '0 2px 10px rgba(0, 0, 0, 0.28)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  bossAvatarImage: {
+    display: 'block',
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
   },
   bossTitleGroup: {
     minWidth: 0,

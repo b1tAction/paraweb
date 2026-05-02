@@ -6,6 +6,7 @@ import {
   DICE_UPGRADE_FLASH_MS,
   DICE_UPGRADE_RESULT_MS,
   MOVE_STEP_MS,
+  getMetadataBoolean,
   getMetadataNumberArray,
   getMetadataString,
 } from './logEntryPlayback';
@@ -22,6 +23,8 @@ type AnimationDelayResolver = number | ((context: LogEntryAnimationContext) => n
 type AnimationRenderFilter = boolean | ((context: LogEntryAnimationContext) => boolean);
 
 const IMMEDIATE_NEXT_ACTION_TYPES = new Set(['damage']);
+const BOSS_ACTION_TYPES = new Set(['boss_damage', 'boss_attack', 'boss_skill']);
+
 
 export type LogEntryAnimationRule = {
   renderOnBoard?: AnimationRenderFilter;
@@ -78,6 +81,24 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
     renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry),
     delayMs: ({ entry }) => (isReverseClockLostBuffEntry(entry) ? 1800 : DEFAULT_ACTION_ANIMATION_DELAY_MS),
   },
+  boss_damage: {
+    renderOnBoard: true,
+    delayMs: ({ entry }) => (getMetadataBoolean(entry.metadata, 'is_crit') ? 1200 : 900),
+  },
+  boss_attack: {
+    renderOnBoard: true,
+    delayMs: ({ entry }) => (getMetadataString(entry.metadata, 'attack_type') === 'crit' ? 1400 : 1100),
+  },
+  boss_skill: {
+    renderOnBoard: true,
+    delayMs: ({ entry }) => {
+      const skillType = getMetadataString(entry.metadata, 'skill_type');
+      if (skillType === 'thunder') return 1700;
+      if (skillType === 'curse' || skillType === 'rest') return 1500;
+      if (skillType === 'thorns') return 1300;
+      return 1500;
+    },
+  },
   remove_item: {
     renderOnBoard: false,
     delayMs: 0,
@@ -112,7 +133,13 @@ export function shouldRenderBoardLogEntryAnimation(context?: LogEntryAnimationCo
 
 export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | null) {
   if (!context || !isLogEntryAnimationCandidate(context.entry)) return 0;
-  if (context.nextEntry && IMMEDIATE_NEXT_ACTION_TYPES.has(context.nextEntry.action_type)) return 0;
+  if (
+    context.nextEntry &&
+    IMMEDIATE_NEXT_ACTION_TYPES.has(context.nextEntry.action_type) &&
+    !BOSS_ACTION_TYPES.has(context.entry.action_type)
+  ) {
+    return 0;
+  }
 
   const delay = LOG_ENTRY_ANIMATION_RULES[context.entry.action_type]?.delayMs ?? DEFAULT_ANIMATION_RULE.delayMs;
   return typeof delay === 'function' ? delay(context) : delay;

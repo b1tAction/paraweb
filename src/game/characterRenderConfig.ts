@@ -1,8 +1,22 @@
 import * as Phaser from 'phaser';
 import type { Player } from '../types/protocol';
+import {
+  BOSS_BEAST_ASSETS,
+  BOSS_BEAST_FALLBACK_TEXTURE_KEY,
+  BOSS_BEAST_PROFILE_ID,
+  BOSS_BEAST_RENDER_OFFSET_Y,
+  BOSS_BEAST_RENDER_SCALE,
+  isBossPlayer,
+} from './bossVisualConfig';
 
 export type CharacterCoreAnimationState = 'idle' | 'move';
-export type CharacterAnimationState = CharacterCoreAnimationState | 'hurt' | 'dead';
+export type CharacterAnimationState =
+  | CharacterCoreAnimationState
+  | 'attack'
+  | 'dead'
+  | 'defeated'
+  | 'hurt'
+  | 'skill_cast';
 
 export type CharacterSheetConfig = {
   textureKey?: string;
@@ -80,6 +94,61 @@ export const DEFAULT_FACTION_TO_PROFILE_ID: Record<string, string> = {
   qing_long: 'green',
   bai_hu: 'white',
   xuan_wu: 'black',
+};
+
+export const BOSS_BEAST_CHARACTER_PROFILE: CharacterRenderProfile = {
+  id: BOSS_BEAST_PROFILE_ID,
+  scale: BOSS_BEAST_RENDER_SCALE,
+  offsetY: BOSS_BEAST_RENDER_OFFSET_Y,
+  avatarState: 'idle',
+  avatarFrame: 0,
+  animations: {
+    idle: {
+      textureKey: BOSS_BEAST_ASSETS.idle.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.idle.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.idle.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.idle.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.idle.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.idle.frameRate,
+      repeat: BOSS_BEAST_ASSETS.idle.repeat,
+    },
+    move: {
+      textureKey: BOSS_BEAST_ASSETS.idle.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.idle.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.idle.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.idle.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.idle.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.idle.frameRate,
+      repeat: BOSS_BEAST_ASSETS.idle.repeat,
+    },
+    attack: {
+      textureKey: BOSS_BEAST_ASSETS.attack.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.attack.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.attack.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.attack.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.attack.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.attack.frameRate,
+      repeat: BOSS_BEAST_ASSETS.attack.repeat,
+    },
+    skill_cast: {
+      textureKey: BOSS_BEAST_ASSETS.skillCast.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.skillCast.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.skillCast.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.skillCast.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.skillCast.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.skillCast.frameRate,
+      repeat: BOSS_BEAST_ASSETS.skillCast.repeat,
+    },
+    defeated: {
+      textureKey: BOSS_BEAST_ASSETS.defeated.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.defeated.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.defeated.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.defeated.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.defeated.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.defeated.frameRate,
+      repeat: BOSS_BEAST_ASSETS.defeated.repeat,
+    },
+  },
 };
 
 export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> = {
@@ -265,11 +334,57 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
   },
 };
 
+function getCharacterFallbackTextureKey(profile: CharacterRenderProfile) {
+  return profile.id === BOSS_BEAST_PROFILE_ID ? BOSS_BEAST_FALLBACK_TEXTURE_KEY : `${profile.id}_fallback`;
+}
+
+function ensureCharacterFallbackTexture(scene: Phaser.Scene, profile: CharacterRenderProfile) {
+  const textureKey = getCharacterFallbackTextureKey(profile);
+  if (scene.textures.exists(textureKey)) return textureKey;
+
+  const graphics = scene.add.graphics();
+  graphics.setVisible(false);
+  graphics.clear();
+
+  if (profile.id === BOSS_BEAST_PROFILE_ID) {
+    graphics.fillStyle(0x17111a, 1);
+    graphics.fillCircle(64, 72, 36);
+    graphics.fillStyle(0x2b1822, 1);
+    graphics.fillTriangle(20, 52, 4, 28, 40, 44);
+    graphics.fillTriangle(108, 52, 124, 28, 88, 44);
+    graphics.fillStyle(0x4e2932, 1);
+    graphics.fillTriangle(58, 26, 64, 10, 70, 26);
+    graphics.lineStyle(5, 0xef5350, 0.9);
+    graphics.strokeCircle(64, 72, 42);
+    graphics.fillStyle(0xfff3f4, 1);
+    graphics.fillCircle(50, 66, 4);
+    graphics.fillCircle(78, 66, 4);
+    graphics.fillStyle(0xef5350, 1);
+    graphics.fillTriangle(58, 82, 64, 90, 70, 82);
+  } else {
+    graphics.fillStyle(0x37474f, 1);
+    graphics.fillCircle(64, 64, 38);
+    graphics.lineStyle(4, 0xcfd8dc, 0.9);
+    graphics.strokeCircle(64, 64, 42);
+    graphics.fillStyle(0xffffff, 1);
+    graphics.fillCircle(64, 64, 8);
+  }
+
+  graphics.generateTexture(textureKey, 128, 128);
+  graphics.destroy();
+
+  return textureKey;
+}
+
 export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
   preload(scene, profile) {
+    const loadedTextureKeys = new Set<string>();
     (Object.entries(profile.animations) as [CharacterAnimationState, CharacterSheetConfig][])
       .forEach(([state, animation]) => {
-        scene.load.spritesheet(getTextureKey(profile, state), animation.textureUrl, {
+        const textureKey = getTextureKey(profile, state);
+        if (loadedTextureKeys.has(textureKey) || scene.textures.exists(textureKey)) return;
+        loadedTextureKeys.add(textureKey);
+        scene.load.spritesheet(textureKey, animation.textureUrl, {
           frameWidth: animation.frameWidth,
           frameHeight: animation.frameHeight,
           spacing: animation.frameSpacing ?? 0,
@@ -281,11 +396,12 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
     (Object.entries(profile.animations) as [CharacterAnimationState, CharacterSheetConfig][])
       .forEach(([state, animation]) => {
         const animationKey = getAnimationKey(profile, state);
-        if (scene.anims.exists(animationKey)) return;
+        const textureKey = getTextureKey(profile, state);
+        if (!scene.textures.exists(textureKey) || scene.anims.exists(animationKey)) return;
 
         scene.anims.create({
           key: animationKey,
-          frames: scene.anims.generateFrameNumbers(getTextureKey(profile, state), {
+          frames: scene.anims.generateFrameNumbers(textureKey, {
             start: 0,
             end: Math.max(0, animation.frameCount - 1),
           }),
@@ -296,8 +412,11 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
   },
 
   createSprite({ scene, profile, x, y }) {
-    const sprite = scene.add.sprite(x, y, getTextureKey(profile, 'idle'));
+    const idleTextureKey = getTextureKey(profile, 'idle');
+    const textureKey = scene.textures.exists(idleTextureKey) ? idleTextureKey : ensureCharacterFallbackTexture(scene, profile);
+    const sprite = scene.add.sprite(x, y, textureKey);
     sprite.setScale(profile.scale ?? DEFAULT_CHARACTER_SCALE);
+    sprite.setData('usesFallbackTexture', textureKey === getCharacterFallbackTextureKey(profile));
     return sprite;
   },
 
@@ -309,6 +428,8 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
   },
 
   play(scene, sprite, profile, state) {
+    if (sprite.getData('usesFallbackTexture')) return;
+
     const preferredState = profile.animations[state] ? state : 'idle';
     const preferredKey = getAnimationKey(profile, preferredState);
 
@@ -328,10 +449,14 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
     );
   },
 
-  getAvatarDataUrl(_scene, _sprite, profile) {
+  getAvatarDataUrl(scene, _sprite, profile) {
     const avatarState = profile.avatarState ?? 'idle';
     const avatarFrame = profile.avatarFrame ?? 0;
-    return _scene.textures.getBase64(getTextureKey(profile, avatarState), avatarFrame);
+    const avatarTextureKey = getTextureKey(profile, avatarState);
+    const textureKey = scene.textures.exists(avatarTextureKey)
+      ? avatarTextureKey
+      : ensureCharacterFallbackTexture(scene, profile);
+    return scene.textures.getBase64(textureKey, avatarFrame);
   },
 };
 
@@ -366,6 +491,10 @@ export function resolveCharacterProfile(
   const profiles = getCharacterProfiles(options);
   const fallbackProfileIds = getFallbackProfileIds(options);
   const factionToProfileId = options?.factionToProfileId ?? DEFAULT_FACTION_TO_PROFILE_ID;
+
+  if (isBossPlayer(player)) {
+    return profiles[BOSS_BEAST_PROFILE_ID] ?? BOSS_BEAST_CHARACTER_PROFILE;
+  }
 
   const profileIdFromFaction = player.faction ? factionToProfileId[player.faction] : undefined;
   const resolvedProfileId =

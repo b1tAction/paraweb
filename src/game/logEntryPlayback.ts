@@ -1,5 +1,6 @@
 import type { LogEntry, Player, DefinitionsConfig } from '../types/protocol';
 import { getEventEffectConfig } from './eventAnimations';
+import { isBossPlayer } from './bossVisualConfig';
 
 export const DICE_ROLL_MIN_MS = 1200;
 export const DICE_RESULT_DISPLAY_MS = 1200;
@@ -37,6 +38,18 @@ export function getMetadataString(metadata: Record<string, any> | undefined, key
   const value = metadata?.[key];
   return typeof value === 'string' ? value : '';
 }
+export function getMetadataBoolean(metadata: Record<string, any> | undefined, key: string) {
+  const value = metadata?.[key];
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes';
+  }
+
+  return false;
+}
+
 
 export function getMetadataNumberArray(metadata: Record<string, any> | undefined, key: string) {
   const value = metadata?.[key];
@@ -68,9 +81,6 @@ export function clampPlayerStat(value: number) {
   return Math.max(0, Math.min(PLAYER_STAT_MAX, value));
 }
 
-function isBossPlayer(player: Player) {
-  return Boolean((player as Player & { is_boss?: boolean }).is_boss) || player.display_name === 'Boss';
-}
 
 function clampBossStat(value: number) {
   return Math.max(0, value);
