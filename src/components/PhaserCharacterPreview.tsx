@@ -49,6 +49,7 @@ export const PhaserCharacterPreview: React.FC<PhaserCharacterPreviewProps> = ({
       faction: faction ?? '',
       position: 0,
       hp: 0,
+      max_hp: 8,
       lp: 0,
       buffs: [],
       items: [],
