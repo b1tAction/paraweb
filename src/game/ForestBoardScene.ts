@@ -8,6 +8,7 @@ import {
   getMetadataNumberArray,
 } from './logEntryPlayback';
 import { getEventEffectConfig, getEventTypeFromEntry } from './eventAnimations';
+import { useGameStore } from '../store/gameStore';
 import {
   isAnyDoorTeleportEntry,
   shouldRenderBoardLogEntryAnimation,
@@ -649,7 +650,7 @@ export class ForestBoardScene extends Phaser.Scene {
     const marker = this.playerMarkers.get(entry.target) ?? this.playerMarkers.get(this.followPlayerId || '');
     if (!marker) return;
 
-    const effect = describeLogEntryEffect(entry);
+    const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
     const x = marker.x;
     const y = marker.y;
 
@@ -1033,6 +1034,10 @@ private playDrawEventAnimation(context: LogEntryAnimationContext) {
   const effect = getEventEffectConfig(eventType);
   const duration = effect.duration || 2500;
 
+  // Resolve event display name from DefinitionsConfig
+  const definitions = useGameStore.getState().definitions;
+  const eventName = definitions?.events[eventType]?.name || eventType;
+
   // Keep the floating label inside the camera viewport.
   const cam = this.cameras.main;
   const screenWidth = cam.width / cam.zoom;
@@ -1050,7 +1055,7 @@ private playDrawEventAnimation(context: LogEntryAnimationContext) {
   container.setAlpha(0);
 
   // Main text label.
-  const text = this.add.text(0, 0, effect.label, {
+  const text = this.add.text(0, 0, eventName, {
     fontFamily: GAME_FONT_FAMILY,
     fontSize: '24px',
     fontStyle: 'bold',

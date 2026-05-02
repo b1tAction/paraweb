@@ -42,9 +42,9 @@ export interface StateSync {
  * - move: steps, start_pos, end_pos, path
  * - add_buff: buff_type, duration
  * - remove_buff: buff_type
- * - draw_event: event_type, desc?
- * - draw_item: item_type, desc?
- * - draw_buff: buff_type, desc?
+ * - draw_event: event_type
+ * - draw_item: item_type
+ * - draw_buff: buff_type
  * - teleport: from_pos, to_pos
  * - steal_buff: stolen_by, buff_type
  * - fell_down: position, hp_change
@@ -323,6 +323,8 @@ export interface WaitingPlayer {
 export interface StartGameAck {
   /** 完整地图配置 */
   map_config: MapConfig;
+  /** 定义目录 (事件/增益/道具的完整元数据) */
+  definitions: DefinitionsConfig;
 }
 
 /**
@@ -363,6 +365,64 @@ export interface MapCellConfig {
   prob_neutral: number;
   /** 坏事件概率权重 */
   prob_bad: number;
+}
+
+// ========== 定义目录类型 ==========
+
+/**
+ * DefinitionsConfig - 定义目录
+ * 通过 OpStartGameAck 推送，客户端用于查表获取 name/desc
+ */
+export interface DefinitionsConfig {
+  /** 事件定义 */
+  events: Record<string, EventDefinitionConfig>;
+  /** 增益定义 */
+  buffs: Record<string, BuffDefinitionConfig>;
+  /** 道具定义 */
+  items: Record<string, ItemDefinitionConfig>;
+}
+
+/**
+ * EventDefinitionConfig - 事件定义配置
+ */
+export interface EventDefinitionConfig {
+  type: string;
+  evaluation: number;
+  category: string; // "good"/"neutral"/"bad"
+  english_name: string;
+  name: string;
+  desc: string;
+}
+
+/**
+ * BuffDefinitionConfig - 增益定义配置
+ */
+export interface BuffDefinitionConfig {
+  type: string;
+  evaluation: number;
+  category: string; // "good"/"neutral"/"bad"
+  english_name: string;
+  name: string;
+  desc: string;
+  duration: number;
+  is_positive: boolean;
+  is_negative: boolean;
+  is_hidden: boolean;
+  is_boss: boolean;
+  is_faction: boolean;
+  is_draw: boolean;
+}
+
+/**
+ * ItemDefinitionConfig - 道具定义配置
+ */
+export interface ItemDefinitionConfig {
+  type: string;
+  evaluation: number;
+  category: string; // "good"/"neutral"/"bad"
+  english_name: string;
+  name: string;
+  desc: string;
 }
 
 // ========== 客户端 -> 服务端消息类型 ==========

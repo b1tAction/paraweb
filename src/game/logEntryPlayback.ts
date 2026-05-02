@@ -1,4 +1,4 @@
-import type { LogEntry, Player } from '../types/protocol';
+import type { LogEntry, Player, DefinitionsConfig } from '../types/protocol';
 import { getEventEffectConfig } from './eventAnimations';
 
 export const DICE_ROLL_MIN_MS = 1200;
@@ -20,6 +20,7 @@ export type EffectDescriptor = {
   label: string;
   color: number;
   textColor: string;
+  iconEmoji?: string;
 };
 
 export function getMetadataNumber(metadata: Record<string, any> | undefined, key: string) {
@@ -192,10 +193,15 @@ export function getLatestDiceRollResult(entries: LogEntry[]): DiceRollResult | n
   return null;
 }
 
-export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
+export function describeLogEntryEffect(entry: LogEntry, definitions?: DefinitionsConfig | null): EffectDescriptor {
   const num = (key: string) => getMetadataNumber(entry.metadata, key) ?? 0;
   const str = (key: string) => getMetadataString(entry.metadata, key);
   const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
+
+  // Helper: look up display name from DefinitionsConfig
+  const eventName = (type: string) => definitions?.events[type]?.name || type;
+  const buffName = (type: string) => definitions?.buffs[type]?.name || type;
+  const itemName = (type: string) => definitions?.items[type]?.name || type;
 
   switch (entry.action_type) {
     case 'damage':
@@ -208,18 +214,17 @@ export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
     case 'modify_lp':
       return { label: `LP ${signed(num('lp_change'))}`, color: 0x42a5f5, textColor: '#e3f2fd' };
     case 'add_buff':
-      return { label: `+${str('buff_type') || 'Buff'}`, color: 0x7e57c2, textColor: '#f3e5f5' };
+      return { label: `+${buffName(str('buff_type'))}`, color: 0x7e57c2, textColor: '#f3e5f5' };
     case 'remove_buff':
-      return { label: `-${str('buff_type') || 'Buff'}`, color: 0xff7043, textColor: '#fff3e0' };
+      return { label: `-${buffName(str('buff_type'))}`, color: 0xff7043, textColor: '#fff3e0' };
     case 'draw_event': {
       const eventType = str('event_type');
-      const desc = str('desc');
       const effect = getEventEffectConfig(eventType);
-      return { label: desc || effect.label, color: effect.color, textColor: effect.textColor };
+      return { label: eventName(eventType), color: effect.color, textColor: effect.textColor, iconEmoji: effect.iconEmoji };
     }
     case 'draw_item': {
-      const desc = str('desc');
-      return { label: desc || `道具 ${str('item_type') || ''}`, color: 0xffca28, textColor: '#fffde7' };
+      const itemType = str('item_type');
+      return { label: itemName(itemType), color: 0xffca28, textColor: '#fffde7' };
     }
     case 'move':
       return { label: `移动 ${num('steps')}`, color: 0xffa726, textColor: '#fff8e1' };
@@ -242,7 +247,7 @@ export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
     case 'teleport':
       return { label: `${num('from_pos')} -> ${num('to_pos')}`, color: 0x29b6f6, textColor: '#e1f5fe' };
     case 'use_item':
-      return { label: `使用 ${str('item_type') || '道具'}`, color: 0xffca28, textColor: '#fffde7' };
+      return { label: `使用 ${itemName(str('item_type'))}`, color: 0xffca28, textColor: '#fffde7' };
     case 'use_skill':
       return { label: `技能 ${str('skill_type') || ''}`, color: 0xab47bc, textColor: '#f3e5f5' };
     default:
@@ -250,13 +255,16 @@ export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
   }
 }
 
-export function describeSettlementChange(player: Player, entry?: LogEntry | null): EffectDescriptor | null {
+export function describeSettlementChange(player: Player, entry?: LogEntry | null, definitions?: DefinitionsConfig | null): EffectDescriptor | null {
   if (!entry || entry.target !== player.player_id) return null;
 
   const num = (key: string) => getMetadataNumber(entry.metadata, key) ?? 0;
   const str = (key: string) => getMetadataString(entry.metadata, key);
   const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
-  const reason = formatChangeReason(entry);
+  const reason = formatChangeReason(entry, definitions);
+
+  // Helper: look up buff display name from DefinitionsConfig
+  const buffName = (type: string) => definitions?.buffs[type]?.name || type;
 
   switch (entry.action_type) {
     case 'damage':
@@ -286,13 +294,13 @@ export function describeSettlementChange(player: Player, entry?: LogEntry | null
     }
     case 'add_buff':
       return {
-        label: `Buff +${str('buff_type') || '未知'}  ·  原因：${reason}`,
+        label: `+${buffName(str('buff_type'))}  ·  原因：${reason}`,
         color: 0x7e57c2,
         textColor: '#f3e5f5',
       };
     case 'remove_buff':
       return {
-        label: `Buff -${str('buff_type') || '未知'}  ·  原因：${reason}`,
+        label: `-${buffName(str('buff_type'))}  ·  原因：${reason}`,
         color: 0xff7043,
         textColor: '#fff3e0',
       };
@@ -301,7 +309,7 @@ export function describeSettlementChange(player: Player, entry?: LogEntry | null
   }
 }
 
-export function formatChangeReason(entry: LogEntry) {
+export function formatChangeReason(entry: LogEntry, definitions?: DefinitionsConfig | null) {
   const source = entry.source || entry.action_type || '系统';
   const labels: Record<string, string> = {
     Buff_Expiry: 'Buff 到期',
@@ -311,9 +319,18 @@ export function formatChangeReason(entry: LogEntry) {
   };
 
   if (labels[source]) return labels[source];
-  if (source.startsWith('Buff_')) return source.replace(/^Buff_/, 'Buff ');
-  if (source.startsWith('Event_')) return source.replace(/^Event_/, '事件 ');
-  if (source.startsWith('Item_')) return source.replace(/^Item_/, '道具 ');
+  if (source.startsWith('Buff_')) {
+    const buffType = source.replace(/^Buff_/, '').toLowerCase();
+    return definitions?.buffs[buffType]?.name || source.replace(/^Buff_/, 'Buff ');
+  }
+  if (source.startsWith('Event_')) {
+    const eventType = source.replace(/^Event_/, '').toLowerCase();
+    return definitions?.events[eventType]?.name || source.replace(/^Event_/, '事件 ');
+  }
+  if (source.startsWith('Item_')) {
+    const itemType = source.replace(/^Item_/, '').toLowerCase();
+    return definitions?.items[itemType]?.name || source.replace(/^Item_/, '道具 ');
+  }
   if (source.startsWith('Cell')) return source.replace(/^Cell/, '格子 ');
 
   return source;
