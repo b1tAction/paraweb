@@ -550,6 +550,7 @@ export class NakamaService {
     const store = useGameStore.getState();
     store.setStartGameAck(data);
     store.setMapConfig(data.map_config);
+    store.setDefinitions(data.definitions);
 
     console.log('[Nakama] 游戏开始确认', {
       mapLength: data.map_config.length,
