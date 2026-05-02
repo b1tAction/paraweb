@@ -42,8 +42,9 @@ export interface StateSync {
  * - move: steps, start_pos, end_pos, path
  * - add_buff: buff_type, duration
  * - remove_buff: buff_type
- * - draw_event: event_type
- * - draw_item: item_type
+ * - draw_event: event_type, desc?
+ * - draw_item: item_type, desc?
+ * - draw_buff: buff_type, desc?
  * - teleport: from_pos, to_pos
  * - steal_buff: stolen_by, buff_type
  * - fell_down: position, hp_change
@@ -108,6 +109,8 @@ export interface Player {
   position: number;
   /** 生命值 */
   hp: number;
+  /** 最大生命值 (用于血条渲染) */
+  max_hp: number;
   /** 幸运值 */
   lp: number;
   /** 增益效果列表 */

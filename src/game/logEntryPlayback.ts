@@ -76,7 +76,8 @@ function clampBossStat(value: number) {
 }
 
 function normalizeHp(player: Player) {
-  return isBossPlayer(player) ? clampBossStat(player.hp) : clampPlayerStat(player.hp);
+  const maxHp = player.max_hp || PLAYER_STAT_MAX; // fallback for older protocol versions
+  return isBossPlayer(player) ? clampBossStat(player.hp) : Math.max(0, Math.min(maxHp, player.hp));
 }
 
 function normalizeLp(player: Player) {
@@ -212,11 +213,14 @@ export function describeLogEntryEffect(entry: LogEntry): EffectDescriptor {
       return { label: `-${str('buff_type') || 'Buff'}`, color: 0xff7043, textColor: '#fff3e0' };
     case 'draw_event': {
       const eventType = str('event_type');
+      const desc = str('desc');
       const effect = getEventEffectConfig(eventType);
-      return { label: effect.label, color: effect.color, textColor: effect.textColor };
+      return { label: desc || effect.label, color: effect.color, textColor: effect.textColor };
     }
-    case 'draw_item':
-      return { label: `道具 ${str('item_type') || ''}`, color: 0xffca28, textColor: '#fffde7' };
+    case 'draw_item': {
+      const desc = str('desc');
+      return { label: desc || `道具 ${str('item_type') || ''}`, color: 0xffca28, textColor: '#fffde7' };
+    }
     case 'move':
       return { label: `移动 ${num('steps')}`, color: 0xffa726, textColor: '#fff8e1' };
     case 'dice_roll':

@@ -844,7 +844,7 @@ export const BoardScene: React.FC = () => {
                       ? `drop-shadow(0 0 8px ${faction.color}) drop-shadow(0 0 2px #ffffff)`
                       : styles.pixelPlayerCard.filter,
                   }}
-                  title={`${player.display_name || player.player_id}\nHP ${player.hp}/${PLAYER_STAT_MAX}\nLP ${player.lp}/${PLAYER_STAT_MAX}`}
+                  title={`${player.display_name || player.player_id}\nHP ${player.hp}/${player.max_hp}\nLP ${player.lp}/${PLAYER_STAT_MAX}`}
                 >
                   {avatars[player.player_id] && (
                     <img
@@ -868,7 +868,7 @@ export const BoardScene: React.FC = () => {
                     <div
                       style={{
                         ...styles.pixelHpFill,
-                        width: getFillPercent(player.hp, PLAYER_STAT_MAX),
+                        width: getFillPercent(player.hp, player.max_hp),
                       }}
                     />
                   </div>

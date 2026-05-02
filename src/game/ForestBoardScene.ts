@@ -927,10 +927,14 @@ private playLightningStrikeAnimation(context: LogEntryAnimationContext) {
 
   // Prefer the visual marker position so lightning lands where the player appears.
   // Fall back to cell center only if marker is unavailable.
+  // Character half-height ≈ (96 * 0.65) / 2 ≈ 31px; add 8px margin so lightning
+  // bottom extends past the character's visual bottom for full coverage.
+  const CHARACTER_HALF_HEIGHT = 31;
+  const LIGHTNING_BOTTOM_MARGIN = 8;
   const visualX = marker.x;
   const visualY = marker.y;
   const landingX = visualX ?? cellCenterX;
-  const landingY = visualY ? visualY + 16 : cellCenterY;
+  const landingY = visualY ? visualY + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN : cellCenterY + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN;
 
   // 1. Create lightning sprite with origin at bottom center so it lands on the visual position
   const lightningSprite = this.add.sprite(landingX, landingY, 'lightning-bolt');
