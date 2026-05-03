@@ -28,6 +28,7 @@ export function showCenterPopup(
   closeCenterPopup(ctx);
 
   const cam = ctx.scene.cameras.main;
+  // Use camera center in world-space; orchestrator converts world -> screen.
   const screenCenterX = cam.centerX;
   const screenCenterY = cam.centerY;
 

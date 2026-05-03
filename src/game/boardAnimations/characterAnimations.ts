@@ -243,9 +243,10 @@ export function playRespawnAnimation(
   if (checkpointPos !== null) {
     const checkpointCell = ctx.cellViews.get(checkpointPos);
     if (checkpointCell) {
+      const targetPlayer = ctx.players.find((player) => player.player_id === entry.target);
       const playerIndex = ctx.players.findIndex((player) => player.player_id === entry.target);
       const order = playerIndex >= 0 ? playerIndex : 0;
-      const offsetX = (order % 4) * 10 - 15;
+      const offsetX = targetPlayer && isBossPlayer(targetPlayer) ? 0 : (order % 4) * 10 - 15;
       const targetX = checkpointCell.x + offsetX;
       const targetY = checkpointCell.y + getCharacterOffsetY(profile);
 
@@ -259,6 +260,7 @@ export function playRespawnAnimation(
         duration: 120,
         ease: 'Sine.easeIn',
         onComplete: () => {
+          marker.setOrigin(profile.originX ?? 0.5, profile.originY ?? 0.5);
           marker.setPosition(targetX, targetY);
           marker.setDepth(worldDepth(LAYER_CHARACTER_BASE, targetY));
           marker.setScale(respawnScale);
@@ -272,6 +274,7 @@ export function playRespawnAnimation(
     }
   }
 
+  marker.setOrigin(profile.originX ?? 0.5, profile.originY ?? 0.5);
   renderer.play(ctx.scene, marker, profile, 'idle');
   marker.setScale(respawnScale);
   playRespawnEffectAt(marker.x, marker.y, marker.depth);
