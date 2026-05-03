@@ -20,6 +20,7 @@ import {
   getAnimationKey,
   getCharacterEffectOffsetY,
   getCharacterNameOffsetY,
+  getCharacterOffsetX,
   getCharacterOffsetY,
   getCharacterProfiles,
   getCharacterRenderer,
@@ -684,7 +685,7 @@ export class ForestBoardScene extends Phaser.Scene {
         return;
       }
       const profile = this.resolveCharacterProfileForPlayer(player, order);
-      const offsetX = isBossPlayer(player) ? 0 : (order % 4) * 10 - 15;
+      const offsetX = getCharacterOffsetX(profile) + (isBossPlayer(player) ? 0 : (order % 4) * 10 - 15);
       const targetX = cell.x + offsetX;
       const targetY = cell.y + getCharacterOffsetY(profile);
       let marker = this.playerMarkers.get(player.player_id);
@@ -849,11 +850,14 @@ export class ForestBoardScene extends Phaser.Scene {
     if (!profile.animations[state] || !renderer.hasAnimation?.(this, profile, state)) return false;
 
     const animationEvent = `animationcomplete-${getAnimationKey(profile, state)}`;
+    const defaultFlipX = profile.defaultFlipX ?? false;
     marker.removeAllListeners(animationEvent);
+    marker.setFlipX(defaultFlipX);
     renderer.play(this, marker, profile, state);
 
     if (returnToIdle) {
       marker.once(animationEvent, () => {
+        marker.setFlipX(defaultFlipX);
         renderer.play(this, marker, profile, 'idle');
       });
     }
@@ -1018,6 +1022,7 @@ export class ForestBoardScene extends Phaser.Scene {
     if (sourceMarker && sourceMarker !== bossMarker) {
       this.playBossLineEffect(sourceMarker, bossMarker, color, isCrit ? 'CRIT' : 'HIT');
     }
+    this.playBossProfileAnimation(bossMarker, bossPlayer.player_id, 'hurt', !isDefeated);
 
     bossMarker.setTint(0xffffff);
     this.time.delayedCall(120, () => bossMarker.clearTint());
@@ -1048,10 +1053,6 @@ export class ForestBoardScene extends Phaser.Scene {
     }
 
     const targetMarker = this.playerMarkers.get(entry.target);
-    if (targetMarker) {
-      bossMarker.setFlipX(targetMarker.x < bossMarker.x);
-    }
-
     this.playBossProfileAnimation(bossMarker, bossPlayer.player_id, 'attack');
 
     const attackType = getMetadataString(entry.metadata, 'attack_type') || 'normal';
@@ -1117,11 +1118,13 @@ export class ForestBoardScene extends Phaser.Scene {
 
   private playBossReflectAnimation(context: LogEntryAnimationContext) {
     const { entry } = context;
+    const bossPlayer = this.getBossPlayer();
     const bossMarker = this.getBossMarker();
     const targetMarker = this.playerMarkers.get(entry.target);
-    if (!bossMarker || !targetMarker) return;
+    if (!bossPlayer || !bossMarker || !targetMarker) return;
 
-    bossMarker.setFlipX(targetMarker.x < bossMarker.x);
+    const bossProfile = this.resolveCharacterProfileFromMarker(bossMarker, bossPlayer.player_id);
+    bossMarker.setFlipX(bossProfile.defaultFlipX ?? false);
     this.playBossThornsPulse(bossMarker);
     this.playBossLineEffect(bossMarker, targetMarker, 0x8e24aa, '反刺');
   }
@@ -1271,7 +1274,8 @@ export class ForestBoardScene extends Phaser.Scene {
       if (checkpointCell) {
         const playerIndex = this.players.findIndex((player) => player.player_id === entry.target);
         const order = playerIndex >= 0 ? playerIndex : 0;
-        const offsetX = (order % 4) * 10 - 15;
+        const respawnPlayer = this.players[playerIndex];
+        const offsetX = getCharacterOffsetX(profile) + (respawnPlayer && isBossPlayer(respawnPlayer) ? 0 : (order % 4) * 10 - 15);
         const targetX = checkpointCell.x + offsetX;
         const targetY = checkpointCell.y + getCharacterOffsetY(profile);
 
@@ -1349,6 +1353,8 @@ export class ForestBoardScene extends Phaser.Scene {
     if (points.length === 0) return;
     const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
     const renderer = getCharacterRenderer(this.characterRenderOptions);
+    const shouldUseDefaultFacing = profile.defaultFlipX !== undefined;
+    const defaultFlipX = profile.defaultFlipX ?? false;
     let index = 0;
     renderer.play(this, marker, profile, 'move');
     this.activeMoveAnimations.add(entry.target);
@@ -1357,12 +1363,17 @@ export class ForestBoardScene extends Phaser.Scene {
     const runNext = () => {
       const point = points[index];
       if (!point) {
+        if (shouldUseDefaultFacing) {
+          marker.setFlipX(defaultFlipX);
+        }
         renderer.play(this, marker, profile, 'idle');
         this.activeMoveAnimations.delete(entry.target);
         this.refreshCellMarkerStates();
         return;
       }
-      if (point.x < marker.x) {
+      if (shouldUseDefaultFacing) {
+        marker.setFlipX(defaultFlipX);
+      } else if (point.x < marker.x) {
         marker.setFlipX(true);
       } else if (point.x > marker.x) {
         marker.setFlipX(false);
@@ -1429,6 +1440,8 @@ export class ForestBoardScene extends Phaser.Scene {
 
     const renderer = getCharacterRenderer(this.characterRenderOptions);
     const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+    const shouldUseDefaultFacing = profile.defaultFlipX !== undefined;
+    const defaultFlipX = profile.defaultFlipX ?? false;
     const doors: Phaser.GameObjects.GameObject[] = [];
     const doorGlows: Phaser.GameObjects.Sprite[] = [];
 
@@ -1507,7 +1520,7 @@ export class ForestBoardScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
     });
 
-    marker.setFlipX(travelSign < 0);
+    marker.setFlipX(shouldUseDefaultFacing ? defaultFlipX : travelSign < 0);
     renderer.play(this, marker, profile, 'move');
     this.tweens.add({
       targets: marker,
@@ -1528,7 +1541,7 @@ export class ForestBoardScene extends Phaser.Scene {
             marker.setPosition(exitDoorX + travelSign * 3, targetY);
             marker.setScale(originalScaleX, originalScaleY);
             marker.setAlpha(0);
-            marker.setFlipX(travelSign < 0);
+            marker.setFlipX(shouldUseDefaultFacing ? defaultFlipX : travelSign < 0);
             marker.setDepth(exitPlayerDepth);
 
             this.time.delayedCall(120, () => {
@@ -1541,6 +1554,9 @@ export class ForestBoardScene extends Phaser.Scene {
                 ease: 'Cubic.easeOut',
                 onUpdate: () => marker.setDepth(exitPlayerDepth),
                 onComplete: () => {
+                  if (shouldUseDefaultFacing) {
+                    marker.setFlipX(defaultFlipX);
+                  }
                   renderer.play(this, marker, profile, 'idle');
                   this.activeMoveAnimations.delete(entry.target);
                   this.refreshCellMarkerStates();
