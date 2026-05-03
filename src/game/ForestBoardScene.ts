@@ -98,6 +98,12 @@ const BLACKHOLE_ANI_FRAME_COUNT = 3;
 const BLACKHOLE_FRAME_COUNT = 8;
 const BLACKHOLE_FRAME_RATE = 24;
 const BLACKHOLE_ANI_FRAME_RATE = 12;
+const RESPAWN_TEXTURE_KEY = 'respawn-effect';
+const RESPAWN_ANIMATION_KEY = 'respawn_anim';
+const RESPAWN_FRAME_WIDTH = 32;
+const RESPAWN_FRAME_HEIGHT = 32;
+const RESPAWN_FRAME_COUNT = 12;
+const RESPAWN_FRAME_RATE = 18;
 const BLACKHOLE_SIZE_SCALE = 2.0;
 const WARP_DOOR_CELL_OFFSET_Y = 1;
 const WARP_DOOR_DEPTH_OFFSET = 52;
@@ -217,6 +223,11 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: 64
     });
 
+    this.load.spritesheet(RESPAWN_TEXTURE_KEY, '/assets/effects/respawn.png', {
+      frameWidth: RESPAWN_FRAME_WIDTH,
+      frameHeight: RESPAWN_FRAME_HEIGHT
+    });
+
     const renderer = getCharacterRenderer(this.characterRenderOptions);
     Object.values(getCharacterProfiles(this.characterRenderOptions)).forEach((profile) => {
       renderer.preload(this, profile);
@@ -324,6 +335,15 @@ export class ForestBoardScene extends Phaser.Scene {
         key: BLACKHOLE_ANI_ANIMATION_KEY,
         frames: this.anims.generateFrameNumbers(BLACKHOLE_ANI_TEXTURE_KEY, { start: 0, end: BLACKHOLE_ANI_FRAME_COUNT - 1 }),
         frameRate: BLACKHOLE_ANI_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    if (!this.anims.exists(RESPAWN_ANIMATION_KEY)) {
+      this.anims.create({
+        key: RESPAWN_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(RESPAWN_TEXTURE_KEY, { start: 0, end: RESPAWN_FRAME_COUNT - 1 }),
+        frameRate: RESPAWN_FRAME_RATE,
         repeat: 0
       });
     }
@@ -850,7 +870,55 @@ export class ForestBoardScene extends Phaser.Scene {
 
     const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
     const renderer = getCharacterRenderer(this.characterRenderOptions);
+    const checkpointPos = getMetadataNumber(entry.metadata, 'checkpoint_pos');
+    const respawnScale = profile.scale ?? 0.65;
+
+    const playRespawnEffectAt = (x: number, y: number, depth: number) => {
+      const respawnSprite = this.add.sprite(x, y, RESPAWN_TEXTURE_KEY);
+      respawnSprite.setScale(2.3);
+      respawnSprite.setOrigin(0.5, 0.5);
+      respawnSprite.setDepth(depth + 30);
+      respawnSprite.play(RESPAWN_ANIMATION_KEY);
+      respawnSprite.once('animationcomplete', () => {
+        respawnSprite.destroy();
+      });
+    };
+
+    if (checkpointPos !== null) {
+      const checkpointCell = this.cellViews.get(checkpointPos);
+      if (checkpointCell) {
+        const playerIndex = this.players.findIndex((player) => player.player_id === entry.target);
+        const order = playerIndex >= 0 ? playerIndex : 0;
+        const offsetX = (order % 4) * 10 - 15;
+        const targetX = checkpointCell.x + offsetX;
+        const targetY = checkpointCell.y + getCharacterOffsetY(profile);
+
+        this.logDrivenPositions.set(entry.target, checkpointPos);
+        this.refreshCellMarkerStates();
+
+        this.tweens.killTweensOf(marker);
+        this.tweens.add({
+          targets: marker,
+          alpha: 0,
+          duration: 120,
+          ease: 'Sine.easeIn',
+          onComplete: () => {
+            marker.setPosition(targetX, targetY);
+            marker.setDepth(targetY + 100);
+            marker.setScale(respawnScale);
+            marker.setAlpha(1);
+            renderer.play(this, marker, profile, 'idle');
+            playRespawnEffectAt(targetX, targetY, marker.depth);
+            this.playGenericLogEntryEffect(context);
+          },
+        });
+        return;
+      }
+    }
+
     renderer.play(this, marker, profile, 'idle');
+  marker.setScale(respawnScale);
+    playRespawnEffectAt(marker.x, marker.y, marker.depth);
 
     this.playGenericLogEntryEffect(context);
   }
