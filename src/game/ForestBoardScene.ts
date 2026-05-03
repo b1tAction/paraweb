@@ -833,22 +833,41 @@ export class ForestBoardScene extends Phaser.Scene {
 
   private playBossDamageAnimation(context: LogEntryAnimationContext) {
     const { entry } = context;
+    const bossPlayer = this.getBossPlayer();
     const bossMarker = this.getBossMarker();
-    if (!bossMarker) {
+    if (!bossPlayer || !bossMarker) {
       this.playGenericLogEntryEffect(context);
       return;
     }
 
     const damage = getMetadataNumber(entry.metadata, 'damage') ?? 0;
     const isCrit = getMetadataBoolean(entry.metadata, 'is_crit');
+    const remainingHp = getMetadataNumber(entry.metadata, 'boss_remaining_hp');
+    const isDefeated = remainingHp !== null ? remainingHp <= 0 : bossPlayer.is_dead || bossPlayer.hp <= 0;
+    const color = isCrit ? 0xff1744 : 0xef5350;
     const label = damage > 0 ? `Boss -${damage}${isCrit ? ' CRIT' : ''}` : `Boss 受击${isCrit ? ' CRIT' : ''}`;
+
+    const sourceMarker = this.playerMarkers.get(entry.source);
+    if (sourceMarker && sourceMarker !== bossMarker) {
+      this.playBossLineEffect(sourceMarker, bossMarker, color, isCrit ? 'CRIT' : 'HIT');
+    }
 
     bossMarker.setTint(0xffffff);
     this.time.delayedCall(120, () => bossMarker.clearTint());
-    this.playBossPulse(bossMarker, label, isCrit ? 0xff1744 : 0xef5350, '#ffebee', isCrit ? 2.75 : 2.2);
+    this.playBossPulse(bossMarker, label, color, '#ffebee', isCrit ? 2.75 : 2.2);
 
     if (isCrit) {
       this.cameras.main.flash(120, 255, 235, 235);
+    }
+
+    if (isDefeated) {
+      this.time.delayedCall(260, () => {
+        const currentBossPlayer = this.getBossPlayer();
+        const currentBossMarker = this.getBossMarker();
+        if (!currentBossPlayer || !currentBossMarker) return;
+
+        this.playBossProfileAnimation(currentBossMarker, currentBossPlayer.player_id, 'defeated', false);
+      });
     }
   }
 

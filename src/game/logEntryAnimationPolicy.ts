@@ -7,6 +7,7 @@ import {
   DICE_UPGRADE_RESULT_MS,
   MOVE_STEP_MS,
   getMetadataBoolean,
+  getMetadataNumber,
   getMetadataNumberArray,
   getMetadataString,
 } from './logEntryPlayback';
@@ -25,6 +26,8 @@ type AnimationRenderFilter = boolean | ((context: LogEntryAnimationContext) => b
 const IMMEDIATE_NEXT_ACTION_TYPES = new Set(['damage']);
 const BOSS_ACTION_TYPES = new Set(['boss_damage', 'boss_attack', 'boss_skill']);
 
+
+const BOSS_DEFEATED_ANIMATION_DELAY_MS = 1900;
 
 export type LogEntryAnimationRule = {
   renderOnBoard?: AnimationRenderFilter;
@@ -83,7 +86,12 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
   },
   boss_damage: {
     renderOnBoard: true,
-    delayMs: ({ entry }) => (getMetadataBoolean(entry.metadata, 'is_crit') ? 1200 : 900),
+    delayMs: ({ entry }) => {
+      const remainingHp = getMetadataNumber(entry.metadata, 'boss_remaining_hp');
+      if (remainingHp !== null && remainingHp <= 0) return BOSS_DEFEATED_ANIMATION_DELAY_MS;
+
+      return getMetadataBoolean(entry.metadata, 'is_crit') ? 1200 : 900;
+    },
   },
   boss_attack: {
     renderOnBoard: true,

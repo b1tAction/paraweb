@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { Scene, useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 import { PhaserBoard } from '../components/PhaserBoard';
 import type { Available, Player, Item } from '../types/protocol';
@@ -166,6 +166,26 @@ type DiceUpgradeView =
       entryKey: string;
     };
 
+type BoardGameOverTransitionInput = {
+  currentScene: Scene;
+  pendingScene: Scene | null;
+  hasGameOver: boolean;
+  hasPendingAnimations: boolean;
+  stateSyncQueueLength: number;
+  diceRollStatus: DiceRollView['status'];
+};
+
+export function shouldEnterGameOverAfterBoardAnimations(input: BoardGameOverTransitionInput) {
+  return (
+    input.hasGameOver &&
+    input.currentScene === Scene.Board &&
+    input.pendingScene === Scene.GameOver &&
+    input.stateSyncQueueLength === 0 &&
+    !input.hasPendingAnimations &&
+    input.diceRollStatus === 'idle'
+  );
+}
+
 type ReverseClockBuffFlight = {
   key: string;
   startX: number;
@@ -213,6 +233,7 @@ function rollPreviewDiceFace() {
 
 export const BoardScene: React.FC = () => {
   const {
+    currentScene,
     globalState,
     turnState,
     myPlayerId,
@@ -227,6 +248,8 @@ export const BoardScene: React.FC = () => {
     mapConfig,
     miniGameResult,
     diceAssignments,
+    gameOver,
+    pendingScene,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
   const [diceUpgradeView, setDiceUpgradeView] = useState<DiceUpgradeView>({ status: 'idle' });
@@ -494,6 +517,26 @@ export const BoardScene: React.FC = () => {
     }
 
   }, [stateSyncQueue.length, hasPendingAnimations]);
+
+  useEffect(() => {
+    if (!shouldEnterGameOverAfterBoardAnimations({
+      currentScene,
+      pendingScene,
+      hasGameOver: Boolean(gameOver),
+      hasPendingAnimations,
+      stateSyncQueueLength: stateSyncQueue.length,
+      diceRollStatus: diceRollView.status,
+    })) {
+      return;
+    }
+
+    const store = useGameStore.getState();
+    if (store.currentScene !== Scene.Board || store.pendingScene !== Scene.GameOver || !store.gameOver) return;
+
+    console.log('[BoardScene] 终局动画播放完成，进入 GameOver');
+    store.setPendingScene(null);
+    store.setScene(Scene.GameOver);
+  }, [currentScene, diceRollView.status, gameOver, hasPendingAnimations, pendingScene, stateSyncQueue.length]);
 
   useEffect(() => {
     if (isTurnEndSettlement && currentPlayerId) {
