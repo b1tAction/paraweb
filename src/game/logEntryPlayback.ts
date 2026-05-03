@@ -9,6 +9,56 @@ export const DEFAULT_ACTION_ANIMATION_DELAY_MS = 2000;
 export const MOVE_STEP_MS = 220;
 export const PLAYER_STAT_MAX = 8;
 
+// 用于前端展示的动作类型汉化映射表
+const ACTION_TYPE_TRANSLATIONS: Record<string, string> = {
+  damage: '受到伤害',
+  heal: '获得治疗',
+  fell_down: '跌落',
+  death: '死亡',
+  boss_damage: 'Boss 受到伤害',
+  boss_attack: 'Boss 攻击',
+  boss_skill: 'Boss 技能',
+  modify_lp: 'LP 变动',
+  move: '移动',
+  teleport: '传送',
+  respawn: '复活',
+  add_buff: '获得 Buff',
+  remove_buff: '失去 Buff',
+  draw_event: '触发事件',
+  draw_item: '获得道具',
+  draw_buff: '获得 Buff',
+  steal_buff: '窃取 Buff',
+  add_item: '获得道具',
+  remove_item: '失去道具',
+  use_item: '使用道具',
+  use_skill: '使用技能',
+  dice_roll: '掷骰子',
+  dice_upgrade: '升级骰子',
+  state: '状态切换',
+};
+
+// 用于前端展示的骰子类型汉化映射表
+const DICE_TRANSLATIONS: Record<string, string> = {
+  wood: '木骰子',
+  iron: '铁骰子',
+  gold: '金骰子',
+  diamond: '钻石骰子',
+  dice: '骰子',
+};
+
+// 用于前端展示的技能类型汉化映射表
+const SKILL_TRANSLATIONS: Record<string, string> = {
+  qinglong: '青龙',
+  xuanwu: '玄武',
+  zhuque: '朱雀',
+  baihu: '白虎'
+};
+
+function translateDice(type?: string) {
+  if (!type) return '骰子';
+  return DICE_TRANSLATIONS[type.toLowerCase()] || type;
+}
+
 export type DiceRollResult = {
   key: string;
   playerId: string;
@@ -40,7 +90,7 @@ export function getMetadataString(metadata: Record<string, any> | undefined, key
 
 export function getMetadataNumberArray(metadata: Record<string, any> | undefined, key: string) {
   const value = metadata?.[key];
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) return[];
 
   return value
     .map((item) => {
@@ -77,7 +127,7 @@ function clampBossStat(value: number) {
 }
 
 function normalizeHp(player: Player) {
-  const maxHp = player.max_hp || PLAYER_STAT_MAX; // fallback for older protocol versions
+  const maxHp = player.max_hp || PLAYER_STAT_MAX; 
   return isBossPlayer(player) ? clampBossStat(player.hp) : Math.max(0, Math.min(maxHp, player.hp));
 }
 
@@ -150,7 +200,7 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
     }
     case 'add_buff': {
       if (!buffType || next.buffs.some((buff) => buff.type === buffType)) break;
-      next.buffs = [
+      next.buffs =[
         ...next.buffs,
         {
           type: buffType,
@@ -185,7 +235,7 @@ export function getLatestDiceRollResult(entries: LogEntry[]): DiceRollResult | n
     return {
       key: `${entry.timestamp}:${entry.target}:${steps}`,
       playerId: entry.target,
-      diceType: getMetadataString(entry.metadata, 'dice_type') || 'wood',
+      diceType: getMetadataString(entry.metadata, 'dice_type') || 'wood', 
       steps,
     };
   }
@@ -198,7 +248,7 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
   const str = (key: string) => getMetadataString(entry.metadata, key);
   const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 
-  // Helper: look up display name from DefinitionsConfig
+  // Helper: 从配置表里寻找官方名称
   const eventName = (type: string) => definitions?.events[type]?.name || type;
   const buffName = (type: string) => definitions?.buffs[type]?.name || type;
   const itemName = (type: string) => definitions?.items[type]?.name || type;
@@ -208,7 +258,7 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     case 'fell_down':
       return { label: `HP ${signed(num('hp_change'))}`, color: 0xef5350, textColor: '#ffebee' };
     case 'death':
-      return { label: 'DEAD', color: 0xb71c1c, textColor: '#ffebee' };
+      return { label: '死亡', color: 0xb71c1c, textColor: '#ffebee' }; 
     case 'heal':
       return { label: `HP +${Math.abs(num('hp_change'))}`, color: 0x66bb6a, textColor: '#e8f5e9' };
     case 'modify_lp':
@@ -224,34 +274,61 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     }
     case 'draw_item': {
       const itemType = str('item_type');
-      return { label: itemName(itemType), color: 0xffca28, textColor: '#fffde7' };
+      return { label: `获得 ${itemName(itemType)}`, color: 0xffca28, textColor: '#fffde7' };
+    }
+    case 'draw_buff': {
+      const buffType = str('buff_type');
+      return { label: `获得 ${buffName(buffType)}`, color: 0x7e57c2, textColor: '#f3e5f5' };
+    }
+    case 'steal_buff': {
+      const buffType = str('buff_type');
+      return { label: `窃取 ${buffName(buffType)}`, color: 0x8e24aa, textColor: '#f3e5f5' };
     }
     case 'move':
-      return { label: `移动 ${num('steps')}`, color: 0xffa726, textColor: '#fff8e1' };
-    case 'dice_roll':
-      return { label: `${str('dice_type') || 'dice'} ${num('dice_steps')}`, color: 0xffffff, textColor: '#ffffff' };
-    case 'dice_upgrade':
-      return { label: `${str('from_dice') || 'dice'} -> ${str('to_dice') || 'dice'}`, color: 0xfff176, textColor: '#fffde7' };
+      return { label: `移动 ${num('steps')}步`, color: 0xffa726, textColor: '#fff8e1' };
+    case 'dice_roll': {
+      const diceType = translateDice(str('dice_type'));
+      return { label: `${diceType} ${num('dice_steps')}点`, color: 0xffffff, textColor: '#ffffff' };
+    }
+    case 'dice_upgrade': {
+      const fromDice = translateDice(str('from_dice'));
+      const toDice = translateDice(str('to_dice'));
+      return { label: `${fromDice} -> ${toDice}`, color: 0xfff176, textColor: '#fffde7' };
+    }
     case 'respawn':
       return { label: '复活', color: 0x4fc3f7, textColor: '#e1f5fe' };
     case 'boss_damage':
-      return { label: `Boss -${num('damage')}`, color: 0xef5350, textColor: '#ffebee' };
+      return { label: `Boss -${num('damage')} HP`, color: 0xef5350, textColor: '#ffebee' };
     case 'boss_attack': {
       const attackType = str('attack_type');
       return {
-        label: attackType ? `Boss ${attackType}` : 'Boss Attack',
+        label: attackType ? `Boss ${attackType}` : 'Boss 攻击', 
         color: 0xd32f2f,
         textColor: '#ffebee',
       };
     }
+    case 'boss_skill': {
+      const skillType = str('skill_type');
+      return {
+        label: skillType ? `Boss技能 ${skillType}` : 'Boss 技能', 
+        color: 0xc2185b,
+        textColor: '#fce4ec',
+      };
+    }
     case 'teleport':
-      return { label: `${num('from_pos')} -> ${num('to_pos')}`, color: 0x29b6f6, textColor: '#e1f5fe' };
+      return { label: `传送 ${num('from_pos')} -> ${num('to_pos')}`, color: 0x29b6f6, textColor: '#e1f5fe' };
     case 'use_item':
       return { label: `使用 ${itemName(str('item_type'))}`, color: 0xffca28, textColor: '#fffde7' };
-    case 'use_skill':
-      return { label: `技能 ${str('skill_type') || ''}`, color: 0xab47bc, textColor: '#f3e5f5' };
-    default:
-      return { label: entry.action_type || entry.type, color: 0xffffff, textColor: '#ffffff' };
+    case 'use_skill': {
+      const rawSkill = str('skill_type');
+      const skillName = SKILL_TRANSLATIONS[rawSkill?.toLowerCase()] || rawSkill || '';
+      return { label: `技能 ${skillName}`.trim(), color: 0xab47bc, textColor: '#f3e5f5' };
+    }
+    default: {
+      const rawType = entry.action_type || entry.type;
+      const translatedType = ACTION_TYPE_TRANSLATIONS[rawType] || rawType;
+      return { label: translatedType, color: 0xffffff, textColor: '#ffffff' };
+    }
   }
 }
 
@@ -263,7 +340,6 @@ export function describeSettlementChange(player: Player, entry?: LogEntry | null
   const signed = (value: number) => (value > 0 ? `+${value}` : `${value}`);
   const reason = formatChangeReason(entry, definitions);
 
-  // Helper: look up buff display name from DefinitionsConfig
   const buffName = (type: string) => definitions?.buffs[type]?.name || type;
 
   switch (entry.action_type) {
@@ -311,14 +387,28 @@ export function describeSettlementChange(player: Player, entry?: LogEntry | null
 
 export function formatChangeReason(entry: LogEntry, definitions?: DefinitionsConfig | null) {
   const source = entry.source || entry.action_type || '系统';
+  
+  // 常见游戏格类型和系统级标识符
   const labels: Record<string, string> = {
     Buff_Expiry: 'Buff 到期',
     TurnEndRespawn: '回合结束复活',
     FragileCell: '脆弱格',
     DiceRollFellDown: '移动跌落',
+    system: '系统',
+    System: '系统',
+    normal: '普通格',
+    fragile: '脆弱格',
+    fog: '迷雾格',
+    checkpoint: '复活点',
+    boss: 'Boss格',
+    event: '事件格',
   };
 
   if (labels[source]) return labels[source];
+  
+  // 补充翻译，防止源为 "damage", "fell_down" 时显示原始英文
+  if (ACTION_TYPE_TRANSLATIONS[source]) return ACTION_TYPE_TRANSLATIONS[source];
+
   if (source.startsWith('Buff_')) {
     const buffType = source.replace(/^Buff_/, '').toLowerCase();
     return definitions?.buffs[buffType]?.name || source.replace(/^Buff_/, 'Buff ');
@@ -331,7 +421,9 @@ export function formatChangeReason(entry: LogEntry, definitions?: DefinitionsCon
     const itemType = source.replace(/^Item_/, '').toLowerCase();
     return definitions?.items[itemType]?.name || source.replace(/^Item_/, '道具 ');
   }
-  if (source.startsWith('Cell')) return source.replace(/^Cell/, '格子 ');
+  if (source.startsWith('Cell')) {
+    return source.replace(/^Cell/, '格子 ');
+  }
 
   return source;
 }

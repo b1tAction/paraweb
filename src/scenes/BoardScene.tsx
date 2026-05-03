@@ -880,7 +880,7 @@ export const BoardScene: React.FC = () => {
                       }}
                     />
                   </div>
-                  <div style={styles.pixelBuffRow} aria-label="Buffs">
+                  <div style={styles.pixelBuffRow} aria-label="Buff">
                     {player.buffs?.slice(0, 10).map((buff, index) => (
                       <span
                         key={`${buff.type}-${index}`}
@@ -920,7 +920,7 @@ export const BoardScene: React.FC = () => {
                   <span>HP {bossPlayer.hp}</span>
                   <span>位置 {bossPlayer.position}</span>
                 </div>
-                <div style={styles.buffDots} aria-label="Boss Buffs">
+                <div style={styles.buffDots} aria-label="Boss Buff">
                   {bossPlayer.buffs.length > 0
                     ? bossPlayer.buffs.map((buff, index) => (
                         <span

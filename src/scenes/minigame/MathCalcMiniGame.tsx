@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { styles } from './MiniGameStyles';
 
+// 可以在这里方便地修改速算小游戏的总题目数量
+export const TOTAL_QUESTIONS = 3;
+
 // Robust seeded PRNG: xmur3 for hashing, mulberry32 for generation
 function xmur3(str: string) {
   let h = 1779033703 ^ str.length;
@@ -30,14 +33,15 @@ interface Question {
   answer: number;
 }
 
-function generateQuestions(seed: string): Question[] {
+// 增加 questionCount 参数，以支持动态题目数量
+function generateQuestions(seed: string, questionCount: number): Question[] {
   const seedGen = xmur3(seed);
   const rand = mulberry32(seedGen());
 
   const questions: Question[] = [];
   const ops = ['+', '-', '×']; // Removed division
 
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < questionCount; i++) {
     const op = ops[Math.floor(rand() * ops.length)];
     let num1 = 0, num2 = 0, answer = 0;
 
@@ -53,7 +57,7 @@ function generateQuestions(seed: string): Question[] {
       answer = num1 - num2;
     } else if (op === '×') {
       // Multiplication: factors up to 10, product up to 50 (to keep it heart-calculatable)
-      const pairs: [number, number][] = [];
+      const pairs: [number, number][] =[];
       for (let a = 2; a <= 10; a++) {
         for (let b = 2; a * b <= 50; b++) {
           pairs.push([a, b]);
@@ -94,19 +98,19 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
   const [countdown, setCountdown] = useState(3);
 
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const[currentQIndex, setCurrentQIndex] = useState(0);
   const [inputValue, setInputValue] = useState<string>('');
   const [correctCount, setCorrectCount] = useState(0);
-  const [finalTimeMs, setFinalTimeMs] = useState<number>(0);
+  const[finalTimeMs, setFinalTimeMs] = useState<number>(0);
 
   const startTimeRef = useRef<number>(0);
 
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const[activeKey, setActiveKey] = useState<string | null>(null);
 
   useEffect(() => {
     const seed = `${matchId || 'fallback'}_${round}`;
-    setQuestions(generateQuestions(seed));
+    setQuestions(generateQuestions(seed, TOTAL_QUESTIONS));
   }, [matchId, round]);
 
   useEffect(() => {
@@ -142,12 +146,14 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
 
       setInputValue('');
 
-      if (currentQIndex < 9) {
+      // 使用 TOTAL_QUESTIONS 替代原本硬编码的 9
+      if (currentQIndex < TOTAL_QUESTIONS - 1) {
         setCurrentQIndex(prev => prev + 1);
       } else {
         const endTime = Date.now();
         const duration = endTime - startTimeRef.current;
-        const accuracy = nextCorrect / 10.0;
+        // 使用 TOTAL_QUESTIONS 替代原本硬编码的 10.0
+        const accuracy = nextCorrect / TOTAL_QUESTIONS;
 
         setFinalTimeMs(duration);
         setPhase('finished');
@@ -171,10 +177,10 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [phase, inputValue, currentQIndex, correctCount, questions, handleKeyPress]);
+  },[phase, inputValue, currentQIndex, correctCount, questions, handleKeyPress]);
 
   const renderKeypad = () => {
-    const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', 'Submit'];
+    const keys =['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', 'Submit'];
 
     return (
       <div style={styles.keypadGrid}>
@@ -215,14 +221,14 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
     return (
       <div style={styles.countdownContainer}>
         <p style={styles.countdownText}>{countdown}</p>
-        <p style={{ fontSize: '18px', color: '#666', marginTop: '16px' }}>Ready for Math?</p>
+        <p style={{ fontSize: '18px', color: '#666', marginTop: '16px' }}>准备好计算了吗？</p>
       </div>
     );
   }
 
   if (phase === 'finished') {
     const { miniGameStart, miniGameResult, myPlayerId, players } = useGameStore.getState();
-    const participants = miniGameStart?.players || [];
+    const participants = miniGameStart?.players ||[];
 
     return (
       <div style={styles.mathGameContainer}>
@@ -245,7 +251,8 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
 
                 {isMe ? (
                   <span style={styles.statusFinished}>
-                    {(correctCount * 10).toFixed(0)}% | {(finalTimeMs / 1000).toFixed(1)}s
+                    {/* 使用 TOTAL_QUESTIONS 计算正确的百分比 */}
+                    {((correctCount / TOTAL_QUESTIONS) * 100).toFixed(0)}% | {(finalTimeMs / 1000).toFixed(1)}s
                   </span>
                 ) : isFinished ? (
                   <span style={styles.statusFinished}>
@@ -272,7 +279,8 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
   return (
     <div style={styles.mathGameContainer}>
       <div style={styles.questionHeader}>
-        <span>题号: {currentQIndex + 1} / 10</span>
+        {/* 使用 TOTAL_QUESTIONS 替换硬编码的 10 */}
+        <span>题号: {currentQIndex + 1} / {TOTAL_QUESTIONS}</span>
         <span style={{ color: '#28a745' }}>数算挑战</span>
       </div>
 

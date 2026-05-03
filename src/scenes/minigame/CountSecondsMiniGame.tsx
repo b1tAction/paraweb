@@ -61,7 +61,7 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
       {phase === 'idle' && (
         <>
           <p style={{ fontSize: '14px', color: '#666', textAlign: 'center' }}>
-            Count 5 seconds in your head, then click Stop!
+            在脑子里数5秒，然后点击停止！
           </p>
           <button
             onClick={handleStart}
@@ -73,7 +73,7 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
             } : styles.buttonDisabled}
             disabled={!isParticipant}
           >
-            Start
+            开始
           </button>
         </>
       )}
@@ -82,7 +82,7 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
         <>
           <p style={styles.timerDisplay}>???</p>
           <p style={{ fontSize: '14px', color: '#888', textAlign: 'center' }}>
-            Count 5 seconds in your head...
+            在脑子里数5秒...
           </p>
           <button
             onClick={handleStop}
@@ -94,7 +94,7 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
               marginTop: '16px' 
             }}
           >
-            Stop
+            停止
           </button>
         </>
       )}
@@ -102,17 +102,17 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
       {phase === 'stopped' && !submitted && (
         <>
           <p style={{ ...styles.resultDisplay, fontWeight: 'bold' }}>
-            Your estimate: <span style={{ color: '#2196F3' }}>{elapsedSeconds.toFixed(2)}s</span>
+            你的估计： <span style={{ color: '#2196F3' }}>{elapsedSeconds.toFixed(2)}秒</span>
           </p>
           <p style={{ ...styles.resultDisplay, fontWeight: 'bold', color: getDeviationColor(deviation) }}>
-            Deviation: {deviation!.toFixed(2)}s (target: 5.0s)
+            偏差： {deviation!.toFixed(2)}秒 （目标：5.0秒）
           </p>
           <button
             onClick={handleSubmit}
             style={isSubmitting ? styles.buttonDisabled : { ...styles.button, backgroundColor: '#4CAF50' }}
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Result'}
+            {isSubmitting ? '提交中...' : '提交结果'}
           </button>
         </>
       )}
@@ -120,13 +120,13 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
       {phase === 'stopped' && submitted && (
         <div style={{ ...styles.resultContainer, backgroundColor: 'transparent', padding: '16px' }}>
           <p style={{ ...styles.submittedText, fontWeight: 'bold' }}>
-            Submitted!
+            已提交！
           </p>
           <p style={{ fontSize: '16px', color: '#333' }}>
-            Estimate: <span style={{ color: '#2196F3' }}>{elapsedSeconds.toFixed(2)}s</span>
+            估计值： <span style={{ color: '#2196F3' }}>{elapsedSeconds.toFixed(2)}秒</span>
           </p>
           <p style={{ fontSize: '16px', fontWeight: 'bold', color: getDeviationColor(deviation) }}>
-            Deviation: {deviation!.toFixed(2)}s
+            偏差： {deviation!.toFixed(2)}秒
           </p>
         </div>
       )}
