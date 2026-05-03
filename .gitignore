@@ -4,6 +4,7 @@ dist
 images
 *.zip
 *.tar
+*.rar
 *.tar.gz
 .DS_Store
 

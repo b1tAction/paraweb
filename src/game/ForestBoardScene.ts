@@ -86,6 +86,19 @@ const SHRINE_TEXTURE_KEY = 'map-shrine';
 const SHRINE_TILESET_NAME = 'shrine';
 const WARP_DOOR_TEXTURE_KEY = 'warp-door';
 const WARP_DOOR_ANIMATION_KEY = 'warp-door-swirl';
+const WATER_TELEPORT_TEXTURE_KEY = 'water-teleport';
+const WATER_TELEPORT_ANIMATION_KEY = 'water-teleport-vortex';
+const WATER_TELEPORT_FRAME_COUNT = 48;
+const WATER_TELEPORT_FRAME_RATE = 24;
+const BLACKHOLE_TEXTURE_KEY = 'blackhole';
+const BLACKHOLE_ANIMATION_KEY = 'blackhole-rotate';
+const BLACKHOLE_ANI_TEXTURE_KEY = 'blackhole-ani';
+const BLACKHOLE_ANI_ANIMATION_KEY = 'blackhole-ani-effect';
+const BLACKHOLE_ANI_FRAME_COUNT = 3;
+const BLACKHOLE_FRAME_COUNT = 8;
+const BLACKHOLE_FRAME_RATE = 24;
+const BLACKHOLE_ANI_FRAME_RATE = 12;
+const BLACKHOLE_SIZE_SCALE = 2.0;
 const WARP_DOOR_CELL_OFFSET_Y = 1;
 const WARP_DOOR_DEPTH_OFFSET = 52;
 const WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET = 76;
@@ -160,6 +173,14 @@ export class ForestBoardScene extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64
     });
+
+    for (let i = 1; i <= WATER_TELEPORT_FRAME_COUNT; i += 1) {
+      const frameName = String(i).padStart(5, '0');
+      this.load.image(
+        `${WATER_TELEPORT_TEXTURE_KEY}-${frameName}`,
+        `/assets/effects/Water1/Png/water1_${frameName}.png`
+      );
+    }
     
 
     // Load lightning bolt effect sprite sheet for thunder event
@@ -184,6 +205,16 @@ export class ForestBoardScene extends Phaser.Scene {
     this.load.spritesheet('wind-gust-effect', '/assets/effects/wind-gust.png', {
       frameWidth: 72,
       frameHeight: 72
+    });
+
+    this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    this.load.spritesheet(BLACKHOLE_ANI_TEXTURE_KEY, '/assets/effects/Black-hole-ani.png', {
+      frameWidth: 64,
+      frameHeight: 64
     });
 
     const renderer = getCharacterRenderer(this.characterRenderOptions);
@@ -265,6 +296,35 @@ export class ForestBoardScene extends Phaser.Scene {
         frames: this.anims.generateFrameNumbers(WARP_DOOR_TEXTURE_KEY, { start: 0, end: 8 }),
         frameRate: 12,
         repeat: -1
+      });
+    }
+
+    if (!this.anims.exists(WATER_TELEPORT_ANIMATION_KEY)) {
+      this.anims.create({
+        key: WATER_TELEPORT_ANIMATION_KEY,
+        frames: Array.from({ length: WATER_TELEPORT_FRAME_COUNT }, (_, index) => ({
+          key: `${WATER_TELEPORT_TEXTURE_KEY}-${String(index + 1).padStart(5, '0')}`,
+        })),
+        frameRate: WATER_TELEPORT_FRAME_RATE,
+        repeat: 0,
+      });
+    }
+
+    if (!this.anims.exists(BLACKHOLE_ANIMATION_KEY)) {
+      this.anims.create({
+        key: BLACKHOLE_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(BLACKHOLE_TEXTURE_KEY, { start: 0, end: BLACKHOLE_FRAME_COUNT - 1 }),
+        frameRate: BLACKHOLE_FRAME_RATE,
+        repeat: -1
+      });
+    }
+
+    if (!this.anims.exists(BLACKHOLE_ANI_ANIMATION_KEY)) {
+      this.anims.create({
+        key: BLACKHOLE_ANI_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(BLACKHOLE_ANI_TEXTURE_KEY, { start: 0, end: BLACKHOLE_ANI_FRAME_COUNT - 1 }),
+        frameRate: BLACKHOLE_ANI_FRAME_RATE,
+        repeat: 0
       });
     }
 
@@ -880,7 +940,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private playTeleportAnimation(context: LogEntryAnimationContext) {
     const { entry } = context;
     if (!isAnyDoorTeleportEntry(entry)) {
-      this.playGenericLogEntryEffect(context);
+      this.playBlackholeTeleportAnimation(context);
       return;
     }
 
@@ -1052,6 +1112,143 @@ export class ForestBoardScene extends Phaser.Scene {
         onComplete: () => doors.forEach((object) => object.destroy()),
       });
     });
+  }
+
+  private playBlackholeTeleportAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const marker = this.playerMarkers.get(entry.target);
+    const fromPos = getMetadataNumber(entry.metadata, 'from_pos');
+    const toPos = getMetadataNumber(entry.metadata, 'to_pos');
+
+    if (!marker || fromPos === null || toPos === null) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const fromCell = this.cellViews.get(fromPos);
+    const toCell = this.cellViews.get(toPos);
+    if (!fromCell || !toCell) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const currentOffsetX = marker.x - fromCell.x;
+    const currentOffsetY = marker.y - fromCell.y;
+    const targetX = toCell.x + currentOffsetX;
+    const targetY = toCell.y + currentOffsetY;
+    const originalScaleX = Math.abs(marker.scaleX) || 1;
+    const originalScaleY = Math.abs(marker.scaleY) || 1;
+    const originalAlpha = marker.alpha || 1;
+    const sourceDepth = marker.y + 260;
+    const targetDepth = targetY + 260;
+
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+
+    const profileScale = profile.scale ?? 0.65;
+    const characterWidth = profile.animations.idle.frameWidth * profileScale;
+    const centerY = marker.y;
+
+    // Phase 1: 黑洞出现并覆盖人物 (0-400ms)
+    const blackholeAppearDuration = 400;
+    const sourceBlackhole = this.add.sprite(marker.x, centerY, BLACKHOLE_TEXTURE_KEY);
+    sourceBlackhole.setOrigin(0.5, 0.5);
+    sourceBlackhole.setDisplaySize(10, 10);
+    sourceBlackhole.setAlpha(1);
+    sourceBlackhole.setDepth(sourceDepth + 1);
+    sourceBlackhole.play(BLACKHOLE_ANIMATION_KEY);
+
+    this.tweens.add({
+      targets: sourceBlackhole,
+      displayWidth: characterWidth * BLACKHOLE_SIZE_SCALE,
+      displayHeight: characterWidth * BLACKHOLE_SIZE_SCALE,
+      duration: blackholeAppearDuration,
+      ease: 'Back.easeOut',
+    });
+
+    // Phase 2: 黑洞吸收人物，旋转并一起消失 (400-800ms)
+    this.time.delayedCall(blackholeAppearDuration, () => {
+      const rotatingBlackhole = this.add.sprite(marker.x, centerY, BLACKHOLE_TEXTURE_KEY);
+      rotatingBlackhole.setOrigin(0.5, 0.5);
+      rotatingBlackhole.setDisplaySize(characterWidth * BLACKHOLE_SIZE_SCALE, characterWidth * BLACKHOLE_SIZE_SCALE);
+      rotatingBlackhole.setAlpha(1);
+      rotatingBlackhole.setDepth(sourceDepth + 1);
+      rotatingBlackhole.play(BLACKHOLE_ANIMATION_KEY);
+
+      sourceBlackhole.destroy();
+
+      // 人物一起被吸入并消失
+      this.tweens.add({
+        targets: marker,
+        scaleX: originalScaleX * 0.3,
+        scaleY: originalScaleY * 0.3,
+        alpha: 0,
+        duration: 400,
+        ease: 'Cubic.easeIn',
+      });
+
+      // 黑洞旋转并缩小消失
+      this.tweens.add({
+        targets: rotatingBlackhole,
+        displayWidth: 20,
+        displayHeight: 20,
+        alpha: 0,
+        duration: 400,
+        ease: 'Back.easeIn',
+      });
+
+      // Phase 3: 黑洞在目标位置出现 (800-1200ms)
+      this.time.delayedCall(400, () => {
+        this.logDrivenPositions.set(entry.target, toPos);
+        this.refreshCellMarkerStates();
+
+        marker.setPosition(targetX, targetY);
+        marker.setScale(originalScaleX * 0.3, originalScaleY * 0.3);
+        marker.setAlpha(0);
+        marker.setDepth(targetDepth);
+
+        const exitBlackhole = this.add.sprite(targetX, targetY, BLACKHOLE_TEXTURE_KEY);
+        exitBlackhole.setOrigin(0.5, 0.5);
+        exitBlackhole.setDisplaySize(10, 10);
+        exitBlackhole.setAlpha(1);
+        exitBlackhole.setDepth(targetDepth + 1);
+
+        exitBlackhole.play(BLACKHOLE_ANIMATION_KEY);
+
+        this.tweens.add({
+          targets: exitBlackhole,
+          displayWidth: characterWidth * BLACKHOLE_SIZE_SCALE,
+          displayHeight: characterWidth * BLACKHOLE_SIZE_SCALE,
+          duration: 400,
+          ease: 'Back.easeOut',
+        });
+
+        // Phase 4: 黑洞消失，人物出现 (1200-1600ms)
+        this.time.delayedCall(400, () => {
+          exitBlackhole.destroy();
+
+          this.tweens.killTweensOf(marker);
+          this.tweens.add({
+            targets: marker,
+            scaleX: originalScaleX,
+            scaleY: originalScaleY,
+            alpha: originalAlpha,
+            duration: 400,
+            ease: 'Cubic.easeOut',
+            onComplete: () => {
+              renderer.play(this, marker, profile, 'idle');
+              this.activeMoveAnimations.delete(entry.target);
+              this.refreshCellMarkerStates();
+            },
+          });
+        });
+      });
+    });
+
+    this.logDrivenPositions.set(entry.target, fromPos);
+    this.activeMoveAnimations.add(entry.target);
+    this.refreshCellMarkerStates();
+    this.tweens.killTweensOf(marker);
   }
 
 private playHerbAnimation(context: LogEntryAnimationContext) {
