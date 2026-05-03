@@ -110,6 +110,12 @@ const LP_ADD_FRAME_WIDTH = 64;
 const LP_ADD_FRAME_HEIGHT = 64;
 const LP_ADD_FRAME_COUNT = 12;
 const LP_ADD_FRAME_RATE = 18;
+const LP_MINUS_TEXTURE_KEY = 'lp-minus-effect';
+const LP_MINUS_ANIMATION_KEY = 'lp_minus_anim';
+const LP_MINUS_FRAME_WIDTH = 64;
+const LP_MINUS_FRAME_HEIGHT = 64;
+const LP_MINUS_FRAME_COUNT = 21;
+const LP_MINUS_FRAME_RATE = 18;
 const BLACKHOLE_SIZE_SCALE = 2.0;
 const WARP_DOOR_CELL_OFFSET_Y = 1;
 const WARP_DOOR_DEPTH_OFFSET = 52;
@@ -240,6 +246,11 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: LP_ADD_FRAME_HEIGHT
     });
 
+    this.load.spritesheet(LP_MINUS_TEXTURE_KEY, '/assets/effects/lpminus.png', {
+      frameWidth: LP_MINUS_FRAME_WIDTH,
+      frameHeight: LP_MINUS_FRAME_HEIGHT
+    });
+
     const renderer = getCharacterRenderer(this.characterRenderOptions);
     Object.values(getCharacterProfiles(this.characterRenderOptions)).forEach((profile) => {
       renderer.preload(this, profile);
@@ -365,6 +376,15 @@ export class ForestBoardScene extends Phaser.Scene {
         key: LP_ADD_ANIMATION_KEY,
         frames: this.anims.generateFrameNumbers(LP_ADD_TEXTURE_KEY, { start: 0, end: LP_ADD_FRAME_COUNT - 1 }),
         frameRate: LP_ADD_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    if (!this.anims.exists(LP_MINUS_ANIMATION_KEY)) {
+      this.anims.create({
+        key: LP_MINUS_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(LP_MINUS_TEXTURE_KEY, { start: 0, end: LP_MINUS_FRAME_COUNT - 1 }),
+        frameRate: LP_MINUS_FRAME_RATE,
         repeat: 0
       });
     }
@@ -1500,12 +1520,22 @@ private playModifyLpAnimation(context: LogEntryAnimationContext) {
   const { entry } = context;
   const lpChange = getMetadataNumber(entry.metadata, 'lp_change') ?? 0;
 
-  // Only play sprite animation when LP increases
-  if (lpChange <= 0) {
-    this.playGenericLogEntryEffect(context);
+  if (lpChange > 0) {
+    this.playLpAddEffect(context);
     return;
   }
 
+  if (lpChange < 0) {
+    this.playLpMinusEffect(context);
+    return;
+  }
+
+  // lpChange == 0: fallback to generic effect
+  this.playGenericLogEntryEffect(context);
+}
+
+private playLpAddEffect(context: LogEntryAnimationContext) {
+  const { entry } = context;
   const marker = this.playerMarkers.get(entry.target);
   if (!marker) {
     this.playGenericLogEntryEffect(context);
@@ -1527,6 +1557,53 @@ private playModifyLpAnimation(context: LogEntryAnimationContext) {
   });
 
   // Display floating "LP +N" text label
+  const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
+  const text = this.add.text(x, y - 42, effect.label, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '22px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    scale: 1.15,
+    duration: 1050,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
+private playLpMinusEffect(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) {
+    this.playGenericLogEntryEffect(context);
+    return;
+  }
+
+  const x = marker.x;
+  const y = marker.y;
+
+  // Play LP-minus sprite animation centered on the character
+  const lpMinusSprite = this.add.sprite(x, y, LP_MINUS_TEXTURE_KEY);
+  lpMinusSprite.setScale(2.0);
+  lpMinusSprite.setOrigin(0.5, 0.5);
+  lpMinusSprite.setDepth(y + 220);
+  lpMinusSprite.play(LP_MINUS_ANIMATION_KEY);
+
+  lpMinusSprite.once('animationcomplete', () => {
+    lpMinusSprite.destroy();
+  });
+
+  // Display floating "LP -N" text label
   const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
   const text = this.add.text(x, y - 42, effect.label, {
     fontFamily: GAME_FONT_FAMILY,
