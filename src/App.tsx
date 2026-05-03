@@ -73,12 +73,11 @@ function BossBattleScene() {
  */
 const App: React.FC = () => {
   const currentScene = useGameStore((state) => state.currentScene);
-
   // 用于跟踪是否正在恢复 session
   const [isRestoring, setIsRestoring] = useState(true);
-
-  // 应用启动时尝试恢复 session
+  // 应用启动时尝试恢复 session。
   useEffect(() => {
+
     const tryRestore = async () => {
       try {
         const restored = await gameService.restoreSession();

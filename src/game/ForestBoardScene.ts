@@ -19,6 +19,8 @@ import {
 import {
   BOSS_BEAST_CHARACTER_PROFILE,
   getAnimationKey,
+  getCharacterEffectOffsetY,
+  getCharacterNameOffsetY,
   getCharacterOffsetY,
   getCharacterProfiles,
   getCharacterRenderer,
@@ -257,7 +259,8 @@ export class ForestBoardScene extends Phaser.Scene {
     this.playerNames.forEach((text, playerId) => {
         const marker = this.playerMarkers.get(playerId);
         if (marker) {
-            text.setPosition(Math.round(marker.x), Math.round(marker.y - 30));
+            const profile = this.resolveCharacterProfileFromMarker(marker, playerId);
+            text.setPosition(Math.round(marker.x), Math.round(marker.y + getCharacterNameOffsetY(profile)));
             text.setDepth(marker.depth + 1);
         } else {
             text.destroy();
@@ -542,7 +545,7 @@ export class ForestBoardScene extends Phaser.Scene {
         marker.setDepth(targetY + 100);
         marker.setData('characterProfileId', profile.id);
         this.playerMarkers.set(player.player_id, marker);
-        const playerName = this.add.text(targetX, targetY - 30, player.display_name, {
+        const playerName = this.add.text(targetX, targetY + getCharacterNameOffsetY(profile), player.display_name, {
           fontFamily: GAME_FONT_FAMILY,
           fontSize: `${this.getWorldFontSize(PLAYER_NAME_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`,
           color: this.getPlayerNameColor(player.player_id),
@@ -636,6 +639,7 @@ export class ForestBoardScene extends Phaser.Scene {
     return fallbackProfile;
   }
 
+
   private playLogEntryEffect(context?: LogEntryAnimationContext | null) {
     if (!context || !shouldRenderBoardLogEntryAnimation(context)) return;
 
@@ -646,6 +650,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.lastEffectKey = effectKey;
 
     const renderer = this.boardAnimationRenderers[entry.action_type] ?? this.playGenericLogEntryEffect;
+
     renderer(context);
   }
 
@@ -696,6 +701,21 @@ export class ForestBoardScene extends Phaser.Scene {
     return true;
   }
 
+  private getPlayerIdForMarker(marker: Phaser.GameObjects.Sprite) {
+    return this.players.find((player) => this.playerMarkers.get(player.player_id) === marker)?.player_id;
+  }
+
+  private getMarkerEffectPoint(marker: Phaser.GameObjects.Sprite, playerId?: string) {
+    const resolvedPlayerId = playerId ?? this.getPlayerIdForMarker(marker);
+    const profile = resolvedPlayerId
+      ? this.resolveCharacterProfileFromMarker(marker, resolvedPlayerId)
+      : null;
+    return {
+      x: marker.x,
+      y: marker.y + (profile ? getCharacterEffectOffsetY(profile) : 0),
+    };
+  }
+
   private playBossPulse(
     marker: Phaser.GameObjects.Sprite,
     label: string,
@@ -703,8 +723,7 @@ export class ForestBoardScene extends Phaser.Scene {
     textColor = '#ffebee',
     scale = 2.2
   ) {
-    const x = marker.x;
-    const y = marker.y;
+    const { x, y } = this.getMarkerEffectPoint(marker);
 
     const ring = this.add.circle(x, y, 28, color, 0.14);
     ring.setStrokeStyle(4, color, 1);
@@ -748,10 +767,12 @@ export class ForestBoardScene extends Phaser.Scene {
     color: number,
     label?: string
   ) {
-    const fromX = fromMarker.x;
-    const fromY = fromMarker.y - 10;
-    const toX = toMarker.x;
-    const toY = toMarker.y - 10;
+    const fromPoint = this.getMarkerEffectPoint(fromMarker);
+    const toPoint = this.getMarkerEffectPoint(toMarker);
+    const fromX = fromPoint.x;
+    const fromY = fromPoint.y - 10;
+    const toX = toPoint.x;
+    const toY = toPoint.y - 10;
     const depth = Math.max(fromMarker.y, toMarker.y) + 260;
 
     const line = this.add.graphics();
@@ -762,7 +783,7 @@ export class ForestBoardScene extends Phaser.Scene {
     line.strokePath();
     line.setDepth(depth);
 
-    const impactRing = this.add.circle(toMarker.x, toMarker.y, 18, color, 0.12);
+    const impactRing = this.add.circle(toPoint.x, toPoint.y, 18, color, 0.12);
     impactRing.setStrokeStyle(3, color, 1);
     impactRing.setDepth(depth + 1);
 
@@ -793,8 +814,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private playBossThornsPulse(marker: Phaser.GameObjects.Sprite) {
     this.playBossPulse(marker, 'Boss 荆棘', 0x8e24aa, '#f3e5f5', 2.05);
 
-    const centerX = marker.x;
-    const centerY = marker.y;
+    const { x: centerX, y: centerY } = this.getMarkerEffectPoint(marker);
     const spikes = this.add.graphics();
     spikes.lineStyle(4, 0x8e24aa, 0.95);
 
@@ -848,6 +868,11 @@ export class ForestBoardScene extends Phaser.Scene {
       return;
     }
 
+    const targetMarker = this.playerMarkers.get(entry.target);
+    if (targetMarker) {
+      bossMarker.setFlipX(targetMarker.x < bossMarker.x);
+    }
+
     this.playBossProfileAnimation(bossMarker, bossPlayer.player_id, 'attack');
 
     const attackType = getMetadataString(entry.metadata, 'attack_type') || 'normal';
@@ -855,7 +880,6 @@ export class ForestBoardScene extends Phaser.Scene {
     const color = isCrit ? 0xff1744 : 0xd32f2f;
     this.playBossPulse(bossMarker, isCrit ? 'Boss 暴击' : 'Boss 普攻', color, '#ffebee', isCrit ? 2.4 : 2.0);
 
-    const targetMarker = this.playerMarkers.get(entry.target);
     if (targetMarker) {
       this.playBossLineEffect(bossMarker, targetMarker, color, isCrit ? 'CRIT' : 'ATTACK');
     }
@@ -909,8 +933,7 @@ export class ForestBoardScene extends Phaser.Scene {
   }
 
   private isBossReflectDamage(entry: LogEntry) {
-    if (entry.action_type !== 'damage') return false;
-    return entry.source === 'buff_thorns' || getMetadataString(entry.metadata, 'source') === 'buff_thorns';
+    return entry.action_type === 'damage' && entry.source === 'buff_thorns';
   }
 
   private playBossReflectAnimation(context: LogEntryAnimationContext) {
@@ -919,6 +942,7 @@ export class ForestBoardScene extends Phaser.Scene {
     const targetMarker = this.playerMarkers.get(entry.target);
     if (!bossMarker || !targetMarker) return;
 
+    bossMarker.setFlipX(targetMarker.x < bossMarker.x);
     this.playBossThornsPulse(bossMarker);
     this.playBossLineEffect(bossMarker, targetMarker, 0x8e24aa, '反刺');
   }
@@ -932,9 +956,9 @@ export class ForestBoardScene extends Phaser.Scene {
     if (!marker) return;
 
     const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
-    const x = marker.x;
-    const y = marker.y;
-
+    const point = this.getMarkerEffectPoint(marker, entry.target);
+    const x = point.x;
+    const y = point.y;
     const ring = this.add.circle(x, y, 24, effect.color, 0.12);
     ring.setStrokeStyle(4, effect.color, 1);
     ring.setDepth(y + 210);

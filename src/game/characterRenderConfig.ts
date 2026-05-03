@@ -2,9 +2,14 @@ import * as Phaser from 'phaser';
 import type { Player } from '../types/protocol';
 import {
   BOSS_BEAST_ASSETS,
+  BOSS_BEAST_EFFECT_OFFSET_Y,
   BOSS_BEAST_FALLBACK_TEXTURE_KEY,
+  BOSS_BEAST_NAME_OFFSET_Y,
   BOSS_BEAST_PROFILE_ID,
+  BOSS_BEAST_RENDER_DEFAULT_FLIP_X,
   BOSS_BEAST_RENDER_OFFSET_Y,
+  BOSS_BEAST_RENDER_ORIGIN_X,
+  BOSS_BEAST_RENDER_ORIGIN_Y,
   BOSS_BEAST_RENDER_SCALE,
   isBossPlayer,
 } from './bossVisualConfig';
@@ -33,6 +38,11 @@ export type CharacterRenderProfile = {
   id: string;
   scale?: number;
   offsetY?: number;
+  originX?: number;
+  originY?: number;
+  defaultFlipX?: boolean;
+  nameOffsetY?: number;
+  effectOffsetY?: number;
   animations: Record<CharacterCoreAnimationState, CharacterSheetConfig>
     & Partial<Record<Exclude<CharacterAnimationState, CharacterCoreAnimationState>, CharacterSheetConfig>>;
   avatarState?: CharacterAnimationState;
@@ -100,6 +110,11 @@ export const BOSS_BEAST_CHARACTER_PROFILE: CharacterRenderProfile = {
   id: BOSS_BEAST_PROFILE_ID,
   scale: BOSS_BEAST_RENDER_SCALE,
   offsetY: BOSS_BEAST_RENDER_OFFSET_Y,
+  originX: BOSS_BEAST_RENDER_ORIGIN_X,
+  originY: BOSS_BEAST_RENDER_ORIGIN_Y,
+  defaultFlipX: BOSS_BEAST_RENDER_DEFAULT_FLIP_X,
+  nameOffsetY: BOSS_BEAST_NAME_OFFSET_Y,
+  effectOffsetY: BOSS_BEAST_EFFECT_OFFSET_Y,
   avatarState: 'idle',
   avatarFrame: 0,
   animations: {
@@ -415,7 +430,9 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
     const idleTextureKey = getTextureKey(profile, 'idle');
     const textureKey = scene.textures.exists(idleTextureKey) ? idleTextureKey : ensureCharacterFallbackTexture(scene, profile);
     const sprite = scene.add.sprite(x, y, textureKey);
+    sprite.setOrigin(profile.originX ?? 0.5, profile.originY ?? 0.5);
     sprite.setScale(profile.scale ?? DEFAULT_CHARACTER_SCALE);
+    sprite.setFlipX(profile.defaultFlipX ?? false);
     sprite.setData('usesFallbackTexture', textureKey === getCharacterFallbackTextureKey(profile));
     return sprite;
   },
@@ -508,9 +525,16 @@ export function resolveCharacterProfile(
 
   return profile;
 }
-
 export function getCharacterOffsetY(profile: CharacterRenderProfile) {
   return profile.offsetY ?? DEFAULT_CHARACTER_OFFSET_Y;
+}
+
+export function getCharacterNameOffsetY(profile: CharacterRenderProfile) {
+  return profile.nameOffsetY ?? -30;
+}
+
+export function getCharacterEffectOffsetY(profile: CharacterRenderProfile) {
+  return profile.effectOffsetY ?? 0;
 }
 
 export function getCharacterProfileByFaction(
