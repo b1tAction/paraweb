@@ -104,6 +104,12 @@ const RESPAWN_FRAME_WIDTH = 32;
 const RESPAWN_FRAME_HEIGHT = 32;
 const RESPAWN_FRAME_COUNT = 12;
 const RESPAWN_FRAME_RATE = 18;
+const LP_ADD_TEXTURE_KEY = 'lp-add-effect';
+const LP_ADD_ANIMATION_KEY = 'lp_add_anim';
+const LP_ADD_FRAME_WIDTH = 64;
+const LP_ADD_FRAME_HEIGHT = 64;
+const LP_ADD_FRAME_COUNT = 12;
+const LP_ADD_FRAME_RATE = 18;
 const BLACKHOLE_SIZE_SCALE = 2.0;
 const WARP_DOOR_CELL_OFFSET_Y = 1;
 const WARP_DOOR_DEPTH_OFFSET = 52;
@@ -139,6 +145,7 @@ export class ForestBoardScene extends Phaser.Scene {
     death: (context) => this.playDeathAnimation(context),
     fell_down: (context) => this.playDeathAnimation(context),
     respawn: (context) => this.playRespawnAnimation(context),
+    modify_lp: (context) => this.playModifyLpAnimation(context),
     draw_event: (context) => this.playDrawEventAnimation(context),
   };
 
@@ -226,6 +233,11 @@ export class ForestBoardScene extends Phaser.Scene {
     this.load.spritesheet(RESPAWN_TEXTURE_KEY, '/assets/effects/respawn.png', {
       frameWidth: RESPAWN_FRAME_WIDTH,
       frameHeight: RESPAWN_FRAME_HEIGHT
+    });
+
+    this.load.spritesheet(LP_ADD_TEXTURE_KEY, '/assets/effects/lpadd.png', {
+      frameWidth: LP_ADD_FRAME_WIDTH,
+      frameHeight: LP_ADD_FRAME_HEIGHT
     });
 
     const renderer = getCharacterRenderer(this.characterRenderOptions);
@@ -344,6 +356,15 @@ export class ForestBoardScene extends Phaser.Scene {
         key: RESPAWN_ANIMATION_KEY,
         frames: this.anims.generateFrameNumbers(RESPAWN_TEXTURE_KEY, { start: 0, end: RESPAWN_FRAME_COUNT - 1 }),
         frameRate: RESPAWN_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    if (!this.anims.exists(LP_ADD_ANIMATION_KEY)) {
+      this.anims.create({
+        key: LP_ADD_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(LP_ADD_TEXTURE_KEY, { start: 0, end: LP_ADD_FRAME_COUNT - 1 }),
+        frameRate: LP_ADD_FRAME_RATE,
         repeat: 0
       });
     }
@@ -1451,6 +1472,61 @@ private playHealAnimation(context: LogEntryAnimationContext) {
   });
 
   // Display floating "HP +N" text label (no flash ring)
+  const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
+  const text = this.add.text(x, y - 42, effect.label, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '22px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    scale: 1.15,
+    duration: 1050,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
+private playModifyLpAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const lpChange = getMetadataNumber(entry.metadata, 'lp_change') ?? 0;
+
+  // Only play sprite animation when LP increases
+  if (lpChange <= 0) {
+    this.playGenericLogEntryEffect(context);
+    return;
+  }
+
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) {
+    this.playGenericLogEntryEffect(context);
+    return;
+  }
+
+  const x = marker.x;
+  const y = marker.y;
+
+  // Play LP+1 sprite animation centered on the character
+  const lpAddSprite = this.add.sprite(x, y, LP_ADD_TEXTURE_KEY);
+  lpAddSprite.setScale(2.0);
+  lpAddSprite.setOrigin(0.5, 0.5);
+  lpAddSprite.setDepth(y + 220);
+  lpAddSprite.play(LP_ADD_ANIMATION_KEY);
+
+  lpAddSprite.once('animationcomplete', () => {
+    lpAddSprite.destroy();
+  });
+
+  // Display floating "LP +N" text label
   const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
   const text = this.add.text(x, y - 42, effect.label, {
     fontFamily: GAME_FONT_FAMILY,
