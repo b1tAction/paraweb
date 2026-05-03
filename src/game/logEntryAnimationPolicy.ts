@@ -23,6 +23,12 @@ type AnimationRenderFilter = boolean | ((context: LogEntryAnimationContext) => b
 
 const IMMEDIATE_NEXT_ACTION_TYPES = new Set(['damage']);
 
+const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
+  'damage->death': 180,
+  'fell_down->death': 180,
+  'death->respawn': 240,
+};
+
 export type LogEntryAnimationRule = {
   renderOnBoard?: AnimationRenderFilter;
   delayMs?: AnimationDelayResolver;
@@ -78,6 +84,14 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
     renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry),
     delayMs: ({ entry }) => (isReverseClockLostBuffEntry(entry) ? 1800 : DEFAULT_ACTION_ANIMATION_DELAY_MS),
   },
+  death: {
+    renderOnBoard: true,
+    delayMs: 900,
+  },
+  respawn: {
+    renderOnBoard: true,
+    delayMs: 950,
+  },
   remove_item: {
     renderOnBoard: false,
     delayMs: 0,
@@ -112,6 +126,13 @@ export function shouldRenderBoardLogEntryAnimation(context?: LogEntryAnimationCo
 
 export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | null) {
   if (!context || !isLogEntryAnimationCandidate(context.entry)) return 0;
+
+  if (context.nextEntry) {
+    const transitionKey = `${context.entry.action_type}->${context.nextEntry.action_type}`;
+    const transitionDelay = ACTION_TRANSITION_DELAY_MS[transitionKey];
+    if (typeof transitionDelay === 'number') return transitionDelay;
+  }
+
   if (context.nextEntry && IMMEDIATE_NEXT_ACTION_TYPES.has(context.nextEntry.action_type)) return 0;
 
   const delay = LOG_ENTRY_ANIMATION_RULES[context.entry.action_type]?.delayMs ?? DEFAULT_ANIMATION_RULE.delayMs;
