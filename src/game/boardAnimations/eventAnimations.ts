@@ -42,7 +42,7 @@ export function playDrawEventAnimation(
   showCenterPopup(popupCtx, eventName, effect.textColor, effect.iconEmoji, duration);
 
   // 2. Delay the event-specific animation to stagger visual focus
-  const animationDelay = 500;
+  const animationDelay = eventType === 'thunder' ? 0 : 500;
 
   ctx.scene.time.delayedCall(animationDelay, () => {
     if (eventType === 'thunder') {
@@ -117,9 +117,8 @@ export function playLightningStrikeAnimation(ctx: BoardAnimationContext, context
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
 
-  const LIGHTNING_BOTTOM_MARGIN = 8;
   const landingX = marker.x;
-  const landingY = marker.y + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN;
+  const landingY = marker.y + CHARACTER_HALF_HEIGHT;
 
   // 1. Lightning sprite at LAYER_FULLSCREEN_EFFECT (screen-fixed)
   const lightningSprite = ctx.orchestrator.createScreenFixedObject(
@@ -140,14 +139,28 @@ export function playLightningStrikeAnimation(ctx: BoardAnimationContext, context
   ctx.scene.cameras.main.flash(300, 255, 255, 200);
 
   // 3. Character shake after lightning strike
+  // Use a temporary offset object so the shake tween doesn't directly
+  // modify marker.x/y (which conflicts with syncPlayers tween).
+  const shakeOriginalX = marker.x;
+  const shakeOriginalY = marker.y;
+  const shakeOffset = { offsetX: 0, offsetY: 0 };
+
   ctx.tweens.add({
-    targets: marker,
-    x: { from: marker.x - 4, to: marker.x },
-    y: { from: marker.y - 3, to: marker.y },
+    targets: shakeOffset,
+    offsetX: { from: -4, to: 0 },
+    offsetY: { from: -3, to: 0 },
     duration: 80,
     repeat: 8,
     ease: 'Linear',
     yoyo: true,
+    onUpdate: () => {
+      marker.x = shakeOriginalX + shakeOffset.offsetX;
+      marker.y = shakeOriginalY + shakeOffset.offsetY;
+    },
+    onComplete: () => {
+      marker.x = shakeOriginalX;
+      marker.y = shakeOriginalY;
+    },
   });
 }
 
@@ -160,9 +173,8 @@ export function playLightningStrikeWorldAnimation(ctx: BoardAnimationContext, co
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
 
-  const LIGHTNING_BOTTOM_MARGIN = 8;
   const landingX = marker.x;
-  const landingY = marker.y + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN;
+  const landingY = marker.y + CHARACTER_HALF_HEIGHT;
 
   // Lightning sprite at world-space depth
   const lightningSprite = ctx.scene.add.sprite(landingX, landingY, 'lightning-bolt');
@@ -179,13 +191,27 @@ export function playLightningStrikeWorldAnimation(ctx: BoardAnimationContext, co
   ctx.scene.cameras.main.flash(300, 255, 255, 200);
 
   // Character shake
+  // Use a temporary offset object so the shake tween doesn't directly
+  // modify marker.x/y (which conflicts with syncPlayers tween).
+  const shakeOriginalX = marker.x;
+  const shakeOriginalY = marker.y;
+  const shakeOffset = { offsetX: 0, offsetY: 0 };
+
   ctx.tweens.add({
-    targets: marker,
-    x: { from: marker.x - 4, to: marker.x },
-    y: { from: marker.y - 3, to: marker.y },
+    targets: shakeOffset,
+    offsetX: { from: -4, to: 0 },
+    offsetY: { from: -3, to: 0 },
     duration: 80,
     repeat: 8,
     ease: 'Linear',
     yoyo: true,
+    onUpdate: () => {
+      marker.x = shakeOriginalX + shakeOffset.offsetX;
+      marker.y = shakeOriginalY + shakeOffset.offsetY;
+    },
+    onComplete: () => {
+      marker.x = shakeOriginalX;
+      marker.y = shakeOriginalY;
+    },
   });
 }
