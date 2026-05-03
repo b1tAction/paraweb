@@ -92,6 +92,10 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
     renderOnBoard: true,
     delayMs: 950,
   },
+  modify_lp: {
+    renderOnBoard: true,
+    delayMs: DEFAULT_ACTION_ANIMATION_DELAY_MS,
+  },
   remove_item: {
     renderOnBoard: false,
     delayMs: 0,
