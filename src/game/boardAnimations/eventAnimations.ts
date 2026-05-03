@@ -42,7 +42,7 @@ export function playDrawEventAnimation(
   showCenterPopup(popupCtx, eventName, effect.textColor, effect.iconEmoji, duration);
 
   // 2. Delay the event-specific animation to stagger visual focus
-  const animationDelay = Math.min(1200, duration * 0.5);
+  const animationDelay = 500;
 
   ctx.scene.time.delayedCall(animationDelay, () => {
     if (eventType === 'thunder') {

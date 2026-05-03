@@ -15,8 +15,8 @@ export class AnimationOrchestrator {
 
   /**
    * Create a screen-fixed game object at the given depth.
-   * Automatically converts world coordinates to screen coordinates
-   * and sets scrollFactor(0) so the object stays fixed on screen.
+   * Converts world coordinates to screen coordinates by subtracting camera scroll.
+   * Sets scrollFactor(0) so the object stays fixed on screen.
    */
   createScreenFixedObject<T extends Phaser.GameObjects.GameObject & { setScrollFactor: (f: number) => T; setDepth: (d: number) => T }>(
     worldX: number,
@@ -25,8 +25,9 @@ export class AnimationOrchestrator {
     factory: (screenX: number, screenY: number) => T
   ): T {
     const cam = this.scene.cameras.main;
-    const screenX = cam.scrollX + worldX;
-    const screenY = cam.scrollY + worldY;
+    // Convert world coordinates to screen coordinates by subtracting camera scroll
+    const screenX = worldX - cam.scrollX;
+    const screenY = worldY - cam.scrollY;
 
     const obj = factory(screenX, screenY);
     obj.setScrollFactor(0);
