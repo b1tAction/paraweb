@@ -32,10 +32,10 @@ import {
 } from '../game/logEntryAnimationPolicy';
 import { BOSS_BEAST_PORTRAIT_SRC, isBossPlayer } from '../game/bossVisualConfig';
 
-const FACTION_META: Record<string, { label: string; color: string; bgColor: string }> = {
+const FACTION_META: Record<string, { label: string; color: string; bgColor: string; textColor?: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
-  zhu_que: { label: '朱雀', color: '#c62828', bgColor: 'rgba(246, 226, 226, 0.85)' },
-  bai_hu: { label: '白虎', color: '#ffffff', bgColor: 'rgba(252, 251, 200, 0.96)' },
+  zhu_que: { label: '朱雀', color: '#e62b62', bgColor: 'rgba(253, 228, 237, 0.9)' },
+  bai_hu: { label: '白虎', color: '#e1c4ee', textColor: '#740596', bgColor: 'rgba(246, 230, 250, 0.96)' },
   xuan_wu: { label: '玄武', color: '#113151', bgColor: 'rgba(208, 232, 255, 0.96)' },
 };
 
@@ -130,18 +130,19 @@ function getDiceResultSrc(diceType: string, steps: number) {
 }
 
 function getDiceResultNumberStyle(diceType: string): React.CSSProperties {
-  const colorByType: Record<string, { color: string; shadow: string }> = {
-    gold: { color: '#ffe9a1', shadow: '#7a4c00' },
-    silver: { color: '#f3f7ff', shadow: '#5f6f87' },
-    copper: { color: '#c884ff', shadow: '#5c287a' },
-    wood: { color: '#7be36c', shadow: '#245f1e' },
+  const colorByType: Record<string, { color: string; outline: string }> = {
+    gold: { color: '#ffe9a1', outline: '#fc9801' },
+    silver: { color: '#f3f7ff', outline: '#687894' },
+    copper: { color: '#c884ff', outline: '#68308f' },
+    wood: { color: '#7be36c', outline: '#2e7a27' },
   };
   const palette = colorByType[getDiceAssetType(diceType)];
 
   return {
     ...styles.diceResultNumber,
     color: palette.color,
-    textShadow: `2px 0 0 ${palette.color}, -2px 0 0 ${palette.color}, 0 5px 0 ${palette.shadow}, 0 0 16px ${palette.color}, 0 9px 18px rgba(0, 0, 0, 0.48)`,
+    textShadow:
+      `2px 0 0 ${palette.outline}, -2px 0 0 ${palette.outline}, 0 2px 0 ${palette.outline}, 0 -2px 0 ${palette.outline}, 0 6px 0 rgba(0, 0, 0, 0.42), 0 9px 14px rgba(0, 0, 0, 0.35)`,
   };
 }
 
@@ -869,9 +870,7 @@ export const BoardScene: React.FC = () => {
           <div style={styles.playerBar} aria-label="玩家状态">
             {boardPlayers.map((player) => {
               const faction = getFactionMeta(player.faction);
-              const isCurrentMainActionPlayer =
-                player.player_id === currentPlayerId &&
-                (turnState === 'main_action' || turnState === 'MainAction');
+              const isCurrentTurnPlayer = player.player_id === currentPlayerId;
 
               return (
                 <div
@@ -882,7 +881,7 @@ export const BoardScene: React.FC = () => {
                   style={{
                     ...styles.pixelPlayerCard,
                     backgroundImage: `url(${getPlayerCardImage(player.faction)})`,
-                    filter: isCurrentMainActionPlayer
+                    filter: isCurrentTurnPlayer
                       ? `drop-shadow(0 0 8px ${faction.color}) drop-shadow(0 0 2px #ffffff)`
                       : styles.pixelPlayerCard.filter,
                   }}
@@ -901,7 +900,7 @@ export const BoardScene: React.FC = () => {
                       ...styles.pixelPlayerName,
                       backgroundColor: faction.bgColor,
                       borderColor: faction.color,
-                      color: faction.color,
+                      color: faction.textColor ?? faction.color,
                     }}
                   >
                     {player.display_name || player.player_id}
@@ -1039,12 +1038,7 @@ export const BoardScene: React.FC = () => {
             }
             aria-hidden="true"
           >
-            <img
-              className="paradice-reverse-clock-flight__icon"
-              src="/assets/buff/lost.png"
-              alt=""
-              draggable={false}
-            />
+            <div className="paradice-reverse-clock-flight__icon" />
           </div>
         )}
 
@@ -1367,10 +1361,16 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute',
     left: `${17 * PLAYER_CARD_SCALE}px`,
     top: `${2 * PLAYER_CARD_SCALE}px`,
-    padding: '1px 3px',
+    width: `${8 * PLAYER_CARD_SCALE}px`,
+    height: `${8 * PLAYER_CARD_SCALE}px`,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#111827',
     color: '#fff4a8',
-    border: '1px solid #fff4a8',
+    border: '2px solid #fff4a8',
+    borderRadius: '50%',
+    boxShadow: '0 2px 0 rgba(0, 0, 0, 0.42), inset 0 -2px 0 rgba(0, 0, 0, 0.32)',
     fontSize: '10px',
     fontWeight: 900,
     lineHeight: 1,

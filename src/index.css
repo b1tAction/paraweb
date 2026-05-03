@@ -206,44 +206,37 @@ button:disabled {
 @keyframes paradice-reverse-clock-flight {
   0% {
     opacity: 0;
-    transform: translate3d(calc(var(--start-x) - 34px), calc(var(--start-y) - 34px), 0) scale(0.72);
+    transform: translate3d(calc(var(--start-x) - 64px), calc(var(--start-y) - 64px), 0) scale(0.72);
   }
 
   12% {
     opacity: 1;
-    transform: translate3d(calc(var(--start-x) - 34px), calc(var(--start-y) - 34px), 0) scale(1.08);
+    transform: translate3d(calc(var(--start-x) - 64px), calc(var(--start-y) - 64px), 0) scale(1.08);
   }
 
   38% {
     opacity: 1;
-    transform: translate3d(calc(var(--start-x) - 34px), calc(var(--start-y) - 34px), 0) scale(1.08);
+    transform: translate3d(calc(var(--start-x) - 64px), calc(var(--start-y) - 64px), 0) scale(1.08);
   }
 
   78% {
     opacity: 1;
-    transform: translate3d(calc(var(--end-x) - 34px), calc(var(--end-y) - 34px), 0) scale(0.58);
+    transform: translate3d(calc(var(--end-x) - 64px), calc(var(--end-y) - 64px), 0) scale(0.58);
   }
 
   100% {
     opacity: 0;
-    transform: translate3d(calc(var(--end-x) - 34px), calc(var(--end-y) - 34px), 0) scale(0.34);
+    transform: translate3d(calc(var(--end-x) - 64px), calc(var(--end-y) - 64px), 0) scale(0.34);
   }
 }
 
-@keyframes paradice-reverse-clock-icon-spin {
-  0% {
-    transform: rotate(0deg) scale(0.88);
-    filter: drop-shadow(0 8px 0 rgba(0, 0, 0, 0.28)) drop-shadow(0 0 12px rgba(211, 47, 47, 0.68));
+@keyframes paradice-reverse-clock-sprite {
+  from {
+    background-position-x: 0;
   }
 
-  38% {
-    transform: rotate(-720deg) scale(1.14);
-    filter: drop-shadow(0 8px 0 rgba(0, 0, 0, 0.28)) drop-shadow(0 0 26px rgba(255, 82, 82, 0.92));
-  }
-
-  100% {
-    transform: rotate(-1080deg) scale(0.82);
-    filter: drop-shadow(0 5px 0 rgba(0, 0, 0, 0.22)) drop-shadow(0 0 10px rgba(255, 82, 82, 0.35));
+  to {
+    background-position-x: -3712px;
   }
 }
 
@@ -252,23 +245,22 @@ button:disabled {
   left: 0;
   top: 0;
   z-index: 32;
-  width: 68px;
-  height: 68px;
+  width: 128px;
+  height: 128px;
   pointer-events: none;
   animation: paradice-reverse-clock-flight 1.8s cubic-bezier(0.19, 0.92, 0.26, 1) both;
   will-change: transform, opacity;
 }
 
 .paradice-reverse-clock-flight__icon {
-  position: relative;
-  z-index: 1;
-  width: 68px;
-  height: 68px;
-  object-fit: contain;
+  width: 128px;
+  height: 128px;
+  background-image: url('/assets/effects/reverseclock.png');
+  background-repeat: no-repeat;
+  background-size: auto 128px;
   image-rendering: pixelated;
-  animation: paradice-reverse-clock-icon-spin 1.8s ease-in-out both;
-  transform-origin: center center;
-  will-change: transform, filter;
+  animation: paradice-reverse-clock-sprite 1.8s steps(29) reverse both;
+  will-change: background-position-x;
 }
 
 @keyframes paradice-figure-idle {

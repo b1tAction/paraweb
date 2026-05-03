@@ -11,7 +11,7 @@ export type EventAnimationType =
   | 'curse_cloud'   // dark curse cloud effect
   | 'lightning_strike' // yellow lightning strike effect
   | 'ghost_attack'  // grey ghost attack effect
-  | 'steal_flash'   // orange steal flash effect
+  | 'wind_gust'     // orange wind gust effect
   | 'neutral_pulse'; // white neutral pulse effect
 
 export type EventEffectConfig = {
@@ -111,11 +111,11 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     particleCount: 2,
     duration: 2500
   },
-  'thief': {
+  'wind_gust': {
     color: 0xff7043,
     textColor: '#fff3e0',
-    animationType: 'steal_flash',
-    iconEmoji: '🦹',
+    animationType: 'wind_gust',
+    iconEmoji: '💨',
     particleCount: 6,
     duration: 2500
   },

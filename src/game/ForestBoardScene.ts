@@ -92,6 +92,37 @@ const SHRINE_TEXTURE_KEY = 'map-shrine';
 const SHRINE_TILESET_NAME = 'shrine';
 const WARP_DOOR_TEXTURE_KEY = 'warp-door';
 const WARP_DOOR_ANIMATION_KEY = 'warp-door-swirl';
+const WATER_TELEPORT_TEXTURE_KEY = 'water-teleport';
+const WATER_TELEPORT_ANIMATION_KEY = 'water-teleport-vortex';
+const WATER_TELEPORT_FRAME_COUNT = 48;
+const WATER_TELEPORT_FRAME_RATE = 24;
+const BLACKHOLE_TEXTURE_KEY = 'blackhole';
+const BLACKHOLE_ANIMATION_KEY = 'blackhole-rotate';
+const BLACKHOLE_ANI_TEXTURE_KEY = 'blackhole-ani';
+const BLACKHOLE_ANI_ANIMATION_KEY = 'blackhole-ani-effect';
+const BLACKHOLE_ANI_FRAME_COUNT = 3;
+const BLACKHOLE_FRAME_COUNT = 8;
+const BLACKHOLE_FRAME_RATE = 24;
+const BLACKHOLE_ANI_FRAME_RATE = 12;
+const RESPAWN_TEXTURE_KEY = 'respawn-effect';
+const RESPAWN_ANIMATION_KEY = 'respawn_anim';
+const RESPAWN_FRAME_WIDTH = 32;
+const RESPAWN_FRAME_HEIGHT = 32;
+const RESPAWN_FRAME_COUNT = 12;
+const RESPAWN_FRAME_RATE = 18;
+const LP_ADD_TEXTURE_KEY = 'lp-add-effect';
+const LP_ADD_ANIMATION_KEY = 'lp_add_anim';
+const LP_ADD_FRAME_WIDTH = 64;
+const LP_ADD_FRAME_HEIGHT = 64;
+const LP_ADD_FRAME_COUNT = 12;
+const LP_ADD_FRAME_RATE = 18;
+const LP_MINUS_TEXTURE_KEY = 'lp-minus-effect';
+const LP_MINUS_ANIMATION_KEY = 'lp_minus_anim';
+const LP_MINUS_FRAME_WIDTH = 64;
+const LP_MINUS_FRAME_HEIGHT = 64;
+const LP_MINUS_FRAME_COUNT = 21;
+const LP_MINUS_FRAME_RATE = 18;
+const BLACKHOLE_SIZE_SCALE = 2.0;
 const WARP_DOOR_CELL_OFFSET_Y = 1;
 const WARP_DOOR_DEPTH_OFFSET = 52;
 const WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET = 76;
@@ -122,9 +153,11 @@ export class ForestBoardScene extends Phaser.Scene {
     move: (context) => this.playMoveAnimation(context),
     teleport: (context) => this.playTeleportAnimation(context),
     damage: (context) => this.playDamageAnimation(context),
+    heal: (context) => this.playHealAnimation(context),
     death: (context) => this.playDeathAnimation(context),
     fell_down: (context) => this.playDeathAnimation(context),
     respawn: (context) => this.playRespawnAnimation(context),
+    modify_lp: (context) => this.playModifyLpAnimation(context),
     draw_event: (context) => this.playDrawEventAnimation(context),
     boss_damage: (context) => this.playBossDamageAnimation(context),
     boss_attack: (context) => this.playBossAttackAnimation(context),
@@ -168,12 +201,63 @@ export class ForestBoardScene extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64
     });
+
+    for (let i = 1; i <= WATER_TELEPORT_FRAME_COUNT; i += 1) {
+      const frameName = String(i).padStart(5, '0');
+      this.load.image(
+        `${WATER_TELEPORT_TEXTURE_KEY}-${frameName}`,
+        `/assets/effects/Water1/Png/water1_${frameName}.png`
+      );
+    }
     
 
     // Load lightning bolt effect sprite sheet for thunder event
     this.load.spritesheet('lightning-bolt', '/assets/effects/Lightning-bolt.png', {
       frameWidth: 72,
       frameHeight: 72
+    });
+
+    // Load heal effect sprite sheet for heal action
+    this.load.spritesheet('heal-effect', '/assets/effects/heal.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    // Load herb effect sprite sheet for herb event
+    this.load.spritesheet('herb-effect', '/assets/effects/herb.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    // Load wind gust effect sprite sheet for wind_gust event
+    this.load.spritesheet('wind-gust-effect', '/assets/effects/wind-gust.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    this.load.spritesheet(BLACKHOLE_ANI_TEXTURE_KEY, '/assets/effects/Black-hole-ani.png', {
+      frameWidth: 64,
+      frameHeight: 64
+    });
+
+    this.load.spritesheet(RESPAWN_TEXTURE_KEY, '/assets/effects/respawn.png', {
+      frameWidth: RESPAWN_FRAME_WIDTH,
+      frameHeight: RESPAWN_FRAME_HEIGHT
+    });
+
+    this.load.spritesheet(LP_ADD_TEXTURE_KEY, '/assets/effects/lpadd.png', {
+      frameWidth: LP_ADD_FRAME_WIDTH,
+      frameHeight: LP_ADD_FRAME_HEIGHT
+    });
+
+    this.load.spritesheet(LP_MINUS_TEXTURE_KEY, '/assets/effects/lpminus.png', {
+      frameWidth: LP_MINUS_FRAME_WIDTH,
+      frameHeight: LP_MINUS_FRAME_HEIGHT
     });
 
     const renderer = getCharacterRenderer(this.characterRenderOptions);
@@ -225,12 +309,92 @@ export class ForestBoardScene extends Phaser.Scene {
       repeat: 0
     });
 
+    // Create heal animation for heal action
+    this.anims.create({
+      key: 'heal_anim',
+      frames: this.anims.generateFrameNumbers('heal-effect', { start: 0, end: 7 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    // Create herb animation for herb event
+    this.anims.create({
+      key: 'herb_anim',
+      frames: this.anims.generateFrameNumbers('herb-effect', { start: 0, end: 7 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
+    // Create wind gust animation for wind_gust event
+    this.anims.create({
+      key: 'wind_gust_anim',
+      frames: this.anims.generateFrameNumbers('wind-gust-effect', { start: 0, end: 5 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
     if (!this.anims.exists(WARP_DOOR_ANIMATION_KEY)) {
       this.anims.create({
         key: WARP_DOOR_ANIMATION_KEY,
         frames: this.anims.generateFrameNumbers(WARP_DOOR_TEXTURE_KEY, { start: 0, end: 8 }),
         frameRate: 12,
         repeat: -1
+      });
+    }
+
+    if (!this.anims.exists(WATER_TELEPORT_ANIMATION_KEY)) {
+      this.anims.create({
+        key: WATER_TELEPORT_ANIMATION_KEY,
+        frames: Array.from({ length: WATER_TELEPORT_FRAME_COUNT }, (_, index) => ({
+          key: `${WATER_TELEPORT_TEXTURE_KEY}-${String(index + 1).padStart(5, '0')}`,
+        })),
+        frameRate: WATER_TELEPORT_FRAME_RATE,
+        repeat: 0,
+      });
+    }
+
+    if (!this.anims.exists(BLACKHOLE_ANIMATION_KEY)) {
+      this.anims.create({
+        key: BLACKHOLE_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(BLACKHOLE_TEXTURE_KEY, { start: 0, end: BLACKHOLE_FRAME_COUNT - 1 }),
+        frameRate: BLACKHOLE_FRAME_RATE,
+        repeat: -1
+      });
+    }
+
+    if (!this.anims.exists(BLACKHOLE_ANI_ANIMATION_KEY)) {
+      this.anims.create({
+        key: BLACKHOLE_ANI_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(BLACKHOLE_ANI_TEXTURE_KEY, { start: 0, end: BLACKHOLE_ANI_FRAME_COUNT - 1 }),
+        frameRate: BLACKHOLE_ANI_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    if (!this.anims.exists(RESPAWN_ANIMATION_KEY)) {
+      this.anims.create({
+        key: RESPAWN_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(RESPAWN_TEXTURE_KEY, { start: 0, end: RESPAWN_FRAME_COUNT - 1 }),
+        frameRate: RESPAWN_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    if (!this.anims.exists(LP_ADD_ANIMATION_KEY)) {
+      this.anims.create({
+        key: LP_ADD_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(LP_ADD_TEXTURE_KEY, { start: 0, end: LP_ADD_FRAME_COUNT - 1 }),
+        frameRate: LP_ADD_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    if (!this.anims.exists(LP_MINUS_ANIMATION_KEY)) {
+      this.anims.create({
+        key: LP_MINUS_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(LP_MINUS_TEXTURE_KEY, { start: 0, end: LP_MINUS_FRAME_COUNT - 1 }),
+        frameRate: LP_MINUS_FRAME_RATE,
+        repeat: 0
       });
     }
 
@@ -1085,7 +1249,55 @@ export class ForestBoardScene extends Phaser.Scene {
 
     const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
     const renderer = getCharacterRenderer(this.characterRenderOptions);
+    const checkpointPos = getMetadataNumber(entry.metadata, 'checkpoint_pos');
+    const respawnScale = profile.scale ?? 0.65;
+
+    const playRespawnEffectAt = (x: number, y: number, depth: number) => {
+      const respawnSprite = this.add.sprite(x, y, RESPAWN_TEXTURE_KEY);
+      respawnSprite.setScale(2.3);
+      respawnSprite.setOrigin(0.5, 0.5);
+      respawnSprite.setDepth(depth + 30);
+      respawnSprite.play(RESPAWN_ANIMATION_KEY);
+      respawnSprite.once('animationcomplete', () => {
+        respawnSprite.destroy();
+      });
+    };
+
+    if (checkpointPos !== null) {
+      const checkpointCell = this.cellViews.get(checkpointPos);
+      if (checkpointCell) {
+        const playerIndex = this.players.findIndex((player) => player.player_id === entry.target);
+        const order = playerIndex >= 0 ? playerIndex : 0;
+        const offsetX = (order % 4) * 10 - 15;
+        const targetX = checkpointCell.x + offsetX;
+        const targetY = checkpointCell.y + getCharacterOffsetY(profile);
+
+        this.logDrivenPositions.set(entry.target, checkpointPos);
+        this.refreshCellMarkerStates();
+
+        this.tweens.killTweensOf(marker);
+        this.tweens.add({
+          targets: marker,
+          alpha: 0,
+          duration: 120,
+          ease: 'Sine.easeIn',
+          onComplete: () => {
+            marker.setPosition(targetX, targetY);
+            marker.setDepth(targetY + 100);
+            marker.setScale(respawnScale);
+            marker.setAlpha(1);
+            renderer.play(this, marker, profile, 'idle');
+            playRespawnEffectAt(targetX, targetY, marker.depth);
+            this.playGenericLogEntryEffect(context);
+          },
+        });
+        return;
+      }
+    }
+
     renderer.play(this, marker, profile, 'idle');
+  marker.setScale(respawnScale);
+    playRespawnEffectAt(marker.x, marker.y, marker.depth);
 
     this.playGenericLogEntryEffect(context);
   }
@@ -1175,7 +1387,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private playTeleportAnimation(context: LogEntryAnimationContext) {
     const { entry } = context;
     if (!isAnyDoorTeleportEntry(entry)) {
-      this.playGenericLogEntryEffect(context);
+      this.playBlackholeTeleportAnimation(context);
       return;
     }
 
@@ -1349,6 +1561,411 @@ export class ForestBoardScene extends Phaser.Scene {
     });
   }
 
+  private playBlackholeTeleportAnimation(context: LogEntryAnimationContext) {
+    const { entry } = context;
+    const marker = this.playerMarkers.get(entry.target);
+    const fromPos = getMetadataNumber(entry.metadata, 'from_pos');
+    const toPos = getMetadataNumber(entry.metadata, 'to_pos');
+
+    if (!marker || fromPos === null || toPos === null) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const fromCell = this.cellViews.get(fromPos);
+    const toCell = this.cellViews.get(toPos);
+    if (!fromCell || !toCell) {
+      this.playGenericLogEntryEffect(context);
+      return;
+    }
+
+    const currentOffsetX = marker.x - fromCell.x;
+    const currentOffsetY = marker.y - fromCell.y;
+    const targetX = toCell.x + currentOffsetX;
+    const targetY = toCell.y + currentOffsetY;
+    const originalScaleX = Math.abs(marker.scaleX) || 1;
+    const originalScaleY = Math.abs(marker.scaleY) || 1;
+    const originalAlpha = marker.alpha || 1;
+    const sourceDepth = marker.y + 260;
+    const targetDepth = targetY + 260;
+
+    const renderer = getCharacterRenderer(this.characterRenderOptions);
+    const profile = this.resolveCharacterProfileFromMarker(marker, entry.target);
+
+    const profileScale = profile.scale ?? 0.65;
+    const characterWidth = profile.animations.idle.frameWidth * profileScale;
+    const centerY = marker.y;
+
+    // Phase 1: 黑洞出现并覆盖人物 (0-400ms)
+    const blackholeAppearDuration = 400;
+    const sourceBlackhole = this.add.sprite(marker.x, centerY, BLACKHOLE_TEXTURE_KEY);
+    sourceBlackhole.setOrigin(0.5, 0.5);
+    sourceBlackhole.setDisplaySize(10, 10);
+    sourceBlackhole.setAlpha(1);
+    sourceBlackhole.setDepth(sourceDepth + 1);
+    sourceBlackhole.play(BLACKHOLE_ANIMATION_KEY);
+
+    this.tweens.add({
+      targets: sourceBlackhole,
+      displayWidth: characterWidth * BLACKHOLE_SIZE_SCALE,
+      displayHeight: characterWidth * BLACKHOLE_SIZE_SCALE,
+      duration: blackholeAppearDuration,
+      ease: 'Back.easeOut',
+    });
+
+    // Phase 2: 黑洞吸收人物，旋转并一起消失 (400-800ms)
+    this.time.delayedCall(blackholeAppearDuration, () => {
+      const rotatingBlackhole = this.add.sprite(marker.x, centerY, BLACKHOLE_TEXTURE_KEY);
+      rotatingBlackhole.setOrigin(0.5, 0.5);
+      rotatingBlackhole.setDisplaySize(characterWidth * BLACKHOLE_SIZE_SCALE, characterWidth * BLACKHOLE_SIZE_SCALE);
+      rotatingBlackhole.setAlpha(1);
+      rotatingBlackhole.setDepth(sourceDepth + 1);
+      rotatingBlackhole.play(BLACKHOLE_ANIMATION_KEY);
+
+      sourceBlackhole.destroy();
+
+      // 人物一起被吸入并消失
+      this.tweens.add({
+        targets: marker,
+        scaleX: originalScaleX * 0.3,
+        scaleY: originalScaleY * 0.3,
+        alpha: 0,
+        duration: 400,
+        ease: 'Cubic.easeIn',
+      });
+
+      // 黑洞旋转并缩小消失
+      this.tweens.add({
+        targets: rotatingBlackhole,
+        displayWidth: 20,
+        displayHeight: 20,
+        alpha: 0,
+        duration: 400,
+        ease: 'Back.easeIn',
+      });
+
+      // Phase 3: 黑洞在目标位置出现 (800-1200ms)
+      this.time.delayedCall(400, () => {
+        this.logDrivenPositions.set(entry.target, toPos);
+        this.refreshCellMarkerStates();
+
+        marker.setPosition(targetX, targetY);
+        marker.setScale(originalScaleX * 0.3, originalScaleY * 0.3);
+        marker.setAlpha(0);
+        marker.setDepth(targetDepth);
+
+        const exitBlackhole = this.add.sprite(targetX, targetY, BLACKHOLE_TEXTURE_KEY);
+        exitBlackhole.setOrigin(0.5, 0.5);
+        exitBlackhole.setDisplaySize(10, 10);
+        exitBlackhole.setAlpha(1);
+        exitBlackhole.setDepth(targetDepth + 1);
+
+        exitBlackhole.play(BLACKHOLE_ANIMATION_KEY);
+
+        this.tweens.add({
+          targets: exitBlackhole,
+          displayWidth: characterWidth * BLACKHOLE_SIZE_SCALE,
+          displayHeight: characterWidth * BLACKHOLE_SIZE_SCALE,
+          duration: 400,
+          ease: 'Back.easeOut',
+        });
+
+        // Phase 4: 黑洞消失，人物出现 (1200-1600ms)
+        this.time.delayedCall(400, () => {
+          exitBlackhole.destroy();
+
+          this.tweens.killTweensOf(marker);
+          this.tweens.add({
+            targets: marker,
+            scaleX: originalScaleX,
+            scaleY: originalScaleY,
+            alpha: originalAlpha,
+            duration: 400,
+            ease: 'Cubic.easeOut',
+            onComplete: () => {
+              renderer.play(this, marker, profile, 'idle');
+              this.activeMoveAnimations.delete(entry.target);
+              this.refreshCellMarkerStates();
+            },
+          });
+        });
+      });
+    });
+
+    this.logDrivenPositions.set(entry.target, fromPos);
+    this.activeMoveAnimations.add(entry.target);
+    this.refreshCellMarkerStates();
+    this.tweens.killTweensOf(marker);
+  }
+
+private playHerbAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const x = marker.x;
+  const y = marker.y;
+  const effect = getEventEffectConfig('herb');
+  const duration = effect.duration || 2500;
+
+  // Resolve event display name from DefinitionsConfig
+  const definitions = useGameStore.getState().definitions;
+  const eventName = definitions?.events['herb']?.name || 'herb';
+
+  // Character half-height ≈ 96 * 0.65 / 2 ≈ 31px; feet level
+  const CHARACTER_HALF_HEIGHT = 31;
+  const feetY = y + CHARACTER_HALF_HEIGHT;
+
+  // Play herb sprite animation at the character's feet, growing upward
+  const herbSprite = this.add.sprite(x, feetY, 'herb-effect');
+  herbSprite.setScale(1.0);
+  herbSprite.setOrigin(0.5, 1.0);
+  herbSprite.setDepth(feetY + 220);
+  herbSprite.play('herb_anim');
+
+  // Destroy sprite after animation completes
+  herbSprite.on('animationcomplete', () => {
+    herbSprite.destroy();
+  });
+
+  // Display floating event name text label
+  const text = this.add.text(x, y - 42, eventName, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '24px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  // Text float up and fade out
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    duration: duration,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
+private playWindGustAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const x = marker.x;
+  const y = marker.y;
+  const effect = getEventEffectConfig('wind_gust');
+  const duration = effect.duration || 2500;
+
+  // Resolve event display name from DefinitionsConfig
+  const definitions = useGameStore.getState().definitions;
+  const eventName = definitions?.events['wind_gust']?.name || 'wind_gust';
+
+  // Character half-height ≈ 96 * 0.65 / 2 ≈ 31px; feet level
+  const CHARACTER_HALF_HEIGHT = 31;
+  const feetY = y + CHARACTER_HALF_HEIGHT;
+
+  // Play wind gust sprite animation at the character's feet, growing upward
+  const windSprite = this.add.sprite(x, feetY, 'wind-gust-effect');
+  windSprite.setScale(2.0);
+  windSprite.setOrigin(0.5, 1.0);
+  windSprite.setDepth(feetY + 220);
+  windSprite.play('wind_gust_anim');
+
+  // Destroy sprite after animation completes
+  windSprite.on('animationcomplete', () => {
+    windSprite.destroy();
+  });
+
+  // Display floating event name text label
+  const text = this.add.text(x, y - 42, eventName, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '24px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  // Text float up and fade out
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    duration: duration,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
+private playHealAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) {
+    this.playGenericLogEntryEffect(context);
+    return;
+  }
+
+  const x = marker.x;
+  const y = marker.y;
+
+  // Play heal sprite animation centered on the character
+  const healSprite = this.add.sprite(x, y, 'heal-effect');
+  healSprite.setScale(2.0);
+  healSprite.setOrigin(0.5, 0.5);
+  healSprite.setDepth(y + 220);
+  healSprite.play('heal_anim');
+
+  // Destroy sprite after animation completes
+  healSprite.on('animationcomplete', () => {
+    healSprite.destroy();
+  });
+
+  // Display floating "HP +N" text label (no flash ring)
+  const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
+  const text = this.add.text(x, y - 42, effect.label, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '22px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    scale: 1.15,
+    duration: 1050,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
+private playModifyLpAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const lpChange = getMetadataNumber(entry.metadata, 'lp_change') ?? 0;
+
+  if (lpChange > 0) {
+    this.playLpAddEffect(context);
+    return;
+  }
+
+  if (lpChange < 0) {
+    this.playLpMinusEffect(context);
+    return;
+  }
+
+  // lpChange == 0: fallback to generic effect
+  this.playGenericLogEntryEffect(context);
+}
+
+private playLpAddEffect(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) {
+    this.playGenericLogEntryEffect(context);
+    return;
+  }
+
+  const x = marker.x;
+  const y = marker.y;
+
+  // Play LP+1 sprite animation centered on the character
+  const lpAddSprite = this.add.sprite(x, y, LP_ADD_TEXTURE_KEY);
+  lpAddSprite.setScale(2.0);
+  lpAddSprite.setOrigin(0.5, 0.5);
+  lpAddSprite.setDepth(y + 220);
+  lpAddSprite.play(LP_ADD_ANIMATION_KEY);
+
+  lpAddSprite.once('animationcomplete', () => {
+    lpAddSprite.destroy();
+  });
+
+  // Display floating "LP +N" text label
+  const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
+  const text = this.add.text(x, y - 42, effect.label, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '22px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    scale: 1.15,
+    duration: 1050,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
+private playLpMinusEffect(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) {
+    this.playGenericLogEntryEffect(context);
+    return;
+  }
+
+  const x = marker.x;
+  const y = marker.y;
+
+  // Play LP-minus sprite animation centered on the character
+  const lpMinusSprite = this.add.sprite(x, y, LP_MINUS_TEXTURE_KEY);
+  lpMinusSprite.setScale(2.0);
+  lpMinusSprite.setOrigin(0.5, 0.5);
+  lpMinusSprite.setDepth(y + 220);
+  lpMinusSprite.play(LP_MINUS_ANIMATION_KEY);
+
+  lpMinusSprite.once('animationcomplete', () => {
+    lpMinusSprite.destroy();
+  });
+
+  // Display floating "LP -N" text label
+  const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
+  const text = this.add.text(x, y - 42, effect.label, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '22px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(y + 230);
+
+  this.tweens.add({
+    targets: text,
+    y: y - 88,
+    alpha: 0,
+    scale: 1.15,
+    duration: 1050,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
 private playDrawEventAnimation(context: LogEntryAnimationContext) {
   const { entry } = context;
   const eventType = getEventTypeFromEntry(entry);
@@ -1356,6 +1973,18 @@ private playDrawEventAnimation(context: LogEntryAnimationContext) {
   // Route thunder event to dedicated lightning strike animation
   if (eventType === 'thunder') {
     this.playLightningStrikeAnimation(context);
+    return;
+  }
+
+  // Route herb event to dedicated herb sprite animation
+  if (eventType === 'herb') {
+    this.playHerbAnimation(context);
+    return;
+  }
+
+  // Route wind_gust event to dedicated wind gust sprite animation
+  if (eventType === 'wind_gust') {
+    this.playWindGustAnimation(context);
     return;
   }
 
