@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { Scene, useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 import { PhaserBoard } from '../components/PhaserBoard';
 import type { Available, Player, Item } from '../types/protocol';
@@ -30,6 +30,7 @@ import {
   isLogEntryAnimationCandidate,
   shouldRenderBoardLogEntryAnimation,
 } from '../game/logEntryAnimationPolicy';
+import { BOSS_BEAST_PORTRAIT_SRC, isBossPlayer } from '../game/bossVisualConfig';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string; textColor?: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
@@ -98,9 +99,6 @@ function getBottomBarItemIcon(type: string) {
   return `${BOTTOM_BAR_ASSET_BASE}/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`;
 }
 
-function isBossPlayer(player: Player) {
-  return Boolean((player as Player & { is_boss?: boolean }).is_boss) || player.display_name === 'Boss';
-}
 
 function getLogEntryKey(entry: { timestamp: string; action_type: string; target: string; source: string }) {
   return `${entry.timestamp}:${entry.action_type}:${entry.target}:${entry.source}`;
@@ -169,6 +167,26 @@ type DiceUpgradeView =
       entryKey: string;
     };
 
+type BoardGameOverTransitionInput = {
+  currentScene: Scene;
+  pendingScene: Scene | null;
+  hasGameOver: boolean;
+  hasPendingAnimations: boolean;
+  stateSyncQueueLength: number;
+  diceRollStatus: DiceRollView['status'];
+};
+
+export function shouldEnterGameOverAfterBoardAnimations(input: BoardGameOverTransitionInput) {
+  return (
+    input.hasGameOver &&
+    input.currentScene === Scene.Board &&
+    input.pendingScene === Scene.GameOver &&
+    input.stateSyncQueueLength === 0 &&
+    !input.hasPendingAnimations &&
+    input.diceRollStatus === 'idle'
+  );
+}
+
 type ReverseClockBuffFlight = {
   key: string;
   startX: number;
@@ -216,6 +234,7 @@ function rollPreviewDiceFace() {
 
 export const BoardScene: React.FC = () => {
   const {
+    currentScene,
     globalState,
     turnState,
     myPlayerId,
@@ -230,6 +249,8 @@ export const BoardScene: React.FC = () => {
     mapConfig,
     miniGameResult,
     diceAssignments,
+    gameOver,
+    pendingScene,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
   const [diceUpgradeView, setDiceUpgradeView] = useState<DiceUpgradeView>({ status: 'idle' });
@@ -497,6 +518,26 @@ export const BoardScene: React.FC = () => {
     }
 
   }, [stateSyncQueue.length, hasPendingAnimations]);
+
+  useEffect(() => {
+    if (!shouldEnterGameOverAfterBoardAnimations({
+      currentScene,
+      pendingScene,
+      hasGameOver: Boolean(gameOver),
+      hasPendingAnimations,
+      stateSyncQueueLength: stateSyncQueue.length,
+      diceRollStatus: diceRollView.status,
+    })) {
+      return;
+    }
+
+    const store = useGameStore.getState();
+    if (store.currentScene !== Scene.Board || store.pendingScene !== Scene.GameOver || !store.gameOver) return;
+
+    console.log('[BoardScene] 终局动画播放完成，进入 GameOver');
+    store.setPendingScene(null);
+    store.setScene(Scene.GameOver);
+  }, [currentScene, diceRollView.status, gameOver, hasPendingAnimations, pendingScene, stateSyncQueue.length]);
 
   useEffect(() => {
     if (isTurnEndSettlement && currentPlayerId) {
@@ -908,7 +949,13 @@ export const BoardScene: React.FC = () => {
             <div style={styles.rightPanel}>
               <div style={styles.bossSection}>
                 <div style={styles.bossHeader}>
-                  <div style={styles.bossAvatar} />
+                  <div style={styles.bossAvatar}>
+                    <img
+                      src={BOSS_BEAST_PORTRAIT_SRC}
+                      alt={`${bossPlayer.display_name || 'Boss'} 头像`}
+                      style={styles.bossAvatarImage}
+                    />
+                  </div>
                   <div style={styles.bossTitleGroup}>
                     <strong style={styles.bossTitle}>Boss</strong>
                     <span style={styles.bossId} title={bossPlayer.player_id}>
@@ -1750,9 +1797,17 @@ const styles: Record<string, React.CSSProperties> = {
     width: '38px',
     height: '38px',
     borderRadius: '50%',
-    backgroundColor: '#ef5350',
+    backgroundColor: '#1b1118',
     border: '2px solid rgba(255, 255, 255, 0.85)',
     boxShadow: '0 2px 10px rgba(0, 0, 0, 0.28)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  bossAvatarImage: {
+    display: 'block',
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
   },
   bossTitleGroup: {
     minWidth: 0,

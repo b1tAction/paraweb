@@ -520,7 +520,13 @@ export class NakamaService {
   private handleGameOver(data: protocol.GameOver) {
     const store = useGameStore.getState();
     store.setGameOver(data);
-    store.setScene(Scene.GameOver);
+
+    if (store.currentScene === Scene.Board || (store.currentScene === Scene.MiniGameSubmitRank && store.miniGameResultPending)) {
+      store.setPendingScene(Scene.GameOver);
+    } else {
+      store.setPendingScene(null);
+      store.setScene(Scene.GameOver);
+    }
 
     console.log('[Nakama] 游戏结束', {
       winner: data.winner_id,
@@ -602,6 +608,14 @@ export class NakamaService {
     }
 
     if (!targetScene) return;
+    if (store.gameOver && store.pendingScene === Scene.GameOver && targetScene !== Scene.GameOver) {
+      return;
+    }
+
+    if (targetScene === Scene.GameOver && store.currentScene === Scene.Board) {
+      store.setPendingScene(Scene.GameOver);
+      return;
+    }
 
     // If mini-game result is being displayed, defer scene transition
     // until the result display timer clears the pending flag.
@@ -614,6 +628,7 @@ export class NakamaService {
       return;
     }
 
+    store.setPendingScene(null);
     store.setScene(targetScene);
   }
 

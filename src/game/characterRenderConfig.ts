@@ -1,8 +1,26 @@
 import * as Phaser from 'phaser';
 import type { Player } from '../types/protocol';
+import {
+  BOSS_BEAST_ASSETS,
+  BOSS_BEAST_EFFECT_OFFSET_Y,
+  BOSS_BEAST_NAME_OFFSET_Y,
+  BOSS_BEAST_PROFILE_ID,
+  BOSS_BEAST_RENDER_DEFAULT_FLIP_X,
+  BOSS_BEAST_RENDER_OFFSET_Y,
+  BOSS_BEAST_RENDER_ORIGIN_X,
+  BOSS_BEAST_RENDER_ORIGIN_Y,
+  BOSS_BEAST_RENDER_SCALE,
+  isBossPlayer,
+} from './bossVisualConfig';
 
 export type CharacterCoreAnimationState = 'idle' | 'move';
-export type CharacterAnimationState = CharacterCoreAnimationState | 'hurt' | 'dead';
+export type CharacterAnimationState =
+  | CharacterCoreAnimationState
+  | 'attack'
+  | 'dead'
+  | 'defeated'
+  | 'hurt'
+  | 'skill_cast';
 
 export type CharacterSheetConfig = {
   textureKey?: string;
@@ -19,6 +37,11 @@ export type CharacterRenderProfile = {
   id: string;
   scale?: number;
   offsetY?: number;
+  originX?: number;
+  originY?: number;
+  defaultFlipX?: boolean;
+  nameOffsetY?: number;
+  effectOffsetY?: number;
   animations: Record<CharacterCoreAnimationState, CharacterSheetConfig>
     & Partial<Record<Exclude<CharacterAnimationState, CharacterCoreAnimationState>, CharacterSheetConfig>>;
   avatarState?: CharacterAnimationState;
@@ -82,7 +105,68 @@ export const DEFAULT_FACTION_TO_PROFILE_ID: Record<string, string> = {
   xuan_wu: 'black',
 };
 
+export const BOSS_BEAST_CHARACTER_PROFILE: CharacterRenderProfile = {
+  id: BOSS_BEAST_PROFILE_ID,
+  scale: BOSS_BEAST_RENDER_SCALE,
+  offsetY: BOSS_BEAST_RENDER_OFFSET_Y,
+  originX: BOSS_BEAST_RENDER_ORIGIN_X,
+  originY: BOSS_BEAST_RENDER_ORIGIN_Y,
+  defaultFlipX: BOSS_BEAST_RENDER_DEFAULT_FLIP_X,
+  nameOffsetY: BOSS_BEAST_NAME_OFFSET_Y,
+  effectOffsetY: BOSS_BEAST_EFFECT_OFFSET_Y,
+  avatarState: 'idle',
+  avatarFrame: 0,
+  animations: {
+    idle: {
+      textureKey: BOSS_BEAST_ASSETS.idle.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.idle.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.idle.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.idle.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.idle.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.idle.frameRate,
+      repeat: BOSS_BEAST_ASSETS.idle.repeat,
+    },
+    move: {
+      textureKey: BOSS_BEAST_ASSETS.idle.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.idle.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.idle.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.idle.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.idle.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.idle.frameRate,
+      repeat: BOSS_BEAST_ASSETS.idle.repeat,
+    },
+    attack: {
+      textureKey: BOSS_BEAST_ASSETS.attack.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.attack.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.attack.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.attack.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.attack.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.attack.frameRate,
+      repeat: BOSS_BEAST_ASSETS.attack.repeat,
+    },
+    skill_cast: {
+      textureKey: BOSS_BEAST_ASSETS.skillCast.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.skillCast.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.skillCast.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.skillCast.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.skillCast.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.skillCast.frameRate,
+      repeat: BOSS_BEAST_ASSETS.skillCast.repeat,
+    },
+    defeated: {
+      textureKey: BOSS_BEAST_ASSETS.defeated.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.defeated.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.defeated.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.defeated.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.defeated.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.defeated.frameRate,
+      repeat: BOSS_BEAST_ASSETS.defeated.repeat,
+    },
+  },
+};
+
 export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> = {
+  [BOSS_BEAST_PROFILE_ID]: BOSS_BEAST_CHARACTER_PROFILE,
   red: {
     id: 'red',
     scale: DEFAULT_CHARACTER_SCALE,
@@ -265,11 +349,16 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
   },
 };
 
+
 export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
   preload(scene, profile) {
+    const loadedTextureKeys = new Set<string>();
     (Object.entries(profile.animations) as [CharacterAnimationState, CharacterSheetConfig][])
       .forEach(([state, animation]) => {
-        scene.load.spritesheet(getTextureKey(profile, state), animation.textureUrl, {
+        const textureKey = getTextureKey(profile, state);
+        if (loadedTextureKeys.has(textureKey) || scene.textures.exists(textureKey)) return;
+        loadedTextureKeys.add(textureKey);
+        scene.load.spritesheet(textureKey, animation.textureUrl, {
           frameWidth: animation.frameWidth,
           frameHeight: animation.frameHeight,
           spacing: animation.frameSpacing ?? 0,
@@ -281,11 +370,12 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
     (Object.entries(profile.animations) as [CharacterAnimationState, CharacterSheetConfig][])
       .forEach(([state, animation]) => {
         const animationKey = getAnimationKey(profile, state);
-        if (scene.anims.exists(animationKey)) return;
+        const textureKey = getTextureKey(profile, state);
+        if (!scene.textures.exists(textureKey) || scene.anims.exists(animationKey)) return;
 
         scene.anims.create({
           key: animationKey,
-          frames: scene.anims.generateFrameNumbers(getTextureKey(profile, state), {
+          frames: scene.anims.generateFrameNumbers(textureKey, {
             start: 0,
             end: Math.max(0, animation.frameCount - 1),
           }),
@@ -296,8 +386,11 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
   },
 
   createSprite({ scene, profile, x, y }) {
-    const sprite = scene.add.sprite(x, y, getTextureKey(profile, 'idle'));
+    const textureKey = getTextureKey(profile, 'idle');
+    const sprite = scene.add.sprite(x, y, textureKey);
+    sprite.setOrigin(profile.originX ?? 0.5, profile.originY ?? 0.5);
     sprite.setScale(profile.scale ?? DEFAULT_CHARACTER_SCALE);
+    sprite.setFlipX(profile.defaultFlipX ?? false);
     return sprite;
   },
 
@@ -328,10 +421,11 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
     );
   },
 
-  getAvatarDataUrl(_scene, _sprite, profile) {
+  getAvatarDataUrl(scene, _sprite, profile) {
     const avatarState = profile.avatarState ?? 'idle';
     const avatarFrame = profile.avatarFrame ?? 0;
-    return _scene.textures.getBase64(getTextureKey(profile, avatarState), avatarFrame);
+    const avatarTextureKey = getTextureKey(profile, avatarState);
+    return scene.textures.getBase64(avatarTextureKey, avatarFrame);
   },
 };
 
@@ -352,10 +446,20 @@ export function getCharacterRenderer(options?: CharacterRenderOptions) {
   return options?.renderer ?? DEFAULT_CHARACTER_RENDERER;
 }
 
+function getDefaultFallbackProfileIds(profiles: Record<string, CharacterRenderProfile>) {
+  const factionProfileIds = Object.values(DEFAULT_FACTION_TO_PROFILE_ID)
+    .filter((profileId, index, profileIds) => profileIds.indexOf(profileId) === index)
+    .filter((profileId) => Boolean(profiles[profileId]));
+
+  if (factionProfileIds.length > 0) return factionProfileIds;
+
+  return Object.keys(profiles).filter((profileId) => profileId !== BOSS_BEAST_PROFILE_ID);
+}
+
 export function getFallbackProfileIds(options?: CharacterRenderOptions) {
   const profiles = getCharacterProfiles(options);
-  const fallbackIds = options?.fallbackProfileIds ?? Object.keys(profiles);
-  return fallbackIds.filter((profileId) => Boolean(profiles[profileId]));
+  const fallbackIds = options?.fallbackProfileIds ?? getDefaultFallbackProfileIds(profiles);
+  return fallbackIds.filter((profileId) => profileId !== BOSS_BEAST_PROFILE_ID && Boolean(profiles[profileId]));
 }
 
 export function resolveCharacterProfile(
@@ -366,6 +470,15 @@ export function resolveCharacterProfile(
   const profiles = getCharacterProfiles(options);
   const fallbackProfileIds = getFallbackProfileIds(options);
   const factionToProfileId = options?.factionToProfileId ?? DEFAULT_FACTION_TO_PROFILE_ID;
+
+  if (isBossPlayer(player)) {
+    const bossProfile = profiles[BOSS_BEAST_PROFILE_ID];
+    if (!bossProfile) {
+      throw new Error('[characterRenderConfig] Boss player requires the boss_beast character profile.');
+    }
+
+    return bossProfile;
+  }
 
   const profileIdFromFaction = player.faction ? factionToProfileId[player.faction] : undefined;
   const resolvedProfileId =
@@ -379,9 +492,16 @@ export function resolveCharacterProfile(
 
   return profile;
 }
-
 export function getCharacterOffsetY(profile: CharacterRenderProfile) {
   return profile.offsetY ?? DEFAULT_CHARACTER_OFFSET_Y;
+}
+
+export function getCharacterNameOffsetY(profile: CharacterRenderProfile) {
+  return profile.nameOffsetY ?? -30;
+}
+
+export function getCharacterEffectOffsetY(profile: CharacterRenderProfile) {
+  return profile.effectOffsetY ?? 0;
 }
 
 export function getCharacterProfileByFaction(
