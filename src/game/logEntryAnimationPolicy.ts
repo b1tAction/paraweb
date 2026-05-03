@@ -64,7 +64,7 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
   },
   teleport: {
     renderOnBoard: true,
-    delayMs: ({ entry }) => (isAnyDoorTeleportEntry(entry) ? 2600 : DEFAULT_ACTION_ANIMATION_DELAY_MS),
+    delayMs: ({ entry }) => (isAnyDoorTeleportEntry(entry) ? 2600 : 2600),
   },
   draw_event: {
     renderOnBoard: true,
