@@ -143,14 +143,14 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
       {phase === 'idle' && (
         <>
           <p style={{ fontSize: '14px', color: '#666', textAlign: 'center' }}>
-            Roll two dice! Higher sum = better rank!
+            投两个骰子，点数总和越高排名越高！
           </p>
           <button
             onClick={handleRoll}
             style={isParticipant ? { ...styles.button, backgroundColor: '#2196F3' } : styles.buttonDisabled}
             disabled={!isParticipant}
           >
-            Roll Dice
+            投骰子
           </button>
         </>
       )}
@@ -162,7 +162,7 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
             <DiceFace value={displayDice2} isRolling={true} size={90} />
           </div>
           <p style={{ fontSize: '14px', color: '#888', textAlign: 'center' }}>
-            Rolling...
+            投掷中...
           </p>
         </>
       )}
@@ -174,14 +174,14 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
             <DiceFace value={dice2} size={90} />
           </div>
           <p style={styles.scoreDisplay}>
-            Score: {dice1} + {dice2} = {score}
+            分数： {dice1} + {dice2} = {score}
           </p>
           <button
             onClick={handleSubmit}
             style={isSubmitting ? styles.buttonDisabled : { ...styles.button, backgroundColor: '#4CAF50' }}
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Result'}
+            {isSubmitting ? '提交中...' : '提交结果'}
           </button>
         </>
       )}
@@ -193,7 +193,7 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
             <DiceFace value={dice2} size={90} />
           </div>
           <p style={styles.submittedText}>
-            Submitted! Dice: {dice1} + {dice2} = {score}
+            已提交！骰子： {dice1} + {dice2} = {score}
           </p>
         </>
       )}

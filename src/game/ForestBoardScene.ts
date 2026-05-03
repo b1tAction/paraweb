@@ -1350,51 +1350,23 @@ private playHerbAnimation(context: LogEntryAnimationContext) {
 
   const x = marker.x;
   const y = marker.y;
-  const effect = getEventEffectConfig('herb');
-  const duration = effect.duration || 2500;
 
-  // Resolve event display name from DefinitionsConfig
-  const definitions = useGameStore.getState().definitions;
-  const eventName = definitions?.events['herb']?.name || 'herb';
-
-  // Character half-height ≈ 96 * 0.65 / 2 ≈ 31px; feet level
+  // 人物半身高度 ≈ 96 * 0.65 / 2 ≈ 31px; 对齐脚底
   const CHARACTER_HALF_HEIGHT = 31;
   const feetY = y + CHARACTER_HALF_HEIGHT;
 
-  // Play herb sprite animation at the character's feet, growing upward
+  // 在脚底播放草药生长的动画特效
   const herbSprite = this.add.sprite(x, feetY, 'herb-effect');
   herbSprite.setScale(1.0);
   herbSprite.setOrigin(0.5, 1.0);
   herbSprite.setDepth(feetY + 220);
   herbSprite.play('herb_anim');
 
-  // Destroy sprite after animation completes
   herbSprite.on('animationcomplete', () => {
     herbSprite.destroy();
   });
-
-  // Display floating event name text label
-  const text = this.add.text(x, y - 42, eventName, {
-    fontFamily: GAME_FONT_FAMILY,
-    fontSize: '24px',
-    fontStyle: 'bold',
-    color: effect.textColor,
-    align: 'center',
-    stroke: '#0b1020',
-    strokeThickness: 5,
-  });
-  text.setOrigin(0.5, 0.5);
-  text.setDepth(y + 230);
-
-  // Text float up and fade out
-  this.tweens.add({
-    targets: text,
-    y: y - 88,
-    alpha: 0,
-    duration: duration,
-    ease: 'Cubic.easeOut',
-    onComplete: () => text.destroy(),
-  });
+  
+  // (去除了原先的浮动文字代码，全权交由 showCenterPopup 处理)
 }
 
 private playWindGustAnimation(context: LogEntryAnimationContext) {
@@ -1404,51 +1376,70 @@ private playWindGustAnimation(context: LogEntryAnimationContext) {
 
   const x = marker.x;
   const y = marker.y;
-  const effect = getEventEffectConfig('wind_gust');
-  const duration = effect.duration || 2500;
 
-  // Resolve event display name from DefinitionsConfig
-  const definitions = useGameStore.getState().definitions;
-  const eventName = definitions?.events['wind_gust']?.name || 'wind_gust';
-
-  // Character half-height ≈ 96 * 0.65 / 2 ≈ 31px; feet level
+  // 人物半身高度 ≈ 96 * 0.65 / 2 ≈ 31px; 对齐脚底
   const CHARACTER_HALF_HEIGHT = 31;
   const feetY = y + CHARACTER_HALF_HEIGHT;
 
-  // Play wind gust sprite animation at the character's feet, growing upward
+  // 播放狂风特效
   const windSprite = this.add.sprite(x, feetY, 'wind-gust-effect');
   windSprite.setScale(2.0);
   windSprite.setOrigin(0.5, 1.0);
   windSprite.setDepth(feetY + 220);
   windSprite.play('wind_gust_anim');
 
-  // Destroy sprite after animation completes
   windSprite.on('animationcomplete', () => {
     windSprite.destroy();
   });
+  
+  // (去除了原先的浮动文字代码，全权交由 showCenterPopup 处理)
+}
 
-  // Display floating event name text label
-  const text = this.add.text(x, y - 42, eventName, {
-    fontFamily: GAME_FONT_FAMILY,
-    fontSize: '24px',
-    fontStyle: 'bold',
-    color: effect.textColor,
-    align: 'center',
-    stroke: '#0b1020',
-    strokeThickness: 5,
+private playLightningStrikeAnimation(context: LogEntryAnimationContext) {
+  const { entry } = context;
+  const marker = this.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const player = this.players.find(p => p.player_id === entry.target);
+  const visualPos = this.logDrivenPositions.get(entry.target) ?? player?.position;
+  const cell = visualPos !== undefined && visualPos !== null ? this.cellViews.get(visualPos) : null;
+
+  const cellCenterX = cell ? cell.x : marker.x;
+  const cellCenterY = cell ? cell.y : marker.y + 16;
+
+  const CHARACTER_HALF_HEIGHT = 31;
+  const LIGHTNING_BOTTOM_MARGIN = 8;
+  const visualX = marker.x;
+  const visualY = marker.y;
+  const landingX = visualX ?? cellCenterX;
+  const landingY = visualY ? visualY + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN : cellCenterY + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN;
+
+  // 1. 播放雷击动画贴图
+  const lightningSprite = this.add.sprite(landingX, landingY, 'lightning-bolt');
+  lightningSprite.setScale(2.0);
+  lightningSprite.setOrigin(0.5, 1.0); 
+  lightningSprite.setDepth(landingY + 300);
+  lightningSprite.play('lightning_strike_anim');
+
+  lightningSprite.on('animationcomplete', () => {
+    lightningSprite.destroy();
   });
-  text.setOrigin(0.5, 0.5);
-  text.setDepth(y + 230);
 
-  // Text float up and fade out
+  // 2. 屏幕白色闪光特效模拟雷劫明暗交替
+  this.cameras.main.flash(300, 255, 255, 200);
+
+  // 3. 被雷击后人物抖动
   this.tweens.add({
-    targets: text,
-    y: y - 88,
-    alpha: 0,
-    duration: duration,
-    ease: 'Cubic.easeOut',
-    onComplete: () => text.destroy(),
+    targets: marker,
+    x: { from: marker.x - 4, to: marker.x },
+    y: { from: marker.y - 3, to: marker.y },
+    duration: 80,
+    repeat: 8,
+    ease: 'Linear',
+    yoyo: true,
   });
+
+  // (去除了原先头上出现的 ⚡ 文字特效，全权交由 showCenterPopup 处理)
 }
 
 private playHealAnimation(context: LogEntryAnimationContext) {
@@ -1558,189 +1549,97 @@ private playDrawEventAnimation(context: LogEntryAnimationContext) {
   const { entry } = context;
   const eventType = getEventTypeFromEntry(entry);
 
-  // Route thunder event to dedicated lightning strike animation
-  if (eventType === 'thunder') {
-    this.playLightningStrikeAnimation(context);
-    return;
-  }
-
-  // Route herb event to dedicated herb sprite animation
-  if (eventType === 'herb') {
-    this.playHerbAnimation(context);
-    return;
-  }
-
-  // Route wind_gust event to dedicated wind gust sprite animation
-  if (eventType === 'wind_gust') {
-    this.playWindGustAnimation(context);
-    return;
-  }
-
-  const marker = this.playerMarkers.get(entry.target);
-  if (!marker) return;
-
   const effect = getEventEffectConfig(eventType);
   const duration = effect.duration || 2500;
 
-  // Resolve event display name from DefinitionsConfig
+  // 从配置中获取事件展示名称
   const definitions = useGameStore.getState().definitions;
   const eventName = definitions?.events[eventType]?.name || eventType;
 
-  // Keep the floating label inside the camera viewport.
-  const cam = this.cameras.main;
-  const screenWidth = cam.width / cam.zoom;
-  const padding = 120;
-  const isTooFarLeft = marker.x < cam.scrollX + padding;
-  const isTooFarRight = marker.x > cam.scrollX + screenWidth - padding;
-  
-  let offsetX = 0;
-  if (isTooFarLeft) offsetX = 80;
-  if (isTooFarRight) offsetX = -80;
+  // 1. 立即在屏幕正中央弹出提示窗
+  this.showCenterPopup(eventName, effect.textColor, effect.iconEmoji, duration);
 
-  // Container for icon + text.
-  const container = this.add.container(marker.x + offsetX, marker.y - 20);
-  container.setDepth(marker.y + 230);
-  container.setAlpha(0);
+  // 2. 核心调整：延迟执行专属动画，错开视觉重心！
+  // 留给玩家 1.2 秒的时间先阅读中间的弹窗文字
+  // 1.2 秒后（弹窗还亮着），再准时在人物身上爆发雷击、狂风或草药动画
+  // 这样动画播完时，刚好衔接后续的（移动/扣血/加血）逻辑
+  const animationDelay = Math.min(1200, duration * 0.5);
 
-  // Main text label.
-  const text = this.add.text(0, 0, eventName, {
-    fontFamily: GAME_FONT_FAMILY,
-    fontSize: '24px',
-    fontStyle: 'bold',
-    color: effect.textColor,
-    stroke: '#0b1020',
-    strokeThickness: 5,
-  });
-  text.setOrigin(0, 0.5);
-
-  // Shrink long labels so they do not overflow too far.
-  if (text.width > 220) {
-    text.setFontSize(18);
-  }
-
-  // Optional emoji icon shown to the left of the label.
-  if (effect.iconEmoji) {
-    const emojiText = this.add.text(0, 0, effect.iconEmoji, { fontSize: '28px' });
-    emojiText.setOrigin(0.5, 0.5);
-    
-    // Layout: emoji on the left, text on the right.
-    emojiText.setPosition(- (text.width / 2) - 10, 0);
-    text.setPosition(- (text.width / 2) + 20, 0);
-    
-    container.add([emojiText, text]);
-  } else {
-    text.setOrigin(0.5, 0.5);
-    container.add(text);
-  }
-
-  // Entrance animation.
-  this.tweens.add({
-    targets: container,
-    alpha: { from: 0, to: 1 },
-    y: marker.y - 60,
-    scale: { from: 0.8, to: 1 },
-    duration: 600,
-    ease: 'Back.easeOut',
-  });
-
-  // Hold briefly, then fade out and destroy.
-  this.tweens.add({
-    targets: container,
-    alpha: { from: 1, to: 0 },
-    delay: duration - 600,
-    duration: 600,
-    ease: 'Power2.easeOut',
-    onComplete: () => {
-      container.destroy();
+  this.time.delayedCall(animationDelay, () => {
+    if (eventType === 'thunder') {
+      this.playLightningStrikeAnimation(context);
+    } else if (eventType === 'herb') {
+      this.playHerbAnimation(context);
+    } else if (eventType === 'wind_gust') {
+      this.playWindGustAnimation(context);
     }
   });
 }
-private playLightningStrikeAnimation(context: LogEntryAnimationContext) {
-  const { entry } = context;
-  const marker = this.playerMarkers.get(entry.target);
-  if (!marker) return;
 
-  // Find the cell at player.position — the actual grid cell where the player is standing
-  const player = this.players.find(p => p.player_id === entry.target);
-  // Prefer visual/animated position (logDrivenPositions) when available,
-  // otherwise fall back to backend `player.position`.
-  const visualPos = this.logDrivenPositions.get(entry.target) ?? player?.position;
-  const cell = visualPos !== undefined && visualPos !== null ? this.cellViews.get(visualPos) : null;
+private showCenterPopup(eventName: string, textColor: string, iconEmoji?: string, duration: number = 2500) {
+  // Close existing popup if any
+  if (this.centerPopup) {
+    this.centerPopup.destroy();
+    this.centerPopup = null;
+  }
 
-  // Use cell center as the lightning landing point (ground level)
-  // If cell not found, fall back to marker.y + 16 (marker sits at cell.y - 16)
-  const cellCenterX = cell ? cell.x : marker.x;
-  const cellCenterY = cell ? cell.y : marker.y + 16;
+  const cam = this.cameras.main;
+  const screenCenterX = cam.centerX;
+  const screenCenterY = cam.centerY;
 
-  const effect = getEventEffectConfig('thunder');
-  const duration = effect.duration || 2800;
+  // Container for popup at screen center
+  const container = this.add.container(screenCenterX, screenCenterY);
+  container.setScrollFactor(0); // Fixed to screen, not affected by camera
+  container.setDepth(10000); // High depth to appear above everything
+  container.setAlpha(0);
 
-  // Prefer the visual marker position so lightning lands where the player appears.
-  // Fall back to cell center only if marker is unavailable.
-  // Character half-height ≈ (96 * 0.65) / 2 ≈ 31px; add 8px margin so lightning
-  // bottom extends past the character's visual bottom for full coverage.
-  const CHARACTER_HALF_HEIGHT = 31;
-  const LIGHTNING_BOTTOM_MARGIN = 8;
-  const visualX = marker.x;
-  const visualY = marker.y;
-  const landingX = visualX ?? cellCenterX;
-  const landingY = visualY ? visualY + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN : cellCenterY + CHARACTER_HALF_HEIGHT + LIGHTNING_BOTTOM_MARGIN;
+  // Background panel (semi-transparent dark rectangle)
+  const panelWidth = 400;
+  const panelHeight = 150;
+  const panel = this.add.rectangle(0, 0, panelWidth, panelHeight, 0x0b1020, 0.85);
+  panel.setStrokeStyle(3, 0xffffff, 0.8);
+  panel.setOrigin(0.5, 0.5);
 
-  // 1. Create lightning sprite with origin at bottom center so it lands on the visual position
-  const lightningSprite = this.add.sprite(landingX, landingY, 'lightning-bolt');
-  lightningSprite.setScale(2.0);
-  lightningSprite.setOrigin(0.5, 1.0); // Origin at bottom center: sprite extends upward from the cell
-  lightningSprite.setDepth(landingY + 300);
-  lightningSprite.play('lightning_strike_anim');
-
-  // Destroy lightning sprite after animation completes
-  lightningSprite.on('animationcomplete', () => {
-    lightningSprite.destroy();
-  });
-
-  // 2. Camera flash effect (white flash simulating lightning brightness)
-  this.cameras.main.flash(300, 255, 255, 200);
-
-  // 3. Player marker shake effect (trembling after being struck)
-  this.tweens.add({
-    targets: marker,
-    x: {
-      from: marker.x - 4,
-      to: marker.x,
-    },
-    y: {
-      from: marker.y - 3,
-      to: marker.y,
-    },
-    duration: 80,
-    repeat: 8,
-    ease: 'Linear',
-    yoyo: true,
-  });
-
-  // 4. Display floating text label "⚡ 雷劫"
-  const labelText = effect.iconEmoji || '⚡';
-  const label = this.add.text(landingX, landingY - 50, labelText, {
+  // Main text label with emoji directly in the text
+  const displayText = iconEmoji ? `${iconEmoji} ${eventName}` : eventName;
+  const text = this.add.text(0, 0, displayText, {
     fontFamily: GAME_FONT_FAMILY,
-    fontSize: '22px',
+    fontSize: '28px',
     fontStyle: 'bold',
-    color: effect.textColor,
-    stroke: '#0b1020',
-    strokeThickness: 5,
+    color: textColor,
+    align: 'center',
+    wordWrap: { width: 320 },
   });
-  label.setOrigin(0.5, 0.5);
-  label.setDepth(landingY + 310);
+  text.setOrigin(0.5, 0.5);
 
-  // Floating up and fading out animation for the text label
+  container.add([panel, text]);
+
+  // Entrance animation
   this.tweens.add({
-    targets: label,
-    y: cellCenterY - 170,
-    alpha: 0,
-    duration: duration,
-    ease: 'Cubic.easeOut',
-    onComplete: () => {
-      label.destroy();
-    },
+    targets: container,
+    alpha: { from: 0, to: 1 },
+    scale: { from: 0.5, to: 1 },
+    duration: 400,
+    ease: 'Back.easeOut',
   });
+
+  // Exit animation
+  this.tweens.add({
+    targets: container,
+    alpha: { from: 1, to: 0 },
+    scale: { from: 1, to: 0.8 },
+    delay: duration - 400,
+    duration: 400,
+    ease: 'Power2.easeIn',
+    onComplete: () => {
+      container.destroy();
+      if (this.centerPopup === container) {
+        this.centerPopup = null;
+      }
+    }
+  });
+
+  this.centerPopup = container;
 }
+
 }
