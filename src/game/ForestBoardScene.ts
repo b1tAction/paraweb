@@ -17,7 +17,6 @@ import {
   type LogEntryAnimationContext,
 } from './logEntryAnimationPolicy';
 import {
-  BOSS_BEAST_CHARACTER_PROFILE,
   getAnimationKey,
   getCharacterEffectOffsetY,
   getCharacterNameOffsetY,
@@ -181,9 +180,6 @@ export class ForestBoardScene extends Phaser.Scene {
     Object.values(getCharacterProfiles(this.characterRenderOptions)).forEach((profile) => {
       renderer.preload(this, profile);
     });
-    if (this.players.some(isBossPlayer)) {
-      renderer.preload(this, BOSS_BEAST_CHARACTER_PROFILE);
-    }
   }
 
   create() {
@@ -220,9 +216,6 @@ export class ForestBoardScene extends Phaser.Scene {
     Object.values(getCharacterProfiles(this.characterRenderOptions)).forEach((profile) => {
       renderer.ensureAnimations(this, profile);
     });
-    if (this.players.some(isBossPlayer)) {
-      renderer.ensureAnimations(this, BOSS_BEAST_CHARACTER_PROFILE);
-    }
 
     // Create lightning strike animation for thunder event
     this.anims.create({

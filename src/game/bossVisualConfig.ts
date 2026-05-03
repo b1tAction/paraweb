@@ -54,11 +54,7 @@ export const BOSS_BEAST_RENDER_ORIGIN_Y = 1;
 export const BOSS_BEAST_RENDER_DEFAULT_FLIP_X = true;
 export const BOSS_BEAST_NAME_OFFSET_Y = -112;
 export const BOSS_BEAST_EFFECT_OFFSET_Y = -68;
-export const BOSS_BEAST_FALLBACK_TEXTURE_KEY = `${BOSS_BEAST_PROFILE_ID}_fallback`;
 
 export function isBossPlayer(player: Player) {
-  const normalizedId = player.player_id?.toLowerCase?.() || '';
-  const normalizedName = player.display_name?.toLowerCase?.() || '';
-
-  return Boolean(player.is_boss) || normalizedId === 'boss' || normalizedName === 'boss';
+  return Boolean(player.is_boss);
 }

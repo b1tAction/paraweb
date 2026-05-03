@@ -239,7 +239,6 @@ export const BoardScene: React.FC = () => {
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
   const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
-  const [bossPortraitFailed, setBossPortraitFailed] = useState(false);
   const lastAppliedSettlementEntryRef = useRef('');
   const lastAppliedImmediateStatEntryRef = useRef('');
   const lastAppliedImmediateRespawnRef = useRef('');
@@ -357,9 +356,6 @@ export const BoardScene: React.FC = () => {
   const myPlayer = renderedPlayers.find((player) => player.player_id === myPlayerId);
   const itemTargetPlayers = renderedPlayers.filter((player) => player.player_id !== myPlayerId && !isBossPlayer(player));
   const myBuffs = myPlayer?.buffs ?? [];
-  useEffect(() => {
-    setBossPortraitFailed(false);
-  }, [bossPlayer?.player_id]);
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
   const isRoundEndWait = globalState === 'round_end_wait' || globalState === 'RoundEndWait';
@@ -911,20 +907,12 @@ export const BoardScene: React.FC = () => {
             <div style={styles.rightPanel}>
               <div style={styles.bossSection}>
                 <div style={styles.bossHeader}>
-                  <div
-                    style={{
-                      ...styles.bossAvatar,
-                      backgroundColor: bossPortraitFailed ? '#ef5350' : '#1b1118',
-                    }}
-                  >
-                    {!bossPortraitFailed && (
-                      <img
-                        src={BOSS_BEAST_PORTRAIT_SRC}
-                        alt={`${bossPlayer.display_name || 'Boss'} 头像`}
-                        style={styles.bossAvatarImage}
-                        onError={() => setBossPortraitFailed(true)}
-                      />
-                    )}
+                  <div style={styles.bossAvatar}>
+                    <img
+                      src={BOSS_BEAST_PORTRAIT_SRC}
+                      alt={`${bossPlayer.display_name || 'Boss'} 头像`}
+                      style={styles.bossAvatarImage}
+                    />
                   </div>
                   <div style={styles.bossTitleGroup}>
                     <strong style={styles.bossTitle}>Boss</strong>
@@ -1766,7 +1754,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '38px',
     height: '38px',
     borderRadius: '50%',
-    backgroundColor: '#ef5350',
+    backgroundColor: '#1b1118',
     border: '2px solid rgba(255, 255, 255, 0.85)',
     boxShadow: '0 2px 10px rgba(0, 0, 0, 0.28)',
     overflow: 'hidden',
