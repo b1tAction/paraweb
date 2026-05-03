@@ -991,12 +991,7 @@ export const BoardScene: React.FC = () => {
             }
             aria-hidden="true"
           >
-            <img
-              className="paradice-reverse-clock-flight__icon"
-              src="/assets/buff/lost.png"
-              alt=""
-              draggable={false}
-            />
+            <div className="paradice-reverse-clock-flight__icon" />
           </div>
         )}
 
