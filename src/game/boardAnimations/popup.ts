@@ -38,7 +38,7 @@ export function showCenterPopup(
   const panel = ctx.orchestrator.createScreenFixedObject(
     screenCenterX, screenCenterY,
     LAYER_POPUP_BG,
-    (sx, sy) => ctx.scene.add.rectangle(sx, sy, panelWidth, panelHeight, 0x0b1020, 0.85) as Phaser.GameObjects.Rectangle & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
+    (sx, sy) => ctx.scene.add.rectangle(sx, sy, panelWidth, panelHeight, 0x0b1020, 0.65) as Phaser.GameObjects.Rectangle & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
   );
   panel.setStrokeStyle(3, 0xffffff, 0.8);
   panel.setOrigin(0.5, 0.5);
