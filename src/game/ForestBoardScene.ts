@@ -151,6 +151,9 @@ export class ForestBoardScene extends Phaser.Scene {
 
   private ready = false;
 
+  // 【新增】屏幕中心弹窗相关
+  private centerPopup: Phaser.GameObjects.Container | null = null;
+
   constructor() {
     super('ForestBoardScene');
   }
