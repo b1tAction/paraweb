@@ -263,6 +263,17 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
     playBossLineEffect(ctx, sourceMarker, bossMarker, color, isCrit ? 'CRIT' : 'HIT');
   }
 
+  playBossProfileAnimation(
+    ctx.scene,
+    bossMarker,
+    bossPlayer.player_id,
+    'hurt',
+    ctx.players,
+    ctx.playerMarkers,
+    ctx.characterRenderOptions,
+    !isDefeated
+  );
+
   bossMarker.setTint(0xffffff);
   ctx.scene.time.delayedCall(120, () => bossMarker.clearTint());
   playBossPulse(ctx, bossMarker, label, color, '#ffebee', isCrit ? 2.75 : 2.2, bossPlayer.player_id);
