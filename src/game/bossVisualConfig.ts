@@ -26,6 +26,15 @@ export const BOSS_BEAST_ASSETS = {
     frameRate: 12,
     repeat: 0,
   },
+  hurt: {
+    textureKey: 'boss_beast_hurt',
+    textureUrl: `${BOSS_BEAST_ASSET_BASE}/hurt.png`,
+    frameWidth: 256,
+    frameHeight: 256,
+    frameCount: 2,
+    frameRate: 6,
+    repeat: 0,
+  },
   skillCast: {
     textureKey: 'boss_beast_skill_cast',
     textureUrl: `${BOSS_BEAST_ASSET_BASE}/skill_cast.png`,
@@ -48,6 +57,7 @@ export const BOSS_BEAST_ASSETS = {
 
 export const BOSS_BEAST_PORTRAIT_SRC = BOSS_BEAST_ASSETS.portrait.textureUrl;
 export const BOSS_BEAST_RENDER_SCALE = 0.80;
+export const BOSS_BEAST_RENDER_OFFSET_X = 48;
 export const BOSS_BEAST_RENDER_OFFSET_Y = 16;
 export const BOSS_BEAST_RENDER_ORIGIN_X = 0.5;
 export const BOSS_BEAST_RENDER_ORIGIN_Y = 1;

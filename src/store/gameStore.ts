@@ -67,6 +67,7 @@ export type TurnState =
   | 'turn_moving' | 'TurnMoving'
   | 'turn_landed' | 'TurnLanded'
   | 'turn_event' | 'TurnEvent'
+  | 'turn_boss_battle' | 'TurnBossBattle'
   | 'turn_end' | 'TurnEnd'
   | '';
 

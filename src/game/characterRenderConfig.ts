@@ -6,6 +6,7 @@ import {
   BOSS_BEAST_NAME_OFFSET_Y,
   BOSS_BEAST_PROFILE_ID,
   BOSS_BEAST_RENDER_DEFAULT_FLIP_X,
+  BOSS_BEAST_RENDER_OFFSET_X,
   BOSS_BEAST_RENDER_OFFSET_Y,
   BOSS_BEAST_RENDER_ORIGIN_X,
   BOSS_BEAST_RENDER_ORIGIN_Y,
@@ -36,6 +37,7 @@ export type CharacterSheetConfig = {
 export type CharacterRenderProfile = {
   id: string;
   scale?: number;
+  offsetX?: number;
   offsetY?: number;
   originX?: number;
   originY?: number;
@@ -108,6 +110,7 @@ export const DEFAULT_FACTION_TO_PROFILE_ID: Record<string, string> = {
 export const BOSS_BEAST_CHARACTER_PROFILE: CharacterRenderProfile = {
   id: BOSS_BEAST_PROFILE_ID,
   scale: BOSS_BEAST_RENDER_SCALE,
+  offsetX: BOSS_BEAST_RENDER_OFFSET_X,
   offsetY: BOSS_BEAST_RENDER_OFFSET_Y,
   originX: BOSS_BEAST_RENDER_ORIGIN_X,
   originY: BOSS_BEAST_RENDER_ORIGIN_Y,
@@ -143,6 +146,15 @@ export const BOSS_BEAST_CHARACTER_PROFILE: CharacterRenderProfile = {
       frameCount: BOSS_BEAST_ASSETS.attack.frameCount,
       frameRate: BOSS_BEAST_ASSETS.attack.frameRate,
       repeat: BOSS_BEAST_ASSETS.attack.repeat,
+    },
+    hurt: {
+      textureKey: BOSS_BEAST_ASSETS.hurt.textureKey,
+      textureUrl: BOSS_BEAST_ASSETS.hurt.textureUrl,
+      frameWidth: BOSS_BEAST_ASSETS.hurt.frameWidth,
+      frameHeight: BOSS_BEAST_ASSETS.hurt.frameHeight,
+      frameCount: BOSS_BEAST_ASSETS.hurt.frameCount,
+      frameRate: BOSS_BEAST_ASSETS.hurt.frameRate,
+      repeat: BOSS_BEAST_ASSETS.hurt.repeat,
     },
     skill_cast: {
       textureKey: BOSS_BEAST_ASSETS.skillCast.textureKey,
@@ -492,6 +504,10 @@ export function resolveCharacterProfile(
 
   return profile;
 }
+export function getCharacterOffsetX(profile: CharacterRenderProfile) {
+  return profile.offsetX ?? 0;
+}
+
 export function getCharacterOffsetY(profile: CharacterRenderProfile) {
   return profile.offsetY ?? DEFAULT_CHARACTER_OFFSET_Y;
 }

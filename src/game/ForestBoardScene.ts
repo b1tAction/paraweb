@@ -8,6 +8,7 @@ import {
 import {
   getAnimationKey,
   getCharacterNameOffsetY,
+  getCharacterOffsetX,
   getCharacterOffsetY,
   getCharacterProfiles,
   getCharacterRenderer,
@@ -712,7 +713,7 @@ export class ForestBoardScene extends Phaser.Scene {
         return;
       }
       const profile = this.resolveCharacterProfileForPlayer(player, order);
-      const offsetX = isBossPlayer(player) ? 0 : (order % 4) * 10 - 15;
+      const offsetX = getCharacterOffsetX(profile) + (isBossPlayer(player) ? 0 : (order % 4) * 10 - 15);
       const targetX = cell.x + offsetX;
       const targetY = cell.y + getCharacterOffsetY(profile);
       let marker = this.playerMarkers.get(player.player_id);
