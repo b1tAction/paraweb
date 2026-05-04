@@ -1,5 +1,7 @@
 import React from 'react';
+import { useGameStore } from '../../store/gameStore';
 import { styles } from './MiniGameStyles';
+import { getDisambiguatedDisplayName } from '../../utils/displayName';
 import type { MiniGameResult } from '../../types/protocol';
 
 interface MiniGameLeaderboardProps {
@@ -11,6 +13,13 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({
   gameType,
   result,
 }) => {
+  const { players, myPlayerId } = useGameStore();
+
+  const allPlayersData = players.map(p => ({
+    displayName: p.display_name || p.player_id,
+    userId: p.player_id,
+  }));
+
   const renderGameDataDetail = (gameData?: Record<string, any>) => {
     if (!gameData) return null;
 
@@ -82,7 +91,7 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({
             </div>
             
             <div style={styles.leaderboardInfo}>
-              <div style={styles.leaderboardName}>{entry.display_name || entry.player_id}</div>
+              <div style={styles.leaderboardName}>{getDisambiguatedDisplayName(entry.display_name || entry.player_id, entry.player_id, allPlayersData)}{entry.player_id === myPlayerId ? ' (我)' : ''}</div>
               <div style={styles.leaderboardDetail}>{renderGameDataDetail(entry.game_data)}</div>
             </div>
 
