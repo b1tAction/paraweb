@@ -1,5 +1,10 @@
 node_modules
 dist
+build/bin/
+build/windows/
+build/appicon.png
+src/wailsjs/
+package.json.md5
 *.md
 images
 *.zip
