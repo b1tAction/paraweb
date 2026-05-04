@@ -71,6 +71,9 @@ const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   reverse_clock: 'reverse_clock.png',
 };
 const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door']);
+function isBossBattleTurn(turnState: string) {
+  return turnState === 'turn_boss_battle' || turnState === 'TurnBossBattle';
+}
 
 function getFactionMeta(faction: string) {
   return FACTION_META[faction] ?? { label: faction || '未知', color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
@@ -301,11 +304,11 @@ export const BoardScene: React.FC = () => {
 
     const currentTurnPlayer = renderedPlayers.find((player) => player.player_id === currentPlayerId);
     if (currentTurnPlayer && isBossPlayer(currentTurnPlayer)) {
-      return myPlayerId || currentPlayerId;
+      return isBossBattleTurn(turnState) ? currentPlayerId : myPlayerId || currentPlayerId;
     }
 
     return currentPlayerId;
-  }, [currentPlayerId, myPlayerId, renderedPlayers]);
+  }, [currentPlayerId, myPlayerId, renderedPlayers, turnState]);
 
   /**
    * 处理掷骰子
