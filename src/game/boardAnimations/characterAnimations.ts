@@ -299,7 +299,7 @@ export function playHealAnimation(
   const y = marker.y;
 
   const healSprite = ctx.scene.add.sprite(x, y, 'heal-effect');
-  healSprite.setScale(2.0);
+  healSprite.setScale(1.5);
   healSprite.setOrigin(0.5, 0.5);
   healSprite.setDepth(worldDepth(LAYER_EFFECT_BASE, y));
   healSprite.play('heal_anim');

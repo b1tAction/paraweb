@@ -233,8 +233,8 @@ export class ForestBoardScene extends Phaser.Scene {
 
     // Load heal effect sprite sheet for heal action
     this.load.spritesheet('heal-effect', '/assets/effects/heal.png', {
-      frameWidth: 72,
-      frameHeight: 72
+      frameWidth: 128,
+      frameHeight: 128
     });
 
     // Load herb effect sprite sheet for herb event
@@ -326,8 +326,8 @@ export class ForestBoardScene extends Phaser.Scene {
     // Create heal animation for heal action
     this.anims.create({
       key: 'heal_anim',
-      frames: this.anims.generateFrameNumbers('heal-effect', { start: 0, end: 7 }),
-      frameRate: 12,
+      frames: this.anims.generateFrameNumbers('heal-effect', { start: 0, end: 15 }),
+      frameRate: 15,
       repeat: 0
     });
 
