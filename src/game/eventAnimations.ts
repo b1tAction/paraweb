@@ -12,7 +12,8 @@ export type EventAnimationType =
   | 'lightning_strike' // yellow lightning strike effect
   | 'ghost_attack'  // grey ghost attack effect
   | 'wind_gust'     // orange wind gust effect
-  | 'neutral_pulse'; // white neutral pulse effect
+  | 'neutral_pulse' // white neutral pulse effect
+  | 'bubble_float'; // blue bubble float effect
 
 export type EventEffectConfig = {
   color: number;
@@ -35,12 +36,12 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     particleCount: 8,
     duration: 2500
   },
-  'milk_tea': {
-    color: 0xffca28,
-    textColor: '#fffde7',
-    animationType: 'heal_pop',
-    iconEmoji: '🧋',
-    particleCount: 6,
+  'lucky_bubble': {
+    color: 0x80deea,
+    textColor: '#e0f7fa',
+    animationType: 'bubble_float',
+    iconEmoji: '🫧',
+    particleCount: 8,
     duration: 2500
   },
   'relic': {

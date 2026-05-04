@@ -249,6 +249,12 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: 72
     });
 
+    // Load bubble effect sprite sheet for lucky_bubble event
+    this.load.spritesheet('bubble-effect', '/assets/effects/bubble.png', {
+      frameWidth: 128,
+      frameHeight: 128
+    });
+
     this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
       frameWidth: 72,
       frameHeight: 72
@@ -344,6 +350,14 @@ export class ForestBoardScene extends Phaser.Scene {
       key: 'wind_gust_anim',
       frames: this.anims.generateFrameNumbers('wind-gust-effect', { start: 0, end: 5 }),
       frameRate: 12,
+      repeat: 0
+    });
+
+    // Create bubble animation for lucky_bubble event
+    this.anims.create({
+      key: 'bubble_anim',
+      frames: this.anims.generateFrameNumbers('bubble-effect', { start: 0, end: 19 }),
+      frameRate: 20,
       repeat: 0
     });
 

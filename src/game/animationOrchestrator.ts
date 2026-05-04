@@ -42,8 +42,11 @@ export class AnimationOrchestrator {
   /**
    * Create a screen-positioned game object at a fixed screen pixel location.
    * Correctly accounts for camera zoom so the object appears at the exact
-   * screen pixel coordinates regardless of zoom level.
+   * screen pixel coordinates regardless of zoom level or camera scroll.
    * Sets scrollFactor(0) so the object stays fixed on screen.
+   *
+   * Rendering formula for scrollFactor(0): canvasPixel = world * zoom
+   * Therefore: world = screenPixel / zoom
    */
   createScreenPositionedObject<T extends Phaser.GameObjects.GameObject & { setScrollFactor: (f: number) => T; setDepth: (d: number) => T }>(
     screenPixelX: number,
@@ -52,13 +55,9 @@ export class AnimationOrchestrator {
     factory: (worldX: number, worldY: number) => T
   ): T {
     const cam = this.scene.cameras.main;
-    // Convert screen pixel position to world position accounting for zoom.
-    // Include camera scroll so the resulting world coordinates map
-    // to the requested screen pixel position even when the camera
-    // has been panned. Formula: screenPixel = (world - scroll) * zoom
-    // => world = scroll + screenPixel / zoom
-    const worldX = cam.scrollX + screenPixelX / (cam.zoom || 1);
-    const worldY = cam.scrollY + screenPixelY / (cam.zoom || 1);
+    const zoom = cam.zoom || 1;
+    const worldX = (screenPixelX - cam.centerX) / zoom + cam.centerX;
+    const worldY = (screenPixelY - cam.centerY) / zoom + cam.centerY;
 
     const obj = factory(worldX, worldY);
     obj.setScrollFactor(0);

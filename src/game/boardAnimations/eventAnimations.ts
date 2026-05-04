@@ -42,7 +42,7 @@ export function playDrawEventAnimation(
   showCenterPopup(popupCtx, eventName, effect.textColor, effect.iconEmoji, duration);
 
   // 2. Delay the event-specific animation to stagger visual focus
-  const animationDelay = eventType === 'thunder' ? 0 : 500;
+  const animationDelay = 500
 
   ctx.scene.time.delayedCall(animationDelay, () => {
     if (eventType === 'thunder') {
@@ -51,6 +51,46 @@ export function playDrawEventAnimation(
       playHerbAnimation(ctx, context);
     } else if (eventType === 'wind_gust') {
       playWindGustAnimation(ctx, context);
+    } else if (eventType === 'lucky_bubble') {
+      playBubbleAnimation(ctx, context);
+    }
+  });
+}
+
+/**
+ * Play the lucky bubble effect: bubble starts at character's feet and floats upward.
+ * Screen-fixed at LAYER_FULLSCREEN_EFFECT so it's visible above the popup background.
+ */
+export function playBubbleAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const feetY = marker.y + CHARACTER_HALF_HEIGHT;
+  const floatDistance = 80; // pixels to float upward
+
+  const bubbleSprite = ctx.orchestrator.createScreenFixedObject(
+    marker.x, feetY,
+    LAYER_FULLSCREEN_EFFECT,
+    (sx, sy) => {
+      const sprite = ctx.scene.add.sprite(sx, sy, 'bubble-effect');
+      sprite.setScale(0.8);
+      sprite.setOrigin(0.5, 1.0);
+      sprite.setAlpha(0.6);
+      sprite.play('bubble_anim');
+      return sprite;
+    }
+  );
+
+  // Float upward tween - handles cleanup on completion
+  ctx.tweens.add({
+    targets: bubbleSprite,
+    y: bubbleSprite.y - floatDistance,
+    alpha: { from: 0.6, to: 0 },
+    duration: 1000,
+    ease: 'Sine.easeOut',
+    onComplete: () => {
+      bubbleSprite.destroy();
     }
   });
 }
