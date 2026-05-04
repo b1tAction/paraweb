@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
 import { useGameStore } from '../store/gameStore';
+import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const factionMeta: Record<string, { label: string }> = {
   qing_long: { label: '青龙' },
@@ -120,6 +121,11 @@ export const LobbyScene: React.FC = () => {
           const faction = factionMeta[player.faction] ?? factionMeta.qing_long;
           const isMe = player.user_id === myPlayerId;
           const isPlayerHost = player.user_id === host_user_id;
+          const name = getDisambiguatedDisplayName(
+            player.display_name || player.user_id,
+            player.user_id,
+            players.map(p => ({ displayName: p.display_name || p.user_id, userId: p.user_id }))
+          );
 
           return (
             <div
@@ -138,7 +144,7 @@ export const LobbyScene: React.FC = () => {
                 />
               </div>
               <div style={{ ...styles.playerPanel, ...slot.panel }}>
-                <div style={styles.playerName}>{player.display_name || player.user_id}</div>
+                <div style={styles.playerName}>{name}</div>
                 <div style={styles.playerTags}>
                   <span>{faction.label}</span>
                   {isPlayerHost && <span>房主</span>}

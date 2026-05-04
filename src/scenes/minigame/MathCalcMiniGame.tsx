@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { styles } from './MiniGameStyles';
+import { getDisambiguatedDisplayName } from '../../utils/displayName';
 
 // 可以在这里方便地修改速算小游戏的总题目数量
 export const TOTAL_QUESTIONS = 3;
@@ -230,6 +231,11 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
     const { miniGameStart, miniGameResult, myPlayerId, players } = useGameStore.getState();
     const participants = miniGameStart?.players ||[];
 
+    const allPlayersData = players.map(p => ({
+      displayName: p.display_name || p.player_id,
+      userId: p.player_id,
+    }));
+
     return (
       <div style={styles.mathGameContainer}>
         <h3 style={styles.resultTitle}>计算完成!</h3>
@@ -238,7 +244,11 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
           {participants.map(pId => {
             const isMe = pId === myPlayerId;
             const playerInfo = players.find(p => p.player_id === pId);
-            const name = playerInfo?.display_name || (isMe ? '我' : '对手');
+            const name = getDisambiguatedDisplayName(
+              playerInfo?.display_name || pId,
+              pId,
+              allPlayersData
+            );
 
             const resultEntry = miniGameResult?.rankings.find(r => r.player_id === pId);
             const isFinished = !!resultEntry;

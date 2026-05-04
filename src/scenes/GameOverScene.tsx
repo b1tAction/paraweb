@@ -3,6 +3,7 @@ import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
 import { useGameStore } from '../store/gameStore';
 import { isBossPlayer } from '../game/bossVisualConfig';
+import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const factionMeta: Record<string, { label: string }> = {
   qing_long: { label: '青龙' },
@@ -27,15 +28,35 @@ export const GameOverScene: React.FC = () => {
   const visiblePlayers = useMemo(() => players.filter((player) => !isBossPlayer(player)), [players]);
   const playerMap = useMemo(() => new Map(visiblePlayers.map((player) => [player.player_id, player])), [visiblePlayers]);
 
+  // Disambiguated display name map
+  const disambiguatedNames = useMemo(() => {
+    const allPlayersData = visiblePlayers.map(p => ({
+      displayName: p.display_name || p.player_id,
+      userId: p.player_id,
+    }));
+    const map: Record<string, string> = {};
+    for (const p of visiblePlayers) {
+      map[p.player_id] = getDisambiguatedDisplayName(
+        p.display_name || p.player_id,
+        p.player_id,
+        allPlayersData
+      );
+    }
+    return map;
+  }, [visiblePlayers]);
+
+  const getPlayerName = (playerId: string): string => {
+    return disambiguatedNames[playerId] || playerId;
+  };
+
   const winner = useMemo(() => {
     if (!gameOver) return null;
 
     return (
       playerMap.get(gameOver.winner_id) ??
-      visiblePlayers.find((player) => player.display_name === gameOver.winner_id) ??
       null
     );
-  }, [gameOver, playerMap, visiblePlayers]);
+  }, [gameOver, playerMap]);
 
   const summaryRows = useMemo(() => {
     if (!gameOver) return [];
@@ -48,11 +69,10 @@ export const GameOverScene: React.FC = () => {
         return b.items_used - a.items_used;
       })
       .map((stat) => {
-        const player = playerMap.get(stat.player_id) ?? null;
 
         return {
           ...stat,
-          displayName: player?.display_name || stat.player_id,
+          displayName: getPlayerName(stat.player_id),
           isWinner: stat.player_id === gameOver.winner_id,
           isMe: stat.player_id === myPlayerId,
         };
@@ -80,7 +100,7 @@ export const GameOverScene: React.FC = () => {
 
   const winnerFactionKey = winner?.faction?.trim() || '';
   const winnerFaction = winnerFactionKey ? factionMeta[winnerFactionKey] ?? null : null;
-  const winnerDisplayName = winner?.display_name?.trim() || gameOver.winner_id;
+  const winnerDisplayName = getPlayerName(winner?.player_id || gameOver.winner_id);
   const winnerTagLabel = winnerFaction?.label || winner?.faction?.trim() || '-';
   const showWinnerFigure = Boolean(winner);
 
@@ -146,7 +166,7 @@ export const GameOverScene: React.FC = () => {
                   ...(isWinner ? styles.winnerPlayerPanel : undefined),
                 }}
               >
-                <div style={styles.playerName}>{player.display_name || player.player_id}</div>
+                <div style={styles.playerName}>{getPlayerName(player.player_id)}</div>
                 <div style={styles.playerTags}>
                   <span>{faction.label}</span>
                   {isWinner && <span>胜者</span>}
