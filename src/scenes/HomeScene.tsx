@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
+import { parseRoomLabel } from '../api/nakama';
 
 const factionOptions = [
   { value: 'qing_long', label: '青龙' },
@@ -98,7 +99,6 @@ export const HomeScene: React.FC = () => {
     return '未知错误';
   };
 
-  const [username, setUsername] = useState<string>('');
   const [serverHost, setServerHost] = useState<string>('');
   const [serverPort, setServerPort] = useState<string>('');
   const [serverSSL, setServerSSL] = useState<boolean>(false);
@@ -110,6 +110,11 @@ export const HomeScene: React.FC = () => {
   const [maxPlayers, setMaxPlayers] = useState<number>(4);
   const [joinMatchId, setJoinMatchId] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [editingName, setEditingName] = useState<boolean>(false);
+  const [newName, setNewName] = useState<string>('');
+  const [joinMode, setJoinMode] = useState<'browse' | 'manual'>('browse');
+  const [roomList, setRoomList] = useState<Array<{ match_id?: string; label?: string; size?: number }>>([]);
+  const [isLoadingRooms, setIsLoadingRooms] = useState<boolean>(false);
 
   useEffect(() => {
     const cfg = gameService.getServerConfig();
@@ -119,22 +124,36 @@ export const HomeScene: React.FC = () => {
   }, []);
 
   const handleConnect = async () => {
-    if (!username.trim()) {
-      setError('请输入昵称');
+    try {
+      setError('');
+      const session = await gameService.autoLogin();
+      if (session.user_id) {
+        setMyPlayerId(session.user_id);
+      }
+      console.log('[HomeScene] 自动登录成功', { userId: session.user_id });
+    } catch (err: unknown) {
+      const message = await getErrorMessage(err);
+      setError(`登录失败：${message}`);
+      console.error('[HomeScene] 自动登录失败', err);
+    }
+  };
+
+  const handleUpdateDisplayName = async () => {
+    if (!newName.trim()) {
+      setError('昵称不能为空');
       return;
     }
 
     try {
       setError('');
-      const session = await gameService.loginByUsername(username.trim());
-      if (session.user_id) {
-        setMyPlayerId(session.user_id);
-      }
-      console.log('[HomeScene] 登录成功', { userId: session.user_id, username });
+      await gameService.updateDisplayName(newName.trim());
+      setEditingName(false);
+      setNewName('');
+      console.log('[HomeScene] 昵称修改成功');
     } catch (err: unknown) {
       const message = await getErrorMessage(err);
-      setError(`登录失败：${message}`);
-      console.error('[HomeScene] 登录失败', err);
+      setError(`修改昵称失败：${message}`);
+      console.error('[HomeScene] 修改昵称失败', err);
     }
   };
 
@@ -153,12 +172,6 @@ export const HomeScene: React.FC = () => {
       });
     } catch (err: any) {
       setError(`服务器配置无效：${err?.message || '未知错误'}`);
-    }
-  };
-
-  const handleUsernameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      void handleConnect();
     }
   };
 
@@ -201,6 +214,45 @@ export const HomeScene: React.FC = () => {
     }
   };
 
+  const handleRefreshRooms = async () => {
+    try {
+      setIsLoadingRooms(true);
+      setError('');
+      const rooms = await gameService.listRooms();
+      // Filter to only show rooms available for joining:
+      // - No label at all (unlabelled match, assume waiting)
+      // - Label exists but has no status field (old format, assume waiting)
+      // - Label has status "waiting"
+      const filtered = rooms.filter(room => {
+        const label = parseRoomLabel(room.label);
+        if (!label) return true;
+        if (!label.status) return true;
+        return label.status === 'waiting';
+      });
+      setRoomList(filtered);
+      console.log('[HomeScene] 获取房间列表成功', filtered.length);
+    } catch (err: unknown) {
+      const message = await getErrorMessage(err);
+      setError(`获取房间列表失败：${message}`);
+      console.error('[HomeScene] 获取房间列表失败', err);
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  };
+
+  const handleJoinFromList = async (matchId: string) => {
+    try {
+      setError('');
+      useGameStore.getState().setFaction(faction);
+      await gameService.joinRoom(matchId, { faction });
+      console.log('[HomeScene] 从列表加入房间成功');
+    } catch (err: unknown) {
+      const message = await getErrorMessage(err);
+      setError(`加入房间失败：${message}`);
+      console.error('[HomeScene] 从列表加入房间失败', err);
+    }
+  };
+
   if (session) {
     return (
       <div style={{ ...styles.page, ...styles.sessionPage }}>
@@ -215,7 +267,36 @@ export const HomeScene: React.FC = () => {
                 </button>
               </div>
 
-              <p style={styles.info} title={myPlayerId}>用户名：{displayName || '加载中...'}</p>
+              {editingName ? (
+                <div style={styles.nameEditArea}>
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        void handleUpdateDisplayName();
+                      }
+                    }}
+                    placeholder="输入新昵称"
+                    style={styles.input}
+                    autoFocus
+                  />
+                  <button onClick={handleUpdateDisplayName} style={styles.nameEditButton}>
+                    确认
+                  </button>
+                  <button onClick={() => { setEditingName(false); setNewName(''); }} style={styles.nameEditCancelButton}>
+                    取消
+                  </button>
+                </div>
+              ) : (
+                <p style={styles.info} title={myPlayerId}>
+                  昵称：{displayName || '加载中...'}
+                  <button onClick={() => { setEditingName(true); setNewName(displayName); }} style={styles.nameEditLink}>
+                    修改
+                  </button>
+                </p>
+              )}
 
               {matchId && (
                 <div style={styles.roomInfo}>
@@ -261,32 +342,81 @@ export const HomeScene: React.FC = () => {
 
               <div style={styles.section}>
                 <h3>加入房间</h3>
-                <div style={styles.formGroup}>
-                  <label>房间 ID：</label>
-                  <input
-                    type="text"
-                    value={joinMatchId}
-                    onChange={(e) => setJoinMatchId(e.target.value)}
-                    placeholder="输入房间 ID"
-                    style={styles.input}
-                  />
+                <div style={styles.tabRow}>
+                  <button
+                    onClick={() => setJoinMode('browse')}
+                    style={{ ...styles.tabButton, ...(joinMode === 'browse' ? styles.tabButtonActive : undefined) }}
+                  >
+                    浏览房间
+                  </button>
+                  <button
+                    onClick={() => setJoinMode('manual')}
+                    style={{ ...styles.tabButton, ...(joinMode === 'manual' ? styles.tabButtonActive : undefined) }}
+                  >
+                    手动输入
+                  </button>
                 </div>
-                <button
-                  onClick={handleJoinRoom}
-                  onPointerDown={() => setPressedRoomAction('join')}
-                  onPointerUp={() => setPressedRoomAction(null)}
-                  onPointerLeave={() => setPressedRoomAction(null)}
-                  onPointerCancel={() => setPressedRoomAction(null)}
-                  onKeyDown={(e) => {
-                    if (e.key === ' ' || e.key === 'Enter') {
-                      setPressedRoomAction('join');
-                    }
-                  }}
-                  onKeyUp={() => setPressedRoomAction(null)}
-                  style={getRoomActionButtonStyle('join')}
-                >
-                  加入房间
-                </button>
+
+                {joinMode === 'browse' ? (
+                  <div style={styles.roomListContainer}>
+                    <button onClick={handleRefreshRooms} style={styles.secondaryButton} disabled={isLoadingRooms}>
+                      {isLoadingRooms ? '加载中...' : '刷新房间列表'}
+                    </button>
+
+                    {roomList.length === 0 && !isLoadingRooms && (
+                      <p style={styles.emptyRoomList}>暂无可用房间，点击刷新试试</p>
+                    )}
+
+                    {roomList.map(room => {
+                      const label = parseRoomLabel(room.label);
+                      const hostName = label?.host_display_name || '未知';
+                      const playerCount = room.size ?? 0;
+                      const maxPlayers = label?.max_players || 4;
+
+                      return (
+                        <div key={room.match_id} style={styles.roomListItem}>
+                          <div style={styles.roomListItemInfo}>
+                            <span style={styles.roomHost}>{hostName}</span>
+                            <span style={styles.roomPlayerCount}>{playerCount} / {maxPlayers}</span>
+                          </div>
+                          <button
+                            onClick={() => room.match_id && handleJoinFromList(room.match_id)}
+                            style={styles.roomJoinButton}
+                          >
+                            加入
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={styles.formGroup}>
+                    <label>房间 ID：</label>
+                    <input
+                      type="text"
+                      value={joinMatchId}
+                      onChange={(e) => setJoinMatchId(e.target.value)}
+                      placeholder="输入房间 ID"
+                      style={styles.input}
+                    />
+                    <button
+                      onClick={handleJoinRoom}
+                      onPointerDown={() => setPressedRoomAction('join')}
+                      onPointerUp={() => setPressedRoomAction(null)}
+                      onPointerLeave={() => setPressedRoomAction(null)}
+                      onPointerCancel={() => setPressedRoomAction(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === ' ' || e.key === 'Enter') {
+                          setPressedRoomAction('join');
+                        }
+                      }}
+                      onKeyUp={() => setPressedRoomAction(null)}
+                      style={getRoomActionButtonStyle('join')}
+                    >
+                      加入房间
+                    </button>
+                  </div>
+                )}
               </div>
 
               {error && <p style={styles.error}>{error}</p>}
@@ -351,16 +481,6 @@ export const HomeScene: React.FC = () => {
         <div style={styles.mask}>
           <div style={{ ...styles.container, ...styles.homeContainer }}>
             <div style={styles.loginPanel}>
-              <div style={styles.loginFormGroup}>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  onKeyDown={handleUsernameKeyDown}
-                  placeholder="输入昵称"
-                  style={{ ...styles.input, ...styles.heroInput }}
-                />
-              </div>
               <button
                 onClick={handleConnect}
                 onPointerDown={() => setIsStartPressed(true)}
@@ -563,6 +683,102 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     color: 'inherit',
     marginBottom: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  nameEditArea: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '4px',
+  },
+  nameEditButton: {
+    padding: '6px 12px',
+    backgroundColor: '#2f8f55',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
+  },
+  nameEditCancelButton: {
+    padding: '6px 12px',
+    backgroundColor: 'transparent',
+    color: '#f8fff8',
+    border: '1px solid rgba(255,255,255,0.3)',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
+  },
+  nameEditLink: {
+    padding: '2px 8px',
+    color: '#a8e6cf',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '12px',
+    textDecoration: 'underline',
+  },
+  tabRow: {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '12px',
+  },
+  tabButton: {
+    padding: '8px 16px',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    color: '#f8fff8',
+    border: '1px solid rgba(255,255,255,0.18)',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '14px',
+  },
+  tabButtonActive: {
+    backgroundColor: 'rgba(47, 143, 85, 0.35)',
+    borderColor: 'rgba(47, 143, 85, 0.5)',
+  },
+  roomListContainer: {
+    maxHeight: '300px',
+    overflow: 'auto',
+  },
+  roomListItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '8px 12px',
+    marginTop: '8px',
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '6px',
+  },
+  roomListItemInfo: {
+    display: 'flex',
+    gap: '12px',
+    alignItems: 'center',
+  },
+  roomHost: {
+    fontSize: '14px',
+    fontWeight: 'bold',
+  },
+  roomPlayerCount: {
+    fontSize: '12px',
+    color: '#a8e6cf',
+  },
+  roomJoinButton: {
+    padding: '6px 14px',
+    backgroundColor: '#2f8f55',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
+  },
+  emptyRoomList: {
+    textAlign: 'center',
+    fontSize: '14px',
+    color: '#a8e6cf',
+    marginTop: '12px',
   },
   roomInfo: {
     marginBottom: '16px',

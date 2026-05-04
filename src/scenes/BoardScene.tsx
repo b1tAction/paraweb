@@ -31,6 +31,7 @@ import {
   shouldRenderBoardLogEntryAnimation,
 } from '../game/logEntryAnimationPolicy';
 import { BOSS_BEAST_PORTRAIT_SRC, isBossPlayer } from '../game/bossVisualConfig';
+import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string; textColor?: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
@@ -264,6 +265,27 @@ export const BoardScene: React.FC = () => {
   );
   const [handledDiceUpgradeKey, setHandledDiceUpgradeKey] = useState('');
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
+
+  // Disambiguated display name map: playerId -> disambiguated name
+  const disambiguatedNames = useMemo(() => {
+    const allPlayersData = players.map(p => ({
+      displayName: p.display_name || p.player_id,
+      userId: p.player_id,
+    }));
+    const map: Record<string, string> = {};
+    for (const p of players) {
+      map[p.player_id] = getDisambiguatedDisplayName(
+        p.display_name || p.player_id,
+        p.player_id,
+        allPlayersData
+      );
+    }
+    return map;
+  }, [players]);
+
+  const getPlayerName = (playerId: string): string => {
+    return disambiguatedNames[playerId] || playerId;
+  };
   const [settlementPlayerId, setSettlementPlayerId] = useState<string | null>(null);
   const [settlementPlayerSnapshot, setSettlementPlayerSnapshot] = useState<Player | null>(null);
   const lastAppliedSettlementEntryRef = useRef('');
@@ -376,8 +398,7 @@ export const BoardScene: React.FC = () => {
     }
   };
 
-  // 获取当前玩家对象
-  const currentPlayer = renderedPlayers.find((p) => p.player_id === currentPlayerId);
+  // 获取棋盘玩家和 Boss 玩家
   const boardPlayers = renderedPlayers.filter((player) => !isBossPlayer(player));
   const bossPlayer = renderedPlayers.find(isBossPlayer);
   const myPlayer = renderedPlayers.find((player) => player.player_id === myPlayerId);
@@ -888,12 +909,12 @@ export const BoardScene: React.FC = () => {
                       ? `drop-shadow(0 0 8px ${faction.color}) drop-shadow(0 0 2px #ffffff)`
                       : styles.pixelPlayerCard.filter,
                   }}
-                  title={`${player.display_name || player.player_id}\nHP ${player.hp}/${player.max_hp}\nLP ${player.lp}/${PLAYER_STAT_MAX}`}
+                  title={`${getPlayerName(player.player_id)}\nHP ${player.hp}/${player.max_hp}\nLP ${player.lp}/${PLAYER_STAT_MAX}`}
                 >
                   {avatars[player.player_id] && (
                     <img
                       src={avatars[player.player_id]}
-                      alt={player.display_name || player.player_id}
+                      alt={getPlayerName(player.player_id)}
                       style={styles.pixelPlayerAvatar}
                     />
                   )}
@@ -906,7 +927,7 @@ export const BoardScene: React.FC = () => {
                       color: faction.textColor ?? faction.color,
                     }}
                   >
-                    {player.display_name || player.player_id}
+                    {getPlayerName(player.player_id)}
                   </span>
                   <div style={styles.pixelHpTrack}>
                     <div
@@ -943,7 +964,7 @@ export const BoardScene: React.FC = () => {
           <div style={styles.statusSection}>
             <p style={styles.info}>全局状态：{globalState}</p>
             <p style={styles.info}>回合状态：{turnState}</p>
-            <p style={styles.info}>当前玩家：{currentPlayer?.display_name || currentPlayerId}</p>
+            <p style={styles.info}>当前玩家：{getPlayerName(currentPlayerId)}</p>
           </div>
         </div>
 
@@ -955,14 +976,14 @@ export const BoardScene: React.FC = () => {
                   <div style={styles.bossAvatar}>
                     <img
                       src={BOSS_BEAST_PORTRAIT_SRC}
-                      alt={`${bossPlayer.display_name || 'Boss'} 头像`}
+                      alt={`${getPlayerName(bossPlayer.player_id)} 头像`}
                       style={styles.bossAvatarImage}
                     />
                   </div>
                   <div style={styles.bossTitleGroup}>
                     <strong style={styles.bossTitle}>Boss</strong>
                     <span style={styles.bossId} title={bossPlayer.player_id}>
-                      {bossPlayer.display_name || 'Boss'}
+                      {getPlayerName(bossPlayer.player_id)}
                     </span>
                   </div>
                 </div>
@@ -1049,7 +1070,7 @@ export const BoardScene: React.FC = () => {
           <div style={styles.mapActionPanel}>
             {!isMyTurn && (
               <div style={styles.waitingActionText}>
-                等待玩家 {currentPlayer?.display_name || currentPlayerId} 操作
+                等待玩家 {getPlayerName(currentPlayerId)} 操作
               </div>
             )}
             <button
@@ -1212,7 +1233,7 @@ export const BoardScene: React.FC = () => {
                     }}
                     style={styles.decisionButton}
                   >
-                    <span style={styles.targetPlayerName}>{player.display_name || player.player_id}</span>
+                    <span style={styles.targetPlayerName}>{getPlayerName(player.player_id)}</span>
                     <span style={styles.targetPlayerPosition}>位置 {player.position}</span>
                   </button>
                 ))}

@@ -1,35 +1,70 @@
 import * as Phaser from 'phaser';
-import type { LogEntry, MapConfig, MapCellConfig, Player } from '../types/protocol';
+import type { MapConfig, MapCellConfig, Player } from '../types/protocol';
 import { getTiledProperty } from './tiledHelpers';
 import {
-  MOVE_STEP_MS,
-  describeLogEntryEffect,
-  getMetadataBoolean,
-  getMetadataNumber,
-  getMetadataNumberArray,
-  getMetadataString,
-} from './logEntryPlayback';
-import { getEventEffectConfig, getEventTypeFromEntry } from './eventAnimations';
-import { useGameStore } from '../store/gameStore';
-import {
-  isAnyDoorTeleportEntry,
   shouldRenderBoardLogEntryAnimation,
   type LogEntryAnimationContext,
 } from './logEntryAnimationPolicy';
 import {
   getAnimationKey,
-  getCharacterEffectOffsetY,
   getCharacterNameOffsetY,
   getCharacterOffsetX,
   getCharacterOffsetY,
   getCharacterProfiles,
   getCharacterRenderer,
   resolveCharacterProfile,
-  type CharacterAnimationState,
   type CharacterRenderOptions,
   type CharacterRenderProfile,
 } from './characterRenderConfig';
 import { isBossPlayer } from './bossVisualConfig';
+import { AnimationOrchestrator } from './animationOrchestrator';
+import {
+  GAME_FONT_FAMILY,
+  PLAYER_NAME_SCREEN_FONT_SIZE,
+  CELL_LABEL_SCREEN_FONT_SIZE,
+  PLAYER_NAME_TEXTURE_RESOLUTION,
+  LOGIC_CELL_MARKER_SCALE,
+  RESPAWN_TEXTURE_KEY,
+  RESPAWN_ANIMATION_KEY,
+  RESPAWN_FRAME_WIDTH,
+  RESPAWN_FRAME_HEIGHT,
+  RESPAWN_FRAME_COUNT,
+  RESPAWN_FRAME_RATE,
+  LP_ADD_TEXTURE_KEY,
+  LP_ADD_ANIMATION_KEY,
+  LP_ADD_FRAME_WIDTH,
+  LP_ADD_FRAME_HEIGHT,
+  LP_ADD_FRAME_COUNT,
+  LP_ADD_FRAME_RATE,
+  LP_MINUS_TEXTURE_KEY,
+  LP_MINUS_ANIMATION_KEY,
+  LP_MINUS_FRAME_WIDTH,
+  LP_MINUS_FRAME_HEIGHT,
+  LP_MINUS_FRAME_COUNT,
+  LP_MINUS_FRAME_RATE,
+  BLACKHOLE_TEXTURE_KEY,
+  BLACKHOLE_ANIMATION_KEY,
+  BLACKHOLE_ANI_TEXTURE_KEY,
+  BLACKHOLE_ANI_ANIMATION_KEY,
+  BLACKHOLE_FRAME_COUNT,
+  BLACKHOLE_FRAME_RATE,
+  BLACKHOLE_ANI_FRAME_COUNT,
+  BLACKHOLE_ANI_FRAME_RATE,
+  WARP_DOOR_TEXTURE_KEY,
+  WARP_DOOR_ANIMATION_KEY,
+  WATER_TELEPORT_TEXTURE_KEY,
+  WATER_TELEPORT_ANIMATION_KEY,
+  WATER_TELEPORT_FRAME_COUNT,
+  WATER_TELEPORT_FRAME_RATE,
+  SHRINE_TEXTURE_KEY,
+  SHRINE_TILESET_NAME,
+} from './boardConstants';
+import { type PopupContext } from './boardAnimations/popup';
+import type { BoardAnimationContext } from './boardAnimations/eventAnimations';
+import { playDrawEventAnimation, playLightningStrikeWorldAnimation } from './boardAnimations/eventAnimations';
+import { playBossDamageAnimation, playBossAttackAnimation, playBossSkillAnimation } from './boardAnimations/bossAnimations';
+import { playGenericLogEntryEffect, playDamageAnimation, playDeathAnimation, playRespawnAnimation, playHealAnimation, playModifyLpAnimation } from './boardAnimations/characterAnimations';
+import { playMoveAnimation, playTeleportAnimation } from './boardAnimations/movementAnimations';
 
 type PathNode = {
   index: number;
@@ -84,49 +119,6 @@ const TILESET_IMAGES: TilesetImageConfig[] = [
 
 const CAMERA_VIEW_TILES_X = 30;
 const CAMERA_VIEW_TILES_Y = 20;
-const GAME_FONT_FAMILY = 'Zpix, sans-serif';
-const PLAYER_NAME_SCREEN_FONT_SIZE = 14;
-const CELL_LABEL_SCREEN_FONT_SIZE = 12;
-const PLAYER_NAME_TEXTURE_RESOLUTION = 2;
-const LOGIC_CELL_MARKER_SCALE = 1.5;
-const SHRINE_TEXTURE_KEY = 'map-shrine';
-const SHRINE_TILESET_NAME = 'shrine';
-const WARP_DOOR_TEXTURE_KEY = 'warp-door';
-const WARP_DOOR_ANIMATION_KEY = 'warp-door-swirl';
-const WATER_TELEPORT_TEXTURE_KEY = 'water-teleport';
-const WATER_TELEPORT_ANIMATION_KEY = 'water-teleport-vortex';
-const WATER_TELEPORT_FRAME_COUNT = 48;
-const WATER_TELEPORT_FRAME_RATE = 24;
-const BLACKHOLE_TEXTURE_KEY = 'blackhole';
-const BLACKHOLE_ANIMATION_KEY = 'blackhole-rotate';
-const BLACKHOLE_ANI_TEXTURE_KEY = 'blackhole-ani';
-const BLACKHOLE_ANI_ANIMATION_KEY = 'blackhole-ani-effect';
-const BLACKHOLE_ANI_FRAME_COUNT = 3;
-const BLACKHOLE_FRAME_COUNT = 8;
-const BLACKHOLE_FRAME_RATE = 24;
-const BLACKHOLE_ANI_FRAME_RATE = 12;
-const RESPAWN_TEXTURE_KEY = 'respawn-effect';
-const RESPAWN_ANIMATION_KEY = 'respawn_anim';
-const RESPAWN_FRAME_WIDTH = 32;
-const RESPAWN_FRAME_HEIGHT = 32;
-const RESPAWN_FRAME_COUNT = 12;
-const RESPAWN_FRAME_RATE = 18;
-const LP_ADD_TEXTURE_KEY = 'lp-add-effect';
-const LP_ADD_ANIMATION_KEY = 'lp_add_anim';
-const LP_ADD_FRAME_WIDTH = 64;
-const LP_ADD_FRAME_HEIGHT = 64;
-const LP_ADD_FRAME_COUNT = 12;
-const LP_ADD_FRAME_RATE = 18;
-const LP_MINUS_TEXTURE_KEY = 'lp-minus-effect';
-const LP_MINUS_ANIMATION_KEY = 'lp_minus_anim';
-const LP_MINUS_FRAME_WIDTH = 64;
-const LP_MINUS_FRAME_HEIGHT = 64;
-const LP_MINUS_FRAME_COUNT = 21;
-const LP_MINUS_FRAME_RATE = 18;
-const BLACKHOLE_SIZE_SCALE = 2.0;
-const WARP_DOOR_CELL_OFFSET_Y = 1;
-const WARP_DOOR_DEPTH_OFFSET = 52;
-const WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET = 76;
 
 export class ForestBoardScene extends Phaser.Scene {
   private mapConfig!: MapConfig;
@@ -150,25 +142,44 @@ export class ForestBoardScene extends Phaser.Scene {
   private logDrivenPositions = new Map<string, number>();
   private activeMoveAnimations = new Set<string>();
   private lastEffectKey = '';
-  private readonly boardAnimationRenderers: Record<string, BoardAnimationRenderer> = {
-    move: (context) => this.playMoveAnimation(context),
-    teleport: (context) => this.playTeleportAnimation(context),
-    damage: (context) => this.playDamageAnimation(context),
-    heal: (context) => this.playHealAnimation(context),
-    death: (context) => this.playDeathAnimation(context),
-    fell_down: (context) => this.playDeathAnimation(context),
-    respawn: (context) => this.playRespawnAnimation(context),
-    modify_lp: (context) => this.playModifyLpAnimation(context),
-    draw_event: (context) => this.playDrawEventAnimation(context),
-    boss_damage: (context) => this.playBossDamageAnimation(context),
-    boss_attack: (context) => this.playBossAttackAnimation(context),
-    boss_skill: (context) => this.playBossSkillAnimation(context),
-  };
-
   private ready = false;
+  private orchestrator!: AnimationOrchestrator;
 
-  // 【新增】屏幕中心弹窗相关
-  private centerPopup: Phaser.GameObjects.Container | null = null;
+  private buildAnimationCtx(): BoardAnimationContext {
+    return {
+      scene: this,
+      orchestrator: this.orchestrator,
+      tweens: this.tweens,
+      playerMarkers: this.playerMarkers,
+      players: this.players,
+      logDrivenPositions: this.logDrivenPositions,
+      cellViews: this.cellViews as Map<number, { x: number; y: number; index: number }>,
+      characterRenderOptions: this.characterRenderOptions,
+    };
+  }
+
+  private buildPopupCtx(): PopupContext {
+    return {
+      scene: this,
+      orchestrator: this.orchestrator,
+      tweens: this.tweens,
+    };
+  }
+
+  private readonly boardAnimationRenderers: Record<string, BoardAnimationRenderer> = {
+    move: (context) => playMoveAnimation(this.buildAnimationCtx(), context, this.activeMoveAnimations, () => this.refreshCellMarkerStates()),
+    teleport: (context) => playTeleportAnimation(this.buildAnimationCtx(), context, this.activeMoveAnimations, this.followPlayerId, this.settlementPlayer, this.mapTileHeight, () => this.refreshCellMarkerStates()),
+    damage: (context) => playDamageAnimation(this.buildAnimationCtx(), context, this.activeMoveAnimations, this.followPlayerId, this.settlementPlayer),
+    heal: (context) => playHealAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
+    death: (context) => playDeathAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
+    fell_down: (context) => playDeathAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
+    respawn: (context) => playRespawnAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer, () => this.refreshCellMarkerStates()),
+    modify_lp: (context) => playModifyLpAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
+    draw_event: (context) => playDrawEventAnimation(this.buildAnimationCtx(), this.buildPopupCtx(), context),
+    boss_damage: (context) => playBossDamageAnimation(this.buildAnimationCtx(), context),
+    boss_attack: (context) => playBossAttackAnimation(this.buildAnimationCtx(), context),
+    boss_skill: (context) => playBossSkillAnimation(this.buildAnimationCtx(), context, playLightningStrikeWorldAnimation),
+  };
 
   constructor() {
     super('ForestBoardScene');
@@ -223,8 +234,8 @@ export class ForestBoardScene extends Phaser.Scene {
 
     // Load heal effect sprite sheet for heal action
     this.load.spritesheet('heal-effect', '/assets/effects/heal.png', {
-      frameWidth: 72,
-      frameHeight: 72
+      frameWidth: 128,
+      frameHeight: 128
     });
 
     // Load herb effect sprite sheet for herb event
@@ -237,6 +248,12 @@ export class ForestBoardScene extends Phaser.Scene {
     this.load.spritesheet('wind-gust-effect', '/assets/effects/wind-gust.png', {
       frameWidth: 72,
       frameHeight: 72
+    });
+
+    // Load bubble effect sprite sheet for lucky_bubble event
+    this.load.spritesheet('bubble-effect', '/assets/effects/bubble.png', {
+      frameWidth: 128,
+      frameHeight: 128
     });
 
     this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
@@ -316,8 +333,8 @@ export class ForestBoardScene extends Phaser.Scene {
     // Create heal animation for heal action
     this.anims.create({
       key: 'heal_anim',
-      frames: this.anims.generateFrameNumbers('heal-effect', { start: 0, end: 7 }),
-      frameRate: 12,
+      frames: this.anims.generateFrameNumbers('heal-effect', { start: 0, end: 15 }),
+      frameRate: 15,
       repeat: 0
     });
 
@@ -334,6 +351,14 @@ export class ForestBoardScene extends Phaser.Scene {
       key: 'wind_gust_anim',
       frames: this.anims.generateFrameNumbers('wind-gust-effect', { start: 0, end: 5 }),
       frameRate: 12,
+      repeat: 0
+    });
+
+    // Create bubble animation for lucky_bubble event
+    this.anims.create({
+      key: 'bubble_anim',
+      frames: this.anims.generateFrameNumbers('bubble-effect', { start: 0, end: 19 }),
+      frameRate: 20,
       repeat: 0
     });
 
@@ -408,6 +433,9 @@ export class ForestBoardScene extends Phaser.Scene {
     this.extractPathNodes(map);
     this.rebuildCellsFromBackendConfig();
     this.renderCellMarkers();
+
+    this.orchestrator = new AnimationOrchestrator(this);
+
     this.syncPlayers(this.players);
     this.playLogEntryEffect(this.activeAnimationContext);
 
@@ -810,7 +838,7 @@ export class ForestBoardScene extends Phaser.Scene {
     if (effectKey === this.lastEffectKey) return;
     this.lastEffectKey = effectKey;
 
-    const renderer = this.boardAnimationRenderers[entry.action_type] ?? this.playGenericLogEntryEffect;
+    const renderer = this.boardAnimationRenderers[entry.action_type] ?? ((ctx) => playGenericLogEntryEffect(this.buildAnimationCtx(), ctx, this.followPlayerId, this.settlementPlayer));
 
     renderer(context);
   }

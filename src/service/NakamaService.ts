@@ -30,12 +30,13 @@ export class NakamaService {
   private readonly DEFAULT_PORT: string = (import.meta as any).env?.VITE_NAKAMA_PORT || '7350';
   private readonly DEFAULT_USE_SSL: boolean = String((import.meta as any).env?.VITE_NAKAMA_SSL || 'false').toLowerCase() === 'true';
 
-  // Device ID prefix for username-based authentication
+  // Device ID prefix for device-UUID-based authentication
   private readonly DEVICE_ID_PREFIX = 'paradiced_';
   // LocalStorage keys
   private readonly STORAGE_KEY_TOKEN = 'paradiced_session_token';
   private readonly STORAGE_KEY_REFRESH_TOKEN = 'paradiced_refresh_token';
   private readonly STORAGE_KEY_USERNAME = 'paradiced_username';
+  private readonly STORAGE_KEY_DEVICE_UUID = 'paradiced_device_uuid';
   private readonly STORAGE_KEY_NAKAMA_HOST = 'paradiced_nakama_host';
   private readonly STORAGE_KEY_NAKAMA_PORT = 'paradiced_nakama_port';
   private readonly STORAGE_KEY_NAKAMA_SSL = 'paradiced_nakama_ssl';
@@ -58,6 +59,52 @@ export class NakamaService {
 
   private rebuildClient() {
     this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
+  }
+
+  /**
+   * Get or create a persistent device UUID from localStorage.
+   * One device = one account. The UUID is preserved across sessions.
+   * Falls back to a manual UUID v4 generation if crypto.randomUUID
+   * is unavailable (e.g. non-secure context / HTTP).
+   */
+  private getOrCreateDeviceUUID(): string {
+    const stored = localStorage.getItem(this.STORAGE_KEY_DEVICE_UUID);
+    if (stored) return stored;
+
+    const newUUID = this.generateUUID();
+    localStorage.setItem(this.STORAGE_KEY_DEVICE_UUID, newUUID);
+    console.log('[Nakama] 生成新的 device UUID', newUUID);
+    return newUUID;
+  }
+
+  /**
+   * Generate a UUID v4 string.
+   * Uses crypto.randomUUID() when available (secure context),
+   * otherwise falls back to crypto.getRandomValues-based generation.
+   */
+  private generateUUID(): string {
+    // crypto.randomUUID() is only available in secure contexts (HTTPS)
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+
+    // Fallback: UUID v4 via crypto.getRandomValues (available in all contexts)
+    const bytes = new Uint8Array(16);
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+      crypto.getRandomValues(bytes);
+    } else {
+      // Last resort: Math.random (less secure but functional)
+      for (let i = 0; i < 16; i++) {
+        bytes[i] = Math.floor(Math.random() * 256);
+      }
+    }
+
+    // Set version (4) and variant bits per RFC 4122
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+
+    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
   getServerConfig(): { host: string; port: string; useSSL: boolean } {
@@ -124,12 +171,115 @@ export class NakamaService {
   }
 
   /**
-   * 1. Username-only authentication (recommended)
+   * 1. Auto-login with device UUID (primary auth flow)
+   *
+   * Uses Nakama's device authentication with a persistent device UUID.
+   * One device = one account, regardless of display name.
+   * Called by HomeScene "开始游戏" button when restoreSession fails.
+   *
+   * Flow:
+   * 1. Get/create deviceUUID → deviceId = paradiced_{deviceUUID}
+   * 2. authenticateDevice(deviceId, true, deviceId)
+   * 3. New account: generate default name user_{shortId}, updateAccount
+   * 4. Existing account: restore displayName from localStorage + sync via updateAccount
+   * 5. Connect socket, setConnection, setMyPlayerId
+   * 6. setupListeners
+   */
+  async autoLogin(): Promise<Session> {
+    const deviceUUID = this.getOrCreateDeviceUUID();
+    const deviceId = `${this.DEVICE_ID_PREFIX}${deviceUUID}`;
+
+    console.log('[Nakama] 开始自动认证...', { deviceUUID });
+
+    // authenticateDevice: create=true auto-creates account if not exists
+    const session = await this.client.authenticateDevice(
+      deviceId,
+      true,      // create = true, auto-register if not exists
+      deviceId   // initial username = deviceId (will be overridden with display_name)
+    );
+
+    console.log('[Nakama] 认证成功', {
+      userId: session.user_id,
+      username: session.username,
+    });
+
+    // Determine display name
+    const savedDisplayName = localStorage.getItem(this.STORAGE_KEY_USERNAME);
+    let displayName: string;
+
+    if (savedDisplayName) {
+      // Existing account: restore saved display name
+      displayName = savedDisplayName;
+    } else {
+      // New account: generate default name user_{shortId}
+      const shortId = (session.user_id || '').substring(0, 4);
+      displayName = `user_${shortId}`;
+    }
+
+    // Sync display name to Nakama account
+    await this.client.updateAccount(session, {
+      display_name: displayName,
+    });
+
+    // Save session tokens and display name
+    localStorage.setItem(this.STORAGE_KEY_TOKEN, session.token);
+    localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
+    localStorage.setItem(this.STORAGE_KEY_USERNAME, displayName);
+
+    // Create and connect socket
+    const socket = this.client.createSocket();
+    await socket.connect(session, false);
+
+    console.log('[Nakama] WebSocket 连接已建立');
+
+    useGameStore.getState().setConnection(session, socket);
+    useGameStore.getState().setMyPlayerId(session.user_id || '');
+    useGameStore.getState().setDisplayName(displayName);
+
+    this.setupListeners(socket);
+
+    return session;
+  }
+
+  /**
+   * Update the current user's display name.
+   *
+   * This only changes the display name; the underlying account (deviceUUID-based)
+   * remains the same. Name changes are persisted in localStorage and synced
+   * to Nakama via updateAccount.
+   *
+   * @param newName The new display name to set
+   */
+  async updateDisplayName(newName: string): Promise<void> {
+    const { session } = useGameStore.getState();
+    if (!session) {
+      throw new Error('[Nakama] 没有有效的 session');
+    }
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      throw new Error('[Nakama] 昵称不能为空');
+    }
+
+    console.log('[Nakama] 更新昵称', { newName: trimmedName });
+
+    await this.client.updateAccount(session, {
+      display_name: trimmedName,
+    });
+
+    localStorage.setItem(this.STORAGE_KEY_USERNAME, trimmedName);
+    useGameStore.getState().setDisplayName(trimmedName);
+
+    console.log('[Nakama] 昵称更新成功');
+  }
+
+  /**
+   * 1c. Username-based authentication (legacy)
    *
    * Uses Nakama's device authentication with a deterministic deviceId
-   * derived from the username. This eliminates the need for passwords
-   * and registration - just enter a username and start playing.
+   * derived from the username. Deprecated: use autoLogin() instead.
    *
+   * @deprecated Use autoLogin() instead for device-UUID-based auth
    * @param username The display name / nickname to use
    */
   async loginByUsername(username: string): Promise<Session> {
@@ -287,7 +437,8 @@ export class NakamaService {
   /**
    * 3. 登出
    *
-   * 清除 localStorage 中的 token 并断开连接
+   * 清除 localStorage 中的 token 并断开连接。
+   * 注意：deviceUUID 保留在 localStorage 中，下次 autoLogin 使用同一账号。
    */
   async logout(): Promise<void> {
     localStorage.removeItem(this.STORAGE_KEY_TOKEN);
@@ -648,6 +799,53 @@ export class NakamaService {
 
     // nakama-js: sendMatchState 参数 (matchId, opCode, data, presences?, reliable?)
     await socket.sendMatchState(match.match_id, opCode, JSON.stringify(payload));
+  }
+
+  /**
+   * 5b. List available rooms
+   *
+   * Queries Nakama for authoritative matches. Uses the `query` parameter
+   * with label-based filter syntax to only return "waiting" rooms.
+   * Falls back to unfiltered listing if the query doesn't work on this
+   * Nakama version, then filters client-side.
+   */
+  async listRooms(): Promise<Array<{ match_id?: string; label?: string; size?: number; authoritative?: boolean }>> {
+    const { session } = useGameStore.getState();
+    if (!session) {
+      throw new Error('[Nakama] 没有有效的 session');
+    }
+
+    // For authoritative matches, the `query` parameter supports label-based
+    // filtering with syntax like "+label.status:waiting". The `label` param
+    // is for simple string matching on relayed match labels.
+    // First try with query filter; if that returns nothing, fall back to
+    // unfiltered listing (some Nakama versions/configs may not support
+    // label query on authoritative matches).
+    let result;
+    try {
+      result = await this.client.listMatches(
+        session,
+        20,    // limit
+        true,  // authoritative
+        '',    // label (unused for authoritative matches)
+        0,     // min size: include empty matches
+        4,     // max size
+        '+label.status:waiting +label.game:paradiced', // query filter
+      );
+    } catch {
+      // Fallback: unfiltered listing, filter client-side
+      console.log('[Nakama] Label query failed, falling back to unfiltered listing');
+      result = await this.client.listMatches(
+        session,
+        20,    // limit
+        true,  // authoritative
+        '',    // label
+        0,     // min size
+        4,     // max size
+      );
+    }
+
+    return result.matches || [];
   }
 
   /**

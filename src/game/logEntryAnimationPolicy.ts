@@ -32,6 +32,7 @@ const BOSS_DEFEATED_ANIMATION_DELAY_MS = 1900;
 const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
   'damage->death': 180,
   'fell_down->death': 180,
+  'draw_event->death': 400,
   'death->respawn': 240,
 };
 
@@ -160,6 +161,15 @@ export function shouldRenderBoardLogEntryAnimation(context?: LogEntryAnimationCo
 export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | null) {
   if (!context || !isLogEntryAnimationCandidate(context.entry)) return 0;
 
+  const currentActionType = context.entry.action_type;
+  const nextActionType = context.nextEntry?.action_type;
+  const currentEventType = getMetadataString(context.entry.metadata, 'event_type');
+
+  // Thunder draw_event should not be skipped by immediate damage chaining.
+  if (currentActionType === 'draw_event' && currentEventType === 'thunder' && nextActionType === 'damage') {
+    return 900;
+  }
+
   if (context.nextEntry) {
     const transitionKey = `${context.entry.action_type}->${context.nextEntry.action_type}`;
     const transitionDelay = ACTION_TRANSITION_DELAY_MS[transitionKey];
@@ -169,6 +179,7 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   if (
     context.nextEntry &&
     IMMEDIATE_NEXT_ACTION_TYPES.has(context.nextEntry.action_type) &&
+    context.entry.action_type !== 'draw_event' &&
     !BOSS_ACTION_TYPES.has(context.entry.action_type)
   ) {
     return 0;
