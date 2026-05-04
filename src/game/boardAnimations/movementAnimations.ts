@@ -132,9 +132,6 @@ export function playTeleportAnimation(
   const targetX = toCell.x + currentOffsetX;
   const targetY = toCell.y + currentOffsetY;
   const travelSign = targetX >= marker.x ? 1 : -1;
-  const originalScaleX = Math.abs(marker.scaleX) || 1;
-  const originalScaleY = Math.abs(marker.scaleY) || 1;
-  const originalAlpha = marker.alpha || 1;
   const entranceDoorX = marker.x + travelSign * 30;
   const doorOffsetY = tileHeight * WARP_DOOR_CELL_OFFSET_Y;
   const entranceDoorY = marker.y + 18 + doorOffsetY;
@@ -148,6 +145,8 @@ export function playTeleportAnimation(
   const order = ctx.players.indexOf(player);
   const renderer = getCharacterRenderer(ctx.characterRenderOptions);
   const profile = resolveCharacterProfile(player, order, ctx.characterRenderOptions);
+  const profileScale = profile.scale ?? 0.65;
+  const profileAlpha = 1;
   const doors: Phaser.GameObjects.GameObject[] = [];
   const doorGlows: Phaser.GameObjects.Sprite[] = [];
 
@@ -246,7 +245,7 @@ export function playTeleportAnimation(
           ctx.logDrivenPositions.set(entry.target, toPos);
           refreshCellMarkerStates?.();
           marker.setPosition(exitDoorX + travelSign * 3, targetY);
-          marker.setScale(originalScaleX, originalScaleY);
+          marker.setScale(profileScale, profileScale);
           marker.setAlpha(0);
           marker.setFlipX(travelSign < 0);
           marker.setDepth(exitPlayerDepth);
@@ -256,7 +255,7 @@ export function playTeleportAnimation(
               targets: marker,
               x: targetX,
               y: targetY,
-              alpha: originalAlpha,
+              alpha: profileAlpha,
               duration: 520,
               ease: 'Cubic.easeOut',
               onUpdate: () => marker.setDepth(exitPlayerDepth),
@@ -305,9 +304,6 @@ export function playBlackholeTeleportAnimation(
   const currentOffsetY = marker.y - fromCell.y;
   const targetX = toCell.x + currentOffsetX;
   const targetY = toCell.y + currentOffsetY;
-  const originalScaleX = Math.abs(marker.scaleX) || 1;
-  const originalScaleY = Math.abs(marker.scaleY) || 1;
-  const originalAlpha = marker.alpha || 1;
   const sourceDepth = worldDepth(LAYER_EFFECT_BASE, marker.y) + 60;
   const targetDepth = worldDepth(LAYER_EFFECT_BASE, targetY) + 60;
 
@@ -350,8 +346,8 @@ export function playBlackholeTeleportAnimation(
 
     ctx.tweens.add({
       targets: marker,
-      scaleX: originalScaleX * 0.3,
-      scaleY: originalScaleY * 0.3,
+      scaleX: profileScale * 0.3,
+      scaleY: profileScale * 0.3,
       alpha: 0,
       duration: 400,
       ease: 'Cubic.easeIn',
@@ -372,7 +368,7 @@ export function playBlackholeTeleportAnimation(
       refreshCellMarkerStates?.();
 
       marker.setPosition(targetX, targetY);
-      marker.setScale(originalScaleX * 0.3, originalScaleY * 0.3);
+      marker.setScale(profileScale * 0.3, profileScale * 0.3);
       marker.setAlpha(0);
       marker.setDepth(targetDepth);
 
@@ -398,9 +394,9 @@ export function playBlackholeTeleportAnimation(
         ctx.tweens.killTweensOf(marker);
         ctx.tweens.add({
           targets: marker,
-          scaleX: originalScaleX,
-          scaleY: originalScaleY,
-          alpha: originalAlpha,
+          scaleX: profileScale,
+          scaleY: profileScale,
+          alpha: 1,
           duration: 400,
           ease: 'Cubic.easeOut',
           onComplete: () => {

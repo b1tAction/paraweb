@@ -59,7 +59,8 @@ export function playDrawEventAnimation(
 
 /**
  * Play the lucky bubble effect: bubble starts at character's feet and floats upward.
- * Screen-fixed at LAYER_FULLSCREEN_EFFECT so it's visible above the popup background.
+ * Uses world-space coordinates with LAYER_FULLSCREEN_EFFECT depth so it renders
+ * above the popup background without needing scrollFactor(0).
  */
 export function playBubbleAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
   const { entry } = context;
@@ -69,18 +70,11 @@ export function playBubbleAnimation(ctx: BoardAnimationContext, context: LogEntr
   const feetY = marker.y + CHARACTER_HALF_HEIGHT;
   const floatDistance = 80; // pixels to float upward
 
-  const bubbleSprite = ctx.orchestrator.createScreenFixedObject(
-    marker.x, feetY,
-    LAYER_FULLSCREEN_EFFECT,
-    (sx, sy) => {
-      const sprite = ctx.scene.add.sprite(sx, sy, 'bubble-effect');
-      sprite.setScale(0.8);
-      sprite.setOrigin(0.5, 1.0);
-      sprite.setAlpha(0.6);
-      sprite.play('bubble_anim');
-      return sprite;
-    }
-  );
+  const bubbleSprite = ctx.scene.add.sprite(marker.x, feetY, 'bubble-effect');
+  bubbleSprite.setOrigin(0.5, 1.0);
+  bubbleSprite.setAlpha(0.6);
+  bubbleSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  bubbleSprite.play('bubble_anim');
 
   // Float upward tween - handles cleanup on completion
   ctx.tweens.add({
@@ -97,7 +91,8 @@ export function playBubbleAnimation(ctx: BoardAnimationContext, context: LogEntr
 
 /**
  * Play the herb growth effect at the character's feet.
- * Screen-fixed at LAYER_FULLSCREEN_EFFECT so it's visible above the popup background.
+ * Uses world-space coordinates with LAYER_FULLSCREEN_EFFECT depth so it renders
+ * above the popup background without needing scrollFactor(0).
  */
 export function playHerbAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
   const { entry } = context;
@@ -106,24 +101,18 @@ export function playHerbAnimation(ctx: BoardAnimationContext, context: LogEntryA
 
   const feetY = marker.y + CHARACTER_HALF_HEIGHT;
 
-  const herbSprite = ctx.orchestrator.createScreenFixedObject(
-    marker.x, feetY,
-    LAYER_FULLSCREEN_EFFECT,
-    (sx, sy) => {
-      const sprite = ctx.scene.add.sprite(sx, sy, 'herb-effect');
-      sprite.setScale(1.0);
-      sprite.setOrigin(0.5, 1.0);
-      sprite.play('herb_anim');
-      return sprite;
-    }
-  );
+  const herbSprite = ctx.scene.add.sprite(marker.x, feetY, 'herb-effect');
+  herbSprite.setOrigin(0.5, 1.0);
+  herbSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  herbSprite.play('herb_anim');
 
   ctx.orchestrator.registerCleanupOnAnimationComplete(herbSprite);
 }
 
 /**
  * Play the wind gust effect at the character's feet.
- * Screen-fixed at LAYER_FULLSCREEN_EFFECT so it's visible above the popup background.
+ * Uses world-space coordinates with LAYER_FULLSCREEN_EFFECT depth so it renders
+ * above the popup background without needing scrollFactor(0).
  */
 export function playWindGustAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
   const { entry } = context;
@@ -132,24 +121,19 @@ export function playWindGustAnimation(ctx: BoardAnimationContext, context: LogEn
 
   const feetY = marker.y + CHARACTER_HALF_HEIGHT;
 
-  const windSprite = ctx.orchestrator.createScreenFixedObject(
-    marker.x, feetY,
-    LAYER_FULLSCREEN_EFFECT,
-    (sx, sy) => {
-      const sprite = ctx.scene.add.sprite(sx, sy, 'wind-gust-effect');
-      sprite.setScale(2.0);
-      sprite.setOrigin(0.5, 1.0);
-      sprite.play('wind_gust_anim');
-      return sprite;
-    }
-  );
+  const windSprite = ctx.scene.add.sprite(marker.x, feetY, 'wind-gust-effect');
+  windSprite.setScale(2.0);
+  windSprite.setOrigin(0.5, 1.0);
+  windSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  windSprite.play('wind_gust_anim');
 
   ctx.orchestrator.registerCleanupOnAnimationComplete(windSprite);
 }
 
 /**
  * Play the lightning strike effect on the character.
- * Screen-fixed at LAYER_FULLSCREEN_EFFECT so it's visible above the popup background.
+ * Uses world-space coordinates with LAYER_FULLSCREEN_EFFECT depth so the sprite
+ * renders above the popup background without needing scrollFactor(0).
  * Also includes a camera flash and character shake.
  */
 export function playLightningStrikeAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
@@ -160,48 +144,21 @@ export function playLightningStrikeAnimation(ctx: BoardAnimationContext, context
   const landingX = marker.x;
   const landingY = marker.y + CHARACTER_HALF_HEIGHT;
 
-  // 1. Lightning sprite at LAYER_FULLSCREEN_EFFECT (screen-fixed)
-  const lightningSprite = ctx.orchestrator.createScreenFixedObject(
-    landingX, landingY,
-    LAYER_FULLSCREEN_EFFECT,
-    (sx, sy) => {
-      const sprite = ctx.scene.add.sprite(sx, sy, 'lightning-bolt');
-      sprite.setScale(2.0);
-      sprite.setOrigin(0.5, 1.0);
-      sprite.play('lightning_strike_anim');
-      return sprite;
-    }
-  );
+  // 1. Lightning sprite at LAYER_FULLSCREEN_EFFECT (world-space depth)
+  const lightningSprite = ctx.scene.add.sprite(landingX, landingY, 'lightning-bolt');
+  lightningSprite.setScale(2.0);
+  lightningSprite.setOrigin(0.5, 1.0);
+  lightningSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  lightningSprite.play('lightning_strike_anim');
 
   ctx.orchestrator.registerCleanupOnAnimationComplete(lightningSprite);
 
   // 2. Camera white flash to simulate lightning brightness
   ctx.scene.cameras.main.flash(300, 255, 255, 200);
 
-  // 3. Character shake after lightning strike
-  // Use a temporary offset object so the shake tween doesn't directly
-  // modify marker.x/y (which conflicts with syncPlayers tween).
-  const shakeOriginalX = marker.x;
-  const shakeOriginalY = marker.y;
-  const shakeOffset = { offsetX: 0, offsetY: 0 };
-
-  ctx.tweens.add({
-    targets: shakeOffset,
-    offsetX: { from: -4, to: 0 },
-    offsetY: { from: -3, to: 0 },
-    duration: 80,
-    repeat: 8,
-    ease: 'Linear',
-    yoyo: true,
-    onUpdate: () => {
-      marker.x = shakeOriginalX + shakeOffset.offsetX;
-      marker.y = shakeOriginalY + shakeOffset.offsetY;
-    },
-    onComplete: () => {
-      marker.x = shakeOriginalX;
-      marker.y = shakeOriginalY;
-    },
-  });
+  // 3. Camera shake to simulate impact (avoids modifying marker.x/y
+  // which would conflict with syncPlayers tween).
+  ctx.scene.cameras.main.shake(640, 0.005);
 }
 
 /**
@@ -230,28 +187,7 @@ export function playLightningStrikeWorldAnimation(ctx: BoardAnimationContext, co
   // Camera flash
   ctx.scene.cameras.main.flash(300, 255, 255, 200);
 
-  // Character shake
-  // Use a temporary offset object so the shake tween doesn't directly
-  // modify marker.x/y (which conflicts with syncPlayers tween).
-  const shakeOriginalX = marker.x;
-  const shakeOriginalY = marker.y;
-  const shakeOffset = { offsetX: 0, offsetY: 0 };
-
-  ctx.tweens.add({
-    targets: shakeOffset,
-    offsetX: { from: -4, to: 0 },
-    offsetY: { from: -3, to: 0 },
-    duration: 80,
-    repeat: 8,
-    ease: 'Linear',
-    yoyo: true,
-    onUpdate: () => {
-      marker.x = shakeOriginalX + shakeOffset.offsetX;
-      marker.y = shakeOriginalY + shakeOffset.offsetY;
-    },
-    onComplete: () => {
-      marker.x = shakeOriginalX;
-      marker.y = shakeOriginalY;
-    },
-  });
+  // Camera shake (avoids modifying marker.x/y which would conflict
+  // with syncPlayers tween).
+  ctx.scene.cameras.main.shake(640, 0.005);
 }
