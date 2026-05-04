@@ -28,18 +28,27 @@ export function showCenterPopup(
   closeCenterPopup(ctx);
 
   const cam = ctx.scene.cameras.main;
-  // Use camera center in world-space; orchestrator converts world -> screen.
-  const screenCenterX = cam.centerX;
-  const screenCenterY = cam.centerY;
+  // Use stable screen pixel coordinates for center positioning.
+  // This avoids the zoom-offset and lerp-desync issues that occur when
+  // using cam.centerX (world-space) with createScreenFixedObject.
+  const screenCenterX = cam.width / 2;
+  const screenCenterY = cam.height / 2;
 
   const panelWidth = 400;
   const panelHeight = 150;
 
+  // Convert pixel dimensions to world units so shapes/text render
+  // at stable screen pixel sizes regardless of camera zoom.
+  const worldPanelWidth = panelWidth / (cam.zoom || 1);
+  const worldPanelHeight = panelHeight / (cam.zoom || 1);
+  const textFontSize = 28 / (cam.zoom || 1);
+  const wordWrapWidth = 320 / (cam.zoom || 1);
+
   // Background panel at LAYER_POPUP_BG
-  const panel = ctx.orchestrator.createScreenFixedObject(
+  const panel = ctx.orchestrator.createScreenPositionedObject(
     screenCenterX, screenCenterY,
     LAYER_POPUP_BG,
-    (sx, sy) => ctx.scene.add.rectangle(sx, sy, panelWidth, panelHeight, 0x0b1020, 0.65) as Phaser.GameObjects.Rectangle & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
+    (wx, wy) => ctx.scene.add.rectangle(wx, wy, worldPanelWidth, worldPanelHeight, 0x0b1020, 0.65) as Phaser.GameObjects.Rectangle & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
   );
   panel.setStrokeStyle(3, 0xffffff, 0.8);
   panel.setOrigin(0.5, 0.5);
@@ -48,16 +57,16 @@ export function showCenterPopup(
 
   // Text at LAYER_POPUP_TEXT (always readable, above effects)
   const displayText = iconEmoji ? `${iconEmoji} ${eventName}` : eventName;
-  const text = ctx.orchestrator.createScreenFixedObject(
+  const text = ctx.orchestrator.createScreenPositionedObject(
     screenCenterX, screenCenterY,
     LAYER_POPUP_TEXT,
-    (sx, sy) => ctx.scene.add.text(sx, sy, displayText, {
+    (wx, wy) => ctx.scene.add.text(wx, wy, displayText, {
       fontFamily: GAME_FONT_FAMILY,
-      fontSize: '28px',
+      fontSize: `${textFontSize}px`,
       fontStyle: 'bold',
       color: textColor,
       align: 'center',
-      wordWrap: { width: 320 },
+      wordWrap: { width: wordWrapWidth },
     }) as Phaser.GameObjects.Text & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
   );
   text.setOrigin(0.5, 0.5);
