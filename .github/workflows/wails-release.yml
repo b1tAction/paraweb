@@ -20,29 +20,31 @@ env:
   NODE_OPTIONS: '--max-old-space-size=4096'
 
 jobs:
-  release-windows:
-    name: Release Windows Wails artifact
-    runs-on: windows-latest
+  # Validate that this push is a merged dev -> master PR and prepare the release tag.
+  prepare-release:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.release_source.outputs.should_release }}
+      tag: ${{ steps.release_tag.outputs.tag }}
 
     steps:
       - name: Validate dev-to-master PR merge
         id: release_source
-        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $prs = gh api `
-            -H "Accept: application/vnd.github+json" `
-            "/repos/${env:GITHUB_REPOSITORY}/commits/${env:GITHUB_SHA}/pulls" | ConvertFrom-Json
-          $match = @($prs | Where-Object { $_.base.ref -eq 'master' -and $_.head.ref -eq 'dev' -and $_.merged_at })
-          if ($match.Count -eq 0) {
-            Write-Host "No merged dev -> master PR is associated with ${env:GITHUB_SHA}; skipping release."
-            "should_release=false" >> $env:GITHUB_OUTPUT
+          prs=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls")
+          match=$(echo "$prs" | jq -r '[.[] | select(.base.ref == "master" and .head.ref == "dev" and .merged_at != null)] | length')
+          if [ "$match" -eq 0 ]; then
+            echo "No merged dev -> master PR is associated with $GITHUB_SHA; skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
             exit 0
-          }
-          Write-Host "Release source PR: #$($match[0].number)"
-          "should_release=true" >> $env:GITHUB_OUTPUT
-          "pr_number=$($match[0].number)" >> $env:GITHUB_OUTPUT
+          fi
+          echo "Release source confirmed."
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
 
       - name: Checkout release commit
         if: steps.release_source.outputs.should_release == 'true'
@@ -51,15 +53,48 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Set up Go
+      - name: Prepare release tag
         if: steps.release_source.outputs.should_release == 'true'
+        id: release_tag
+        run: |
+          git fetch --tags --force
+          short_sha=$(git rev-parse --short=12 HEAD)
+          date=$(date +%Y.%m.%d)
+          tag="wails-v${date}-${short_sha}"
+          head_sha=$(git rev-parse HEAD)
+
+          if git rev-parse -q --verify "refs/tags/${tag}^{}" >/dev/null 2>&1; then
+            existing_sha=$(git rev-parse "refs/tags/${tag}^{}")
+            if [ "$existing_sha" != "$head_sha" ]; then
+              echo "Tag $tag already exists at $existing_sha, expected $head_sha"
+              exit 1
+            fi
+            echo "Reusing existing tag $tag"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$tag" -m "ParaDiced Wails release $tag"
+            git push origin "$tag"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build-windows:
+    name: Build Windows artifact
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.sum
 
       - name: Set up Node
-        if: steps.release_source.outputs.should_release == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -67,90 +102,255 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install frontend dependencies
-        if: steps.release_source.outputs.should_release == 'true'
         run: npm ci
 
       - name: Build frontend
-        if: steps.release_source.outputs.should_release == 'true'
         run: npm run build
 
       - name: Check Go module tidiness
-        if: steps.release_source.outputs.should_release == 'true'
         shell: pwsh
         run: |
           go mod tidy
           git diff --exit-code -- go.mod go.sum
 
       - name: Vet Go code
-        if: steps.release_source.outputs.should_release == 'true'
         run: go vet ./...
 
       - name: Test Go code
-        if: steps.release_source.outputs.should_release == 'true'
         run: go test ./...
 
       - name: Lint Go code
-        if: steps.release_source.outputs.should_release == 'true'
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.11
 
       - name: Install Wails CLI
-        if: steps.release_source.outputs.should_release == 'true'
         run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
 
       - name: Show Wails version
-        if: steps.release_source.outputs.should_release == 'true'
         run: wails version
 
       - name: Build Wails desktop binary
-        if: steps.release_source.outputs.should_release == 'true'
         run: wails build -clean -s -platform windows/amd64 -o ParaDiced.exe
 
-      - name: Prepare release tag
-        if: steps.release_source.outputs.should_release == 'true'
-        id: release_tag
+      - name: Rename and generate checksum
         shell: pwsh
         run: |
-          git fetch --tags --force
-          $shortSha = (git rev-parse --short=12 HEAD).Trim()
-          $date = Get-Date -Format 'yyyy.MM.dd'
-          $tag = "wails-v$date-$shortSha"
-          $headSha = (git rev-parse HEAD).Trim()
-          $existingTag = git rev-parse -q --verify "refs/tags/$tag^{}" 2>$null
-          if ($LASTEXITCODE -eq 0 -and $existingTag) {
-            $existingSha = $existingTag.Trim()
-            if ($existingSha -ne $headSha) {
-              throw "Tag $tag already exists at $existingSha, expected $headSha"
-            }
-            Write-Host "Reusing existing tag $tag"
-          } else {
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a $tag -m "ParaDiced Wails release $tag"
-            git push origin $tag
-          }
-          "tag=$tag" >> $env:GITHUB_OUTPUT
-          "asset_name=ParaDiced-windows-amd64-$tag.exe" >> $env:GITHUB_OUTPUT
-          "checksum_name=ParaDiced-windows-amd64-$tag.exe.sha256" >> $env:GITHUB_OUTPUT
+          $tag = "${{ needs.prepare-release.outputs.tag }}"
+          $assetName = "ParaDiced-windows-amd64-$tag.exe"
+          Copy-Item build/bin/ParaDiced.exe "build/bin/$assetName"
+          $hash = (Get-FileHash "build/bin/$assetName" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $assetName" | Out-File -Encoding ascii "build/bin/$assetName.sha256"
 
-      - name: Rename release assets
-        if: steps.release_source.outputs.should_release == 'true'
-        shell: pwsh
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-build
+          path: |
+            build/bin/ParaDiced-windows-amd64-*.exe
+            build/bin/ParaDiced-windows-amd64-*.exe.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  build-macos:
+    name: Build macOS artifact
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true'
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Check Go module tidiness
         run: |
-          Copy-Item build/bin/ParaDiced.exe "build/bin/${{ steps.release_tag.outputs.asset_name }}"
-          $hash = (Get-FileHash "build/bin/${{ steps.release_tag.outputs.asset_name }}" -Algorithm SHA256).Hash.ToLower()
-          "$hash  ${{ steps.release_tag.outputs.asset_name }}" | Out-File -Encoding ascii "build/bin/${{ steps.release_tag.outputs.checksum_name }}"
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Vet Go code
+        run: go vet ./...
+
+      - name: Test Go code
+        run: go test ./...
+
+      - name: Lint Go code
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Show Wails version
+        run: wails version
+
+      - name: Build Wails desktop binary
+        run: wails build -clean -s -platform darwin/arm64
+
+      - name: Package and generate checksum
+        run: |
+          cd build/bin
+          zip -r ParaDiced-darwin-arm64.zip ParaDiced.app
+          tag="${{ needs.prepare-release.outputs.tag }}"
+          asset_name="ParaDiced-darwin-arm64-$tag.zip"
+          mv ParaDiced-darwin-arm64.zip "$asset_name"
+          shasum -a 256 "$asset_name" > "$asset_name.sha256"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-build
+          path: |
+            build/bin/ParaDiced-darwin-arm64-*.zip
+            build/bin/ParaDiced-darwin-arm64-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  build-linux:
+    name: Build Linux AppImage
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential pkg-config
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Check Go module tidiness
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Vet Go code
+        run: go vet ./...
+
+      - name: Test Go code
+        run: go test ./...
+
+      - name: Lint Go code
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Show Wails version
+        run: wails version
+
+      - name: Build Wails desktop binary
+        run: wails build -clean -s -platform linux/amd64
+
+      - name: Download AppImage tools
+        run: |
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk-x86_64.AppImage
+
+      - name: Create AppImage
+        run: |
+          mkdir -p AppDir/usr/bin
+          cp build/bin/ParaDiced AppDir/usr/bin/
+
+          cat > AppDir/paradiced.desktop << 'EOF'
+          [Desktop Entry]
+          Name=ParaDiced
+          Exec=paradiced
+          Icon=paradiced
+          Type=Application
+          Categories=Game;
+          EOF
+
+          cp public/assets/logo.png AppDir/paradiced.png
+
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --executable AppDir/usr/bin/ParaDiced \
+            --desktop-file AppDir/paradiced.desktop \
+            --icon-file AppDir/paradiced.png \
+            --plugin gtk \
+            --output appimage
+
+          tag="${{ needs.prepare-release.outputs.tag }}"
+          asset_name="ParaDiced-linux-amd64-$tag.AppImage"
+          mv ParaDiced-x86_64.AppImage "build/bin/$asset_name"
+          sha256sum "build/bin/$asset_name" > "build/bin/$asset_name.sha256"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-build
+          path: |
+            build/bin/ParaDiced-linux-amd64-*.AppImage
+            build/bin/ParaDiced-linux-amd64-*.AppImage.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-release:
+    name: Publish GitHub release
+    needs: [prepare-release, build-windows, build-macos, build-linux]
+    if: needs.prepare-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: List release assets
+        run: find release-artifacts -type f | sort
 
       - name: Publish GitHub release
-        if: steps.release_source.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.release_tag.outputs.tag }}
-          name: ParaDiced Desktop ${{ steps.release_tag.outputs.tag }}
+          tag_name: ${{ needs.prepare-release.outputs.tag }}
+          name: ParaDiced Desktop ${{ needs.prepare-release.outputs.tag }}
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: |
-            build/bin/${{ steps.release_tag.outputs.asset_name }}
-            build/bin/${{ steps.release_tag.outputs.checksum_name }}
+          files: release-artifacts/**/*
