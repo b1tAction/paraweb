@@ -1,0 +1,156 @@
+name: Wails Release
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: wails-release-${{ github.sha }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: '1.22.4'
+  NODE_VERSION: '22'
+  WAILS_VERSION: 'v2.10.2'
+  NODE_OPTIONS: '--max-old-space-size=4096'
+
+jobs:
+  release-windows:
+    name: Release Windows Wails artifact
+    runs-on: windows-latest
+
+    steps:
+      - name: Validate dev-to-master PR merge
+        id: release_source
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $prs = gh api `
+            -H "Accept: application/vnd.github+json" `
+            "/repos/${env:GITHUB_REPOSITORY}/commits/${env:GITHUB_SHA}/pulls" | ConvertFrom-Json
+          $match = @($prs | Where-Object { $_.base.ref -eq 'master' -and $_.head.ref -eq 'dev' -and $_.merged_at })
+          if ($match.Count -eq 0) {
+            Write-Host "No merged dev -> master PR is associated with ${env:GITHUB_SHA}; skipping release."
+            "should_release=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          Write-Host "Release source PR: #$($match[0].number)"
+          "should_release=true" >> $env:GITHUB_OUTPUT
+          "pr_number=$($match[0].number)" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout release commit
+        if: steps.release_source.outputs.should_release == 'true'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        if: steps.release_source.outputs.should_release == 'true'
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+
+      - name: Set up Node
+        if: steps.release_source.outputs.should_release == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.release_source.outputs.should_release == 'true'
+        run: npm ci
+
+      - name: Build frontend
+        if: steps.release_source.outputs.should_release == 'true'
+        run: npm run build
+
+      - name: Check Go module tidiness
+        if: steps.release_source.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Vet Go code
+        if: steps.release_source.outputs.should_release == 'true'
+        run: go vet ./...
+
+      - name: Test Go code
+        if: steps.release_source.outputs.should_release == 'true'
+        run: go test ./...
+
+      - name: Lint Go code
+        if: steps.release_source.outputs.should_release == 'true'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11
+
+      - name: Install Wails CLI
+        if: steps.release_source.outputs.should_release == 'true'
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+
+      - name: Show Wails version
+        if: steps.release_source.outputs.should_release == 'true'
+        run: wails version
+
+      - name: Build Wails desktop binary
+        if: steps.release_source.outputs.should_release == 'true'
+        run: wails build -clean -s -platform windows/amd64 -o ParaDiced.exe
+
+      - name: Prepare release tag
+        if: steps.release_source.outputs.should_release == 'true'
+        id: release_tag
+        shell: pwsh
+        run: |
+          git fetch --tags --force
+          $shortSha = (git rev-parse --short=12 HEAD).Trim()
+          $date = Get-Date -Format 'yyyy.MM.dd'
+          $tag = "wails-v$date-$shortSha"
+          $headSha = (git rev-parse HEAD).Trim()
+          $existingTag = git rev-parse -q --verify "refs/tags/$tag^{}" 2>$null
+          if ($LASTEXITCODE -eq 0 -and $existingTag) {
+            $existingSha = $existingTag.Trim()
+            if ($existingSha -ne $headSha) {
+              throw "Tag $tag already exists at $existingSha, expected $headSha"
+            }
+            Write-Host "Reusing existing tag $tag"
+          } else {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a $tag -m "ParaDiced Wails release $tag"
+            git push origin $tag
+          }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "asset_name=ParaDiced-windows-amd64-$tag.exe" >> $env:GITHUB_OUTPUT
+          "checksum_name=ParaDiced-windows-amd64-$tag.exe.sha256" >> $env:GITHUB_OUTPUT
+
+      - name: Rename release assets
+        if: steps.release_source.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          Copy-Item build/bin/ParaDiced.exe "build/bin/${{ steps.release_tag.outputs.asset_name }}"
+          $hash = (Get-FileHash "build/bin/${{ steps.release_tag.outputs.asset_name }}" -Algorithm SHA256).Hash.ToLower()
+          "$hash  ${{ steps.release_tag.outputs.asset_name }}" | Out-File -Encoding ascii "build/bin/${{ steps.release_tag.outputs.checksum_name }}"
+
+      - name: Publish GitHub release
+        if: steps.release_source.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: ParaDiced Desktop ${{ steps.release_tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            build/bin/${{ steps.release_tag.outputs.asset_name }}
+            build/bin/${{ steps.release_tag.outputs.checksum_name }}
