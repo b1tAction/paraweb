@@ -1,16 +1,18 @@
 name: Wails Release
 
 on:
-  push:
+  pull_request:
     branches:
       - master
+    types:
+      - closed
 
 permissions:
   contents: write
   pull-requests: read
 
 concurrency:
-  group: wails-release-${{ github.sha }}
+  group: wails-release-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 env:
@@ -20,41 +22,22 @@ env:
   NODE_OPTIONS: '--max-old-space-size=4096'
 
 jobs:
-  # Validate that this push is a merged dev -> master PR and prepare the release tag.
+  # Prepare release tag only when a dev -> master PR is merged.
   prepare-release:
     name: Prepare release
     runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
     outputs:
-      should_release: ${{ steps.release_source.outputs.should_release }}
       tag: ${{ steps.release_tag.outputs.tag }}
 
     steps:
-      - name: Validate dev-to-master PR merge
-        id: release_source
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          prs=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls")
-          match=$(echo "$prs" | jq -r '[.[] | select(.base.ref == "master" and .head.ref == "dev" and .merged_at != null)] | length')
-          if [ "$match" -eq 0 ]; then
-            echo "No merged dev -> master PR is associated with $GITHUB_SHA; skipping release."
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "Release source confirmed."
-          echo "should_release=true" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout release commit
-        if: steps.release_source.outputs.should_release == 'true'
+      - name: Checkout merge commit
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Prepare release tag
-        if: steps.release_source.outputs.should_release == 'true'
         id: release_tag
         run: |
           git fetch --tags --force
@@ -81,12 +64,13 @@ jobs:
   build-windows:
     name: Build Windows artifact
     needs: prepare-release
-    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -155,12 +139,13 @@ jobs:
   build-macos:
     name: Build macOS artifact
     needs: prepare-release
-    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: macos-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -228,12 +213,13 @@ jobs:
   build-linux:
     name: Build Linux AppImage
     needs: prepare-release
-    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Install Linux dependencies
         run: |
@@ -332,7 +318,6 @@ jobs:
   publish-release:
     name: Publish GitHub release
     needs: [prepare-release, build-windows, build-macos, build-linux]
-    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -350,7 +335,7 @@ jobs:
         with:
           tag_name: ${{ needs.prepare-release.outputs.tag }}
           name: ParaDiced Desktop ${{ needs.prepare-release.outputs.tag }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ github.event.pull_request.merge_commit_sha }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: release-artifacts/**/*
