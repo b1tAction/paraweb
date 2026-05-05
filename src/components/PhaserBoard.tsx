@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
 import type { MapConfig, Player } from '../types/protocol';
 import { ForestBoardScene } from '../game/ForestBoardScene';
