@@ -148,7 +148,7 @@ jobs:
       - name: Package macOS app
         run: |
           cd build/bin
-          zip -r ParaDiced-darwin-arm64.zip ParaDiced.app
+          zip -r ParaDiced-darwin-arm64.zip *.app
           shasum -a 256 ParaDiced-darwin-arm64.zip > ParaDiced-darwin-arm64.zip.sha256
 
       - name: Upload Wails artifact
