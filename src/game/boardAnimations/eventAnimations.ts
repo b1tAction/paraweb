@@ -36,10 +36,10 @@ export function playDrawEventAnimation(
 
   // Get event display name from definitions config
   const definitions = useGameStore.getState().definitions;
-  const eventName = definitions?.events[eventType]?.name || eventType;
+  const eventDesc = definitions?.events[eventType]?.desc || eventType;
 
   // 1. Show popup immediately at screen center
-  showCenterPopup(popupCtx, eventName, effect.textColor, effect.iconEmoji, duration);
+  showCenterPopup(popupCtx, eventDesc, effect.textColor, effect.iconEmoji, duration);
 
   // 2. Delay the event-specific animation to stagger visual focus
   const animationDelay = 500
