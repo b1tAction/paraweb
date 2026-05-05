@@ -22,11 +22,7 @@ export class NakamaService {
   private port: string = '';
   private useSSL: boolean = false;
 
-  private readonly DEFAULT_HOST: string =
-    (import.meta as any).env?.VITE_NAKAMA_HOST ||
-    (typeof window !== 'undefined' && window.location?.hostname && window.location.hostname !== 'localhost'
-      ? window.location.hostname
-      : '127.0.0.1');
+  private readonly DEFAULT_HOST: string = this.resolveDefaultHost();
   private readonly DEFAULT_PORT: string = (import.meta as any).env?.VITE_NAKAMA_PORT || '7350';
   private readonly DEFAULT_USE_SSL: boolean = String((import.meta as any).env?.VITE_NAKAMA_SSL || 'false').toLowerCase() === 'true';
 
@@ -45,6 +41,20 @@ export class NakamaService {
     this.loadServerConfig();
     // 注意：nakama-js 构造函数参数顺序 (serverkey, host, port, useSSL)
     this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
+  }
+
+  private resolveDefaultHost(): string {
+    const configuredHost = (import.meta as any).env?.VITE_NAKAMA_HOST?.trim();
+    if (configuredHost) {
+      return configuredHost;
+    }
+
+    const browserHost = typeof window !== 'undefined' ? window.location?.hostname : '';
+    if (browserHost && browserHost !== 'localhost' && browserHost !== 'wails.localhost') {
+      return browserHost;
+    }
+
+    return '127.0.0.1';
   }
 
   private loadServerConfig() {

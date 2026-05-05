@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { styles } from './MiniGameStyles';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
@@ -28,6 +28,15 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
   const [animatedDeviation, setAnimatedDeviation] = useState(0);
   
   const [isBtnActive, setIsBtnActive] = useState(false);
+  const finishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (finishTimerRef.current !== null) {
+        clearTimeout(finishTimerRef.current);
+      }
+    };
+  }, []);
 
   // Seeded parameters
   const frequency = 0.0025; 
@@ -98,7 +107,11 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
     onSubmit({ deviation: dev });
 
     // Wait 3.5s then show the full ranking list
-    setTimeout(() => {
+    if (finishTimerRef.current !== null) {
+      clearTimeout(finishTimerRef.current);
+    }
+    finishTimerRef.current = setTimeout(() => {
+      finishTimerRef.current = null;
       setPhase('finished');
     }, 3500);
   };

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "paradice-desktop",
+  "outputfilename": "ParaDiced",
+  "frontend:dir": ".",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev -- --host 127.0.0.1",
+  "frontend:dev:serverUrl": "http://localhost:5173",
+  "assetdir": "dist",
+  "wailsjsdir": "src/wailsjs",
+  "build:dir": "build",
+  "debounceMS": 100,
+  "devServer": "localhost:34115",
+  "info": {
+    "companyName": "b1tAction",
+    "productName": "ParaDiced",
+    "productVersion": "1.0.0",
+    "comments": "ParaDiced desktop client"
+  }
+}

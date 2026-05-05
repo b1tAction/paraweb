@@ -67,6 +67,7 @@ export type TurnState =
   | 'turn_moving' | 'TurnMoving'
   | 'turn_landed' | 'TurnLanded'
   | 'turn_event' | 'TurnEvent'
+  | 'turn_boss_battle' | 'TurnBossBattle'
   | 'turn_end' | 'TurnEnd'
   | '';
 
@@ -352,7 +353,7 @@ export const useGameStore = create<GameState>((set) => ({
       pendingEntries: [],
       startGameAck: null,
       mapConfig: null,
-  definitions: null,
+      definitions: null,
       miniGameResultPending: false,
       pendingScene: null,
     }),
@@ -380,7 +381,7 @@ export const useGameStore = create<GameState>((set) => ({
       pendingEntries: [],
       startGameAck: null,
       mapConfig: null,
-  definitions: null,
+      definitions: null,
       miniGameResultPending: false,
       pendingScene: null,
       faction: state.faction,

@@ -33,7 +33,7 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({
       case 'rainbow_memory':
         return `${gameData.accuracy === 1 ? '正确' : '错误'} | 用时: ${(gameData.time_ms / 1000).toFixed(1)}s`;
       case 'vernier':
-        return `偏差: ${gameData.deviation?.toFixed(1)}px`;
+        return `偏差: ${gameData.deviation?.toFixed(1)}%`;
       default:
         return null;
     }

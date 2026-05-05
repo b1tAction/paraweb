@@ -68,7 +68,7 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
 }) => {
   const { matchId, round } = useGameStore();
   const [phase, setPhase] = useState<Phase>('memorize');
-  const [countdown, setCountdown] = useState(6); // Changed from 3 to 4
+  const [countdown, setCountdown] = useState(6); // Memorize phase countdown in seconds
   const [gridColors, setGridColors] = useState<string[]>([]);
   const [targetColor, setTargetColor] = useState<string>('');
   const [finalTimeMs, setFinalTimeMs] = useState<number>(0);
@@ -86,7 +86,10 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
 
     const targetIdx = Math.floor(rand() * shuffled.length);
     setTargetColor(shuffled[targetIdx]);
-  }, [matchId]);
+
+    setPhase('memorize');
+    setCountdown(6);
+  }, [matchId, round]);
 
   useEffect(() => {
     if (!isParticipant) return;
