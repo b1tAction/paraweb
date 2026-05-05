@@ -143,7 +143,7 @@ jobs:
         run: wails version
 
       - name: Build Wails desktop binary
-        run: wails build -clean -s -platform darwin/arm64
+        run: wails build -clean -s -platform darwin/arm64 -o ParaDiced
 
       - name: Package macOS app
         run: |
@@ -216,7 +216,7 @@ jobs:
         run: wails version
 
       - name: Build Wails desktop binary
-        run: wails build -clean -s -platform linux/amd64
+        run: wails build -clean -s -platform linux/amd64 -tags webkit2_41
 
       - name: Download AppImage tools
         run: |
