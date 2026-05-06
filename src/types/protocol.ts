@@ -449,7 +449,8 @@ export interface UseItem {
  * UseSkill - 使用技能请求
  */
 export interface UseSkill {
-  // 空对象，服务端检查玩家阵营和充能状态
+  /** 目标玩家 UUID（白虎劫运需要指定目标） */
+  target_id?: string;
 }
 
 /**
