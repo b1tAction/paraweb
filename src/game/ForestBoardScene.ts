@@ -270,6 +270,18 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: 128
     });
 
+    // Load skull gaze sprite sheet (15 frames, 64x64 each)
+    this.load.spritesheet('skull-gaze-effect', '/assets/effects/gaze.png', {
+      frameWidth: 64,
+      frameHeight: 64
+    });
+
+    // Load bomb effect sprite sheet for skull_gaze event explosion
+    this.load.spritesheet('bomb-effect', '/assets/effects/bomb-effect.png', {
+      frameWidth: 96,
+      frameHeight: 96
+    });
+
     this.load.image('event-popup-frame', '/assets/frame/event_frame.png');
 
     this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
@@ -339,6 +351,16 @@ export class ForestBoardScene extends Phaser.Scene {
     });
 
     // Create lightning strike animation for thunder event
+
+    // Create skull gaze animation for skull_gaze event
+    // (15 frames from gaze.png sprite sheet, 64x64 each)
+    this.anims.create({
+      key: 'skull_gaze_anim',
+      frames: this.anims.generateFrameNumbers('skull-gaze-effect', { start: 0, end: 14 }),
+      frameRate: 12,
+      repeat: 0
+    });
+
     this.anims.create({
       key: 'lightning_strike_anim',
       frames: this.anims.generateFrameNumbers('lightning-bolt', { start: 0, end: 9 }),
@@ -391,6 +413,14 @@ export class ForestBoardScene extends Phaser.Scene {
       key: 'bubble_anim',
       frames: this.anims.generateFrameNumbers('bubble-effect', { start: 0, end: 19 }),
       frameRate: 20,
+      repeat: 0
+    });
+
+    // Create bomb animation for skull_gaze event explosion
+    this.anims.create({
+      key: 'bomb_anim',
+      frames: this.anims.generateFrameNumbers('bomb-effect', { start: 0, end: 11 }),
+      frameRate: 15,
       repeat: 0
     });
 
