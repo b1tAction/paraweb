@@ -233,12 +233,21 @@ jobs:
       - name: Build Wails desktop binary
         run: wails build -clean -s -platform linux/amd64 -tags webkit2_41
 
-      - name: Download AppImage tools
+      - name: Download AppImage tools (fail fast + validate)
+        shell: bash
         run: |
-          curl -sSLO --retry 3 https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          curl -sSLO --retry 3 https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
+          set -euo pipefail
+
+          curl -fL -sS --retry 3 -o linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -fL -sS --retry 3 -o linuxdeploy-plugin-gtk-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
 
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk-x86_64.AppImage
+
+          # Guard against downloading HTML/text error pages (e.g. "Not Found")
+          file linuxdeploy-x86_64.AppImage | grep -E "ELF|executable" >/dev/null
+          file linuxdeploy-plugin-gtk-x86_64.AppImage | grep -E "ELF|executable" >/dev/null
 
       - name: Sanity check linuxdeploy tools
         run: |
