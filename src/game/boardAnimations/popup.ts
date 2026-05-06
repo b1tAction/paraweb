@@ -3,6 +3,15 @@ import { AnimationOrchestrator } from '../animationOrchestrator';
 import { LAYER_POPUP_BG, LAYER_POPUP_TEXT } from '../renderLayers';
 import { GAME_FONT_FAMILY } from '../boardConstants';
 
+const EVENT_POPUP_FRAME_KEY = 'event-popup-frame';
+const PANEL_WIDTH = 600;
+const PANEL_HEIGHT = 500;
+const PANEL_HORIZONTAL_PADDING = 92;
+const EVENT_POPUP_TEXT_COLOR = '#2b1d0e';
+const EVENT_POPUP_STROKE_COLOR = '#f8e7b5';
+const EVENT_POPUP_SHADOW_COLOR = '#8a6a35';
+const EVENT_POPUP_FONT_FAMILY = 'Zpix, monospace';
+
 export type PopupContext = {
   scene: Phaser.Scene;
   orchestrator: AnimationOrchestrator;
@@ -10,7 +19,7 @@ export type PopupContext = {
 };
 
 // Track the active popup elements for cleanup
-let activePopupPanel: Phaser.GameObjects.Rectangle | null = null;
+let activePopupPanel: Phaser.GameObjects.Image | null = null;
 let activePopupText: Phaser.GameObjects.Text | null = null;
 
 /**
@@ -20,7 +29,7 @@ let activePopupText: Phaser.GameObjects.Text | null = null;
 export function showCenterPopup(
   ctx: PopupContext,
   eventName: string,
-  textColor: string,
+  _textColor: string,
   iconEmoji?: string,
   duration: number = 2500
 ): void {
@@ -34,42 +43,55 @@ export function showCenterPopup(
   const screenCenterX = cam.width / 2;
   const screenCenterY = cam.height / 2;
 
-  const panelWidth = 400;
-  const panelHeight = 150;
+  const textFontSize = 28 / (cam.zoom || 1);
+  const displayText = iconEmoji ? `${iconEmoji} ${eventName}` : eventName;
+  const panelWidth = PANEL_WIDTH;
+  const panelHeight = PANEL_HEIGHT;
+  const wordWrapWidthPx = panelWidth - PANEL_HORIZONTAL_PADDING * 2;
+  const wordWrapWidth = wordWrapWidthPx / (cam.zoom || 1);
 
   // Convert pixel dimensions to world units so shapes/text render
   // at stable screen pixel sizes regardless of camera zoom.
   const worldPanelWidth = panelWidth / (cam.zoom || 1);
   const worldPanelHeight = panelHeight / (cam.zoom || 1);
-  const textFontSize = 28 / (cam.zoom || 1);
-  const wordWrapWidth = 320 / (cam.zoom || 1);
 
   // Background panel at LAYER_POPUP_BG
   const panel = ctx.orchestrator.createScreenPositionedObject(
     screenCenterX, screenCenterY,
     LAYER_POPUP_BG,
-    (wx, wy) => ctx.scene.add.rectangle(wx, wy, worldPanelWidth, worldPanelHeight, 0x0b1020, 0.65) as Phaser.GameObjects.Rectangle & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
+    (wx, wy) => ctx.scene.add.image(wx, wy, EVENT_POPUP_FRAME_KEY) as Phaser.GameObjects.Image & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
   );
-  panel.setStrokeStyle(3, 0xffffff, 0.8);
+  const targetScaleX = worldPanelWidth / panel.width;
+  const targetScaleY = worldPanelHeight / panel.height;
   panel.setOrigin(0.5, 0.5);
   panel.setAlpha(0);
-  panel.setScale(0.5);
+  panel.setScale(targetScaleX * 0.85, targetScaleY * 0.85);
 
   // Text at LAYER_POPUP_TEXT (always readable, above effects)
-  const displayText = iconEmoji ? `${iconEmoji} ${eventName}` : eventName;
   const text = ctx.orchestrator.createScreenPositionedObject(
     screenCenterX, screenCenterY,
     LAYER_POPUP_TEXT,
     (wx, wy) => ctx.scene.add.text(wx, wy, displayText, {
-      fontFamily: GAME_FONT_FAMILY,
+      fontFamily: EVENT_POPUP_FONT_FAMILY || GAME_FONT_FAMILY,
       fontSize: `${textFontSize}px`,
-      fontStyle: 'bold',
-      color: textColor,
+      fontStyle: 'normal',
+      color: EVENT_POPUP_TEXT_COLOR,
       align: 'center',
       wordWrap: { width: wordWrapWidth },
+      stroke: EVENT_POPUP_STROKE_COLOR,
+      strokeThickness: 4 / (cam.zoom || 1),
+      shadow: {
+        offsetX: 2 / (cam.zoom || 1),
+        offsetY: 2 / (cam.zoom || 1),
+        color: EVENT_POPUP_SHADOW_COLOR,
+        blur: 0,
+        fill: true,
+      },
     }) as Phaser.GameObjects.Text & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
   );
   text.setOrigin(0.5, 0.5);
+  text.setWordWrapWidth(wordWrapWidth, true);
+  text.setLineSpacing(8 / (cam.zoom || 1));
   text.setAlpha(0);
   text.setScale(0.5);
 
@@ -80,7 +102,8 @@ export function showCenterPopup(
   ctx.tweens.add({
     targets: panel,
     alpha: { from: 0, to: 1 },
-    scale: { from: 0.5, to: 1 },
+    scaleX: { from: targetScaleX * 0.85, to: targetScaleX },
+    scaleY: { from: targetScaleY * 0.85, to: targetScaleY },
     duration: 400,
     ease: 'Back.easeOut',
   });
@@ -97,7 +120,8 @@ export function showCenterPopup(
   ctx.tweens.add({
     targets: panel,
     alpha: { from: 1, to: 0 },
-    scale: { from: 1, to: 0.8 },
+    scaleX: { from: targetScaleX, to: targetScaleX * 0.92 },
+    scaleY: { from: targetScaleY, to: targetScaleY * 0.92 },
     delay: duration - 400,
     duration: 400,
     ease: 'Power2.easeIn',
