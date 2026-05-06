@@ -983,9 +983,9 @@ export class NakamaService {
   /**
    * 12. 使用技能
    */
-  async sendUseSkill(): Promise<void> {
-    console.log('[Nakama] 发送使用技能请求');
-    await this.sendOpCode(opcodes.OpUseSkill, {});
+  async sendUseSkill(targetId?: string): Promise<void> {
+    console.log('[Nakama] 发送使用技能请求', { targetId });
+    await this.sendOpCode(opcodes.OpUseSkill, { target_id: targetId });
   }
 
   /**

@@ -71,7 +71,6 @@ const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   dice_upgrade: 'dice_upgrade.png',
   reverse_clock: 'reverse_clock.png',
 };
-const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door']);
 function isBossBattleTurn(turnState: string) {
   return turnState === 'turn_boss_battle' || turnState === 'TurnBossBattle';
 }
@@ -236,6 +235,12 @@ function rollPreviewDiceFace() {
   return Math.floor(Math.random() * 6) + 1;
 }
 
+// Item types that require selecting a target player before use
+const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door']);
+
+// Factions whose skill requires selecting a target player before activation
+const SKILL_TARGET_FACTIONS = new Set(['bai_hu']);
+
 export const BoardScene: React.FC = () => {
   const {
     currentScene,
@@ -307,6 +312,7 @@ export const BoardScene: React.FC = () => {
    // 1. 新增：存储所有玩家的头像 Base64 (以 playerId 为 key)
   const[avatars, setAvatars] = useState<Record<string, string>>({});
   const [itemTargetSelection, setItemTargetSelection] = useState<Item | null>(null);
+  const [skillTargetSelection, setSkillTargetSelection] = useState(false);
   // 2. 新增：监听 Phaser 发过来的头像事件
   useEffect(() => {
     const handleAvatarUpdate = (e: any) => {
@@ -356,6 +362,10 @@ export const BoardScene: React.FC = () => {
    */
   const handleUseSkill = () => {
     console.log('[BoardScene] 使用技能');
+    if (SKILL_TARGET_FACTIONS.has(myPlayer?.faction || '')) {
+      setSkillTargetSelection(true);
+      return;
+    }
     gameService.sendUseSkill();
   };
 
@@ -1241,6 +1251,43 @@ export const BoardScene: React.FC = () => {
               <div style={{ marginTop: '16px', textAlign: 'right' }}>
                 <button
                   onClick={() => setItemTargetSelection(null)}
+                  style={{ ...styles.decisionButton, backgroundColor: '#9e9e9e', padding: '6px 12px' }}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {skillTargetSelection && (
+          <div style={styles.decisionBackdrop}>
+            <div style={styles.decisionSection}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', color: '#333' }}>选择技能目标玩家</h3>
+              <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#666' }}>
+                请为劫运选择一个作用目标
+              </p>
+              <div style={styles.decisionOptions}>
+                {itemTargetPlayers.map((player) => (
+                  <button
+                    key={player.player_id}
+                    onClick={() => {
+                      console.log('[BoardScene] 选择目标使用了技能', player.player_id);
+                      gameService.sendUseSkill(player.player_id).catch((err) => {
+                        console.error('[BoardScene] 选择目标使用技能失败', err);
+                      });
+                      setSkillTargetSelection(false);
+                    }}
+                    style={styles.decisionButton}
+                  >
+                    <span style={styles.targetPlayerName}>{getPlayerName(player.player_id)}</span>
+                    <span style={styles.targetPlayerPosition}>位置 {player.position}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{ marginTop: '16px', textAlign: 'right' }}>
+                <button
+                  onClick={() => setSkillTargetSelection(false)}
                   style={{ ...styles.decisionButton, backgroundColor: '#9e9e9e', padding: '6px 12px' }}
                 >
                   取消
