@@ -61,7 +61,7 @@ import {
 } from './boardConstants';
 import { type PopupContext } from './boardAnimations/popup';
 import type { BoardAnimationContext } from './boardAnimations/eventAnimations';
-import { playDrawEventAnimation, playLightningStrikeWorldAnimation } from './boardAnimations/eventAnimations';
+import { playDrawEventAnimation } from './boardAnimations/eventAnimations';
 import { playBossDamageAnimation, playBossAttackAnimation, playBossSkillAnimation } from './boardAnimations/bossAnimations';
 import { playGenericLogEntryEffect, playDamageAnimation, playDeathAnimation, playRespawnAnimation, playHealAnimation, playModifyLpAnimation, playBuffChangeAnimation } from './boardAnimations/characterAnimations';
 import { playMoveAnimation, playTeleportAnimation } from './boardAnimations/movementAnimations';
@@ -180,7 +180,7 @@ export class ForestBoardScene extends Phaser.Scene {
     draw_event: (context) => playDrawEventAnimation(this.buildAnimationCtx(), this.buildPopupCtx(), context),
     boss_damage: (context) => playBossDamageAnimation(this.buildAnimationCtx(), context),
     boss_attack: (context) => playBossAttackAnimation(this.buildAnimationCtx(), context),
-    boss_skill: (context) => playBossSkillAnimation(this.buildAnimationCtx(), context, playLightningStrikeWorldAnimation),
+    boss_skill: (context) => playBossSkillAnimation(this.buildAnimationCtx(), context),
   };
 
   constructor() {
@@ -230,6 +230,18 @@ export class ForestBoardScene extends Phaser.Scene {
 
     // Load lightning bolt effect sprite sheet for thunder event
     this.load.spritesheet('lightning-bolt', '/assets/effects/Lightning-bolt.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    // Load boss skill thunder flash sprite sheet (boss position flash)
+    this.load.spritesheet('skill-thunder1', '/assets/boss/skill-thunder1.png', {
+      frameWidth: 72,
+      frameHeight: 72
+    });
+
+    // Load boss skill thunder strike sprite sheet (per-player strike)
+    this.load.spritesheet('skill-thunder2', '/assets/boss/skill-thunder2.png', {
       frameWidth: 72,
       frameHeight: 72
     });
@@ -330,6 +342,22 @@ export class ForestBoardScene extends Phaser.Scene {
     this.anims.create({
       key: 'lightning_strike_anim',
       frames: this.anims.generateFrameNumbers('lightning-bolt', { start: 0, end: 9 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    // Create boss skill thunder flash animation (boss position)
+    this.anims.create({
+      key: 'skill_thunder1_anim',
+      frames: this.anims.generateFrameNumbers('skill-thunder1', { start: 0, end: 6 }),
+      frameRate: 15,
+      repeat: 0
+    });
+
+    // Create boss skill thunder strike animation (per-player)
+    this.anims.create({
+      key: 'skill_thunder2_anim',
+      frames: this.anims.generateFrameNumbers('skill-thunder2', { start: 0, end: 9 }),
       frameRate: 15,
       repeat: 0
     });

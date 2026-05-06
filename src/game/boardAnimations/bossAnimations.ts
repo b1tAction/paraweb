@@ -12,7 +12,7 @@ import {
 import { isBossPlayer } from '../bossVisualConfig';
 import { getMetadataString, getMetadataNumber, getMetadataBoolean } from '../logEntryPlayback';
 import { LAYER_EFFECT_BASE, LAYER_EFFECT_TEXT_BASE, worldDepth } from '../renderLayers';
-import { GAME_FONT_FAMILY } from '../boardConstants';
+import { GAME_FONT_FAMILY, CHARACTER_HALF_HEIGHT } from '../boardConstants';
 import type { BoardAnimationContext } from './eventAnimations';
 
 // --- Helper functions ---
@@ -322,10 +322,49 @@ export function playBossAttackAnimation(ctx: BoardAnimationContext, context: Log
   }
 }
 
+export function playBossThunderFlash(
+  ctx: BoardAnimationContext,
+  marker: Phaser.GameObjects.Sprite,
+  playerId?: string
+): void {
+  const { x, y } = getMarkerEffectPoint(marker, ctx, playerId);
+
+  const sprite = ctx.scene.add.sprite(x, y, 'skill-thunder1');
+  sprite.setScale(2.0);
+  sprite.setOrigin(0.5, 1.0);
+  sprite.setDepth(worldDepth(LAYER_EFFECT_BASE, y) + 100);
+  sprite.play('skill_thunder1_anim');
+
+  sprite.on('animationcomplete', () => {
+    sprite.destroy();
+  });
+}
+
+export function playBossThunderStrike(
+  ctx: BoardAnimationContext,
+  marker: Phaser.GameObjects.Sprite
+): void {
+  const landingX = marker.x;
+  const landingY = marker.y + CHARACTER_HALF_HEIGHT;
+
+  const sprite = ctx.scene.add.sprite(landingX, landingY, 'skill-thunder2');
+  sprite.setScale(2.0);
+  sprite.setOrigin(0.5, 1.0);
+  sprite.setDepth(worldDepth(LAYER_EFFECT_BASE, landingY) + 100);
+  sprite.play('skill_thunder2_anim');
+
+  sprite.on('animationcomplete', () => {
+    sprite.destroy();
+  });
+
+  // Camera flash and shake
+  ctx.scene.cameras.main.flash(300, 255, 255, 200);
+  ctx.scene.cameras.main.shake(640, 0.005);
+}
+
 export function playBossSkillAnimation(
   ctx: BoardAnimationContext,
-  context: LogEntryAnimationContext,
-  playLightningStrike: (ctx: BoardAnimationContext, modifiedContext: LogEntryAnimationContext) => void
+  context: LogEntryAnimationContext
 ): void {
   const { entry } = context;
   const bossPlayer = getBossPlayer(ctx.players);
@@ -345,15 +384,13 @@ export function playBossSkillAnimation(
 
   switch (skillType) {
     case 'thunder':
-      playBossPulse(ctx, bossMarker, 'Boss 雷击', 0xfff176, '#fffde7', 2.15, bossPlayer.player_id);
-      targetIds.forEach((targetId) => {
-        if (!ctx.playerMarkers.has(targetId)) return;
-        playLightningStrike(ctx, {
-          ...context,
-          entry: {
-            ...entry,
-            target: targetId,
-          },
+      playBossThunderFlash(ctx, bossMarker, bossPlayer.player_id);
+      // Delay per-player strikes so they start after the boss flash finishes
+      ctx.scene.time.delayedCall(500, () => {
+        targetIds.forEach((targetId) => {
+          const targetMarker = ctx.playerMarkers.get(targetId);
+          if (!targetMarker) return;
+          playBossThunderStrike(ctx, targetMarker);
         });
       });
       break;

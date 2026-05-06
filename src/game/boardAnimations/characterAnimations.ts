@@ -76,7 +76,7 @@ export function shouldSuppressSettlementEffect(entry: LogEntry, settlementPlayer
 
 // --- Character animation functions ---
 
-// Lightweight buff change animation: only floating text, no ring or marker shake
+// Buff change animation: ring glow, marker pulse, and floating text
 export function playBuffChangeAnimation(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
@@ -90,9 +90,36 @@ export function playBuffChangeAnimation(
   if (!marker) return;
 
   const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
-  const x = marker.x;
-  const y = marker.y;
+  const point = getMarkerEffectPoint(marker, ctx, entry.target);
+  const x = point.x;
+  const y = point.y;
 
+  // Ring glow
+  const ring = ctx.scene.add.circle(x, y, 24, effect.color, 0.12);
+  ring.setStrokeStyle(4, effect.color, 1);
+  ring.setDepth(worldDepth(LAYER_EFFECT_BASE, y));
+
+  // Marker pulse (shrink then restore, more subtle than damage shake)
+  ctx.tweens.add({
+    targets: marker,
+    scale: 0.92,
+    duration: 140,
+    yoyo: true,
+    repeat: 1,
+    ease: 'Sine.easeInOut',
+  });
+
+  // Ring expand and fade
+  ctx.tweens.add({
+    targets: ring,
+    scale: 2.2,
+    alpha: 0,
+    duration: 1000,
+    ease: 'Cubic.easeOut',
+    onComplete: () => ring.destroy(),
+  });
+
+  // Floating text (longer duration than before)
   const text = ctx.scene.add.text(x, y - 42, effect.label, {
     fontFamily: GAME_FONT_FAMILY,
     fontSize: '22px',
@@ -107,9 +134,10 @@ export function playBuffChangeAnimation(
 
   ctx.tweens.add({
     targets: text,
-    y: y - 72,
+    y: y - 88,
     alpha: 0,
-    duration: 800,
+    scale: 1.15,
+    duration: 1200,
     ease: 'Cubic.easeOut',
     onComplete: () => text.destroy(),
   });

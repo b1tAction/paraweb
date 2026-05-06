@@ -94,11 +94,11 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
   },
   add_buff: {
     renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry),
-    delayMs: ({ entry }) => (isReverseClockLostBuffEntry(entry) ? 1800 : 800),
+    delayMs: ({ entry }) => (isReverseClockLostBuffEntry(entry) ? 1800 : 1200),
   },
   remove_buff: {
     renderOnBoard: true,
-    delayMs: 800,
+    delayMs: 1200,
   },
   boss_damage: {
     renderOnBoard: true,
