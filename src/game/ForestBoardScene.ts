@@ -256,6 +256,8 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: 128
     });
 
+    this.load.image('event-popup-frame', '/assets/frame/event_frame.png');
+
     this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
       frameWidth: 72,
       frameHeight: 72
