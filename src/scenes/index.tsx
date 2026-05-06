@@ -3,6 +3,8 @@
  */
 
 export { HomeScene } from './HomeScene';
+export { CreateRoomScene } from './CreateRoomScene';
+export { JoinRoomScene } from './JoinRoomScene';
 export { LobbyScene } from './LobbyScene';
 export { BoardScene } from './BoardScene';
 export { MiniGameSubmitRankScene, MiniGameSubmitRankScene as MiniGameScene } from './minigame';

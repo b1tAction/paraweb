@@ -19,6 +19,7 @@ export interface RoomLabel {
   game: string;
   status?: string;
   host_display_name?: string;
+  lobby_name?: string;
 }
 
 /**

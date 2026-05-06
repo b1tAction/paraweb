@@ -60,6 +60,9 @@ export const OpStartGame = 105;
 /** 轮结束就绪信号 - 客户端渲染完毕后发送 */
 export const OpRoundReady = 106;
 
+/** 等待房间玩家设置更新 */
+export const OpUpdateLobbyPlayer = 108;
+
 // ========== OpCode 工具函数 ==========
 
 /** 获取 OpCode 名称 (用于日志) */
@@ -82,6 +85,7 @@ export function getOpCodeName(opCode: number): string {
     [OpMiniGameDataSubmit]: 'mini_game_data_submit',
     [OpStartGame]: 'start_game',
     [OpRoundReady]: 'round_ready',
+    [OpUpdateLobbyPlayer]: 'update_lobby_player',
   };
   return names[opCode] || 'unknown';
 }

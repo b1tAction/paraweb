@@ -9,6 +9,8 @@ import { useGameStore, Scene } from './store/gameStore';
 import { gameService } from './service/NakamaService';
 import {
   HomeScene,
+  CreateRoomScene,
+  JoinRoomScene,
   LobbyScene,
   BoardScene,
   MiniGameSubmitRankScene,
@@ -20,8 +22,8 @@ import {
  */
 const sceneComponents: Record<Scene, React.ComponentType> = {
   [Scene.Home]: HomeScene,
-  [Scene.CreateRoom]: HomeScene, // 暂时复用 HomeScene
-  [Scene.JoinRoom]: HomeScene, // 暂时复用 HomeScene
+  [Scene.CreateRoom]: CreateRoomScene,
+  [Scene.JoinRoom]: JoinRoomScene,
   [Scene.Lobby]: LobbyScene,
   [Scene.Loading]: LoadingScene,
   [Scene.MiniGameSubmitRank]: MiniGameSubmitRankScene,
