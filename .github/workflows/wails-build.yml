@@ -172,7 +172,23 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential pkg-config file patchelf libfuse2
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            pkg-config \
+            file \
+            patchelf \
+            libfuse2 \
+            libglib2.0-0 \
+            libnss3 \
+            libx11-6 \
+            libxext6 \
+            libxrender1 \
+            libxrandr2
+          # Ubuntu package transition: libasound2 -> libasound2t64 on newer images
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -221,8 +237,13 @@ jobs:
         run: |
           curl -sSLO --retry 3 https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           curl -sSLO --retry 3 https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
-          
+
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk-x86_64.AppImage
+
+      - name: Sanity check linuxdeploy tools
+        run: |
+          ./linuxdeploy-x86_64.AppImage --version
+          ./linuxdeploy-plugin-gtk-x86_64.AppImage --plugin-api-version
 
       - name: Create AppImage
         run: |
