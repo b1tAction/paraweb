@@ -58,6 +58,19 @@ import {
   WATER_TELEPORT_FRAME_RATE,
   SHRINE_TEXTURE_KEY,
   SHRINE_TILESET_NAME,
+  PROJECTILE_CHARGE_TEXTURE_KEY,
+  PROJECTILE_CHARGE_ANIMATION_KEY,
+  PROJECTILE_CHARGE_FRAME_COUNT,
+  PROJECTILE_SPEAR_TEXTURE_KEY,
+  PROJECTILE_SPEAR_ANIMATION_KEY,
+  PROJECTILE_SPEAR_FRAME_COUNT,
+  PROJECTILE_MAGIC_SPHERE_TEXTURE_KEY,
+  PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY,
+  PROJECTILE_MAGIC_SPHERE_FRAME_COUNT,
+  PROJECTILE_FIREBALL_TEXTURE_KEY,
+  PROJECTILE_FIREBALL_ANIMATION_KEY,
+  PROJECTILE_FIREBALL_FRAME_COUNT,
+  PROJECTILE_FRAME_RATE,
 } from './boardConstants';
 import { type PopupContext } from './boardAnimations/popup';
 import type { BoardAnimationContext } from './boardAnimations/eventAnimations';
@@ -297,6 +310,28 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: LP_MINUS_FRAME_HEIGHT
     });
 
+    // Load projectile sprite sheets for boss damage crit animations
+    this.load.spritesheet('witch-green-charge', '/assets/figures/witch_green/Charge.png', {
+      frameWidth: 96,
+      frameHeight: 64,
+      spacing: 0
+    });
+    this.load.spritesheet('witch-red-spear', '/assets/figures/witch_red/Spear.png', {
+      frameWidth: 96,
+      frameHeight: 96,
+      spacing: 32
+    });
+    this.load.spritesheet('wizard-black-magic-sphere', '/assets/figures/wizard_black/Magic_sphere.png', {
+      frameWidth: 96,
+      frameHeight: 96,
+      spacing: 32
+    });
+    this.load.spritesheet('wizard-blue-fireball', '/assets/figures/wizard_blue/Fireball.png', {
+      frameWidth: 96,
+      frameHeight: 96,
+      spacing: 32
+    });
+
     const renderer = getCharacterRenderer(this.characterRenderOptions);
     Object.values(getCharacterProfiles(this.characterRenderOptions)).forEach((profile) => {
       renderer.preload(this, profile);
@@ -455,6 +490,43 @@ export class ForestBoardScene extends Phaser.Scene {
         key: LP_MINUS_ANIMATION_KEY,
         frames: this.anims.generateFrameNumbers(LP_MINUS_TEXTURE_KEY, { start: 0, end: LP_MINUS_FRAME_COUNT - 1 }),
         frameRate: LP_MINUS_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    // Create projectile animations for boss damage crit
+    if (!this.anims.exists(PROJECTILE_CHARGE_ANIMATION_KEY)) {
+      this.anims.create({
+        key: PROJECTILE_CHARGE_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(PROJECTILE_CHARGE_TEXTURE_KEY, { start: 0, end: PROJECTILE_CHARGE_FRAME_COUNT - 1 }),
+        frameRate: PROJECTILE_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    if (!this.anims.exists(PROJECTILE_SPEAR_ANIMATION_KEY)) {
+      this.anims.create({
+        key: PROJECTILE_SPEAR_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(PROJECTILE_SPEAR_TEXTURE_KEY, { start: 0, end: PROJECTILE_SPEAR_FRAME_COUNT - 1 }),
+        frameRate: PROJECTILE_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    if (!this.anims.exists(PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY)) {
+      this.anims.create({
+        key: PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(PROJECTILE_MAGIC_SPHERE_TEXTURE_KEY, { start: 0, end: PROJECTILE_MAGIC_SPHERE_FRAME_COUNT - 1 }),
+        frameRate: PROJECTILE_FRAME_RATE,
+        repeat: 0
+      });
+    }
+
+    if (!this.anims.exists(PROJECTILE_FIREBALL_ANIMATION_KEY)) {
+      this.anims.create({
+        key: PROJECTILE_FIREBALL_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(PROJECTILE_FIREBALL_TEXTURE_KEY, { start: 0, end: PROJECTILE_FIREBALL_FRAME_COUNT - 1 }),
+        frameRate: PROJECTILE_FRAME_RATE,
         repeat: 0
       });
     }

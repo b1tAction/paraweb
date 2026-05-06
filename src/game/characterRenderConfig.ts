@@ -18,6 +18,9 @@ export type CharacterCoreAnimationState = 'idle' | 'move';
 export type CharacterAnimationState =
   | CharacterCoreAnimationState
   | 'attack'
+  | 'attack_1'
+  | 'attack_2'
+  | 'attack_crit'
   | 'dead'
   | 'defeated'
   | 'hurt'
@@ -204,6 +207,33 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         frameRate: 10,
         repeat: -1,
       },
+      attack_1: {
+        textureUrl: '/assets/figures/witch_red/Attack_1.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 5,
+        frameRate: 10,
+        repeat: 0,
+      },
+      attack_2: {
+        textureUrl: '/assets/figures/witch_red/Attack_2.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 4,
+        frameRate: 10,
+        repeat: 0,
+      },
+      attack_crit: {
+        textureUrl: '/assets/figures/witch_red/Special.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 8,
+        frameRate: 10,
+        repeat: 0,
+      },
       hurt: {
         textureUrl: '/assets/figures/witch_red/Hurt.png',
         frameWidth: 96,
@@ -248,6 +278,33 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         frameCount: 10,
         frameRate: 10,
         repeat: -1,
+      },
+      attack_1: {
+        textureUrl: '/assets/figures/witch_green/Attack_1.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 8,
+        frameRate: 10,
+        repeat: 0,
+      },
+      attack_2: {
+        textureUrl: '/assets/figures/witch_green/Attack_2.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 3,
+        frameRate: 10,
+        repeat: 0,
+      },
+      attack_crit: {
+        textureUrl: '/assets/figures/witch_green/Special.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 14,
+        frameRate: 10,
+        repeat: 0,
       },
       hurt: {
         textureUrl: '/assets/figures/witch_green/Hurt.png',
@@ -294,6 +351,33 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         frameRate: 10,
         repeat: -1,
       },
+      attack_1: {
+        textureUrl: '/assets/figures/wizard_blue/Attack_1.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 5,
+        frameRate: 10,
+        repeat: 0,
+      },
+      attack_2: {
+        textureUrl: '/assets/figures/wizard_blue/Attack_2.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 4,
+        frameRate: 10,
+        repeat: 0,
+      },
+      attack_crit: {
+        textureUrl: '/assets/figures/wizard_blue/Fireball.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 8,
+        frameRate: 10,
+        repeat: 0,
+      },
       hurt: {
         textureUrl: '/assets/figures/wizard_blue/Hurt.png',
         frameWidth: 96,
@@ -338,6 +422,33 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         frameCount: 8,
         frameRate: 10,
         repeat: -1,
+      },
+      attack_1: {
+        textureUrl: '/assets/figures/wizard_black/Attack_1.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 6,
+        frameRate: 10,
+        repeat: 0,
+      },
+      attack_2: {
+        textureUrl: '/assets/figures/wizard_black/Attack_2.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 4,
+        frameRate: 10,
+        repeat: 0,
+      },
+      attack_crit: {
+        textureUrl: '/assets/figures/wizard_black/Magic_sphere.png',
+        frameWidth: 96,
+        frameHeight: 96,
+        frameSpacing: 32,
+        frameCount: 16,
+        frameRate: 10,
+        repeat: 0,
       },
       hurt: {
         textureUrl: '/assets/figures/wizard_black/Hurt.png',

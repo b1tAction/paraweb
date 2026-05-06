@@ -39,6 +39,7 @@ const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
   'fell_down->death': 180,
   'draw_event->death': 600,
   'death->respawn': 240,
+  'boss_attack->damage': 200,
 };
 
 export type LogEntryAnimationRule = {
@@ -106,7 +107,7 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
       const remainingHp = getMetadataNumber(entry.metadata, 'boss_remaining_hp');
       if (remainingHp !== null && remainingHp <= 0) return BOSS_DEFEATED_ANIMATION_DELAY_MS;
 
-      return getMetadataBoolean(entry.metadata, 'is_crit') ? 1200 : 900;
+      return getMetadataBoolean(entry.metadata, 'is_crit') ? 1500 : 1100;
     },
   },
   boss_attack: {
