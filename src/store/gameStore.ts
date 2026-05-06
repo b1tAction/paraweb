@@ -25,8 +25,8 @@ import { normalizePlayerStats } from '../game/logEntryPlayback';
 // ========== 场景枚举 ==========
 
 export enum Scene {
-  /** 主菜单 (登录/创建/加入) */
-  Home = 'HomeScene',
+  /** 启动页 (输入昵称) */
+  Home = 'StartScene',
   /** 创建房间 */
   CreateRoom = 'CreateRoomScene',
   /** 加入房间 */

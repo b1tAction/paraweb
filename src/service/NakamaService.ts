@@ -860,23 +860,23 @@ export class NakamaService {
 
   /**
    * 6. RPC: 创建房间 (注意返回值差异)
-   * @param faction 阵营
+   * @param lobbyName 房间名
    * @param maxPlayers 最大玩家数
    */
-  async createRoom(faction: string, maxPlayers: number): Promise<Match> {
+  async createRoom(lobbyName: string, maxPlayers: number = 4): Promise<Match> {
     const { session, socket } = useGameStore.getState();
 
     if (!session) {
       throw new Error('[Nakama] 没有有效的 session');
     }
 
-    console.log('[Nakama] 创建房间', { faction, maxPlayers });
+    console.log('[Nakama] 创建房间', { lobbyName, maxPlayers });
 
     // nakama-js: rpc 返回 RpcResponse { id, payload }
     // rpc 方法签名：rpc(session, id, input: object)
     const rpcResponse = await this.client.rpc(session, 'create_authoritative_room', {
-      faction,
-      maxPlayers,
+      lobby_name: lobbyName,
+      max_players: maxPlayers,
     });
 
     console.log('[Nakama] RPC 响应', rpcResponse);
@@ -954,6 +954,18 @@ export class NakamaService {
   async sendStartGame(): Promise<void> {
     console.log('[Nakama] 发送开始游戏请求');
     await this.sendOpCode(opcodes.OpStartGame, {});
+  }
+
+  /**
+   * 9b. 更新等待房间玩家设置
+   */
+  async sendLobbyPlayerUpdate(faction: string): Promise<void> {
+    const { displayName } = useGameStore.getState();
+    console.log('[Nakama] 更新等待房间玩家设置', { faction, displayName });
+    await this.sendOpCode(opcodes.OpUpdateLobbyPlayer, {
+      faction,
+      display_name: displayName,
+    });
   }
 
   /**
