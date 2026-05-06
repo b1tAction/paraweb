@@ -49,6 +49,26 @@ export const WATER_TELEPORT_FRAME_RATE = 24;
 export const SHRINE_TEXTURE_KEY = 'map-shrine';
 export const SHRINE_TILESET_NAME = 'shrine';
 
+// Projectile texture/animation keys for boss damage crit animations
+export const PROJECTILE_CHARGE_TEXTURE_KEY = 'witch-green-charge';
+export const PROJECTILE_CHARGE_ANIMATION_KEY = 'witch_green_charge_anim';
+export const PROJECTILE_CHARGE_FRAME_COUNT = 6;
+
+export const PROJECTILE_SPEAR_TEXTURE_KEY = 'witch-red-spear';
+export const PROJECTILE_SPEAR_ANIMATION_KEY = 'witch_red_spear_anim';
+export const PROJECTILE_SPEAR_FRAME_COUNT = 10;
+
+export const PROJECTILE_MAGIC_SPHERE_TEXTURE_KEY = 'wizard-black-magic-sphere';
+export const PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY = 'wizard_black_magic_sphere_anim';
+export const PROJECTILE_MAGIC_SPHERE_FRAME_COUNT = 16;
+
+export const PROJECTILE_FIREBALL_TEXTURE_KEY = 'wizard-blue-fireball';
+export const PROJECTILE_FIREBALL_ANIMATION_KEY = 'wizard_blue_fireball_anim';
+export const PROJECTILE_FIREBALL_FRAME_COUNT = 8;
+
+export const PROJECTILE_FRAME_RATE = 10;
+export const PROJECTILE_FLY_DURATION_MS = 400;
+
 // UI and rendering constants
 export const PLAYER_NAME_SCREEN_FONT_SIZE = 14;
 export const CELL_LABEL_SCREEN_FONT_SIZE = 12;
