@@ -9,6 +9,8 @@ import { getEventEffectConfig, getEventTypeFromEntry } from '../eventAnimations'
 import { useGameStore } from '../../store/gameStore';
 import { showCenterPopup, type PopupContext } from './popup';
 
+const EFFECT_START_GAP_MS = 200;
+
 export type BoardAnimationContext = {
   scene: Phaser.Scene;
   orchestrator: AnimationOrchestrator;
@@ -21,13 +23,14 @@ export type BoardAnimationContext = {
 };
 
 /**
- * Play the draw_event animation: popup first, then delayed event-specific effect.
+ * Play the draw_event animation: popup first, wait for full dismiss,
+ * then start the event-specific effect after a small gap.
  */
-export function playDrawEventAnimation(
+export async function playDrawEventAnimation(
   ctx: BoardAnimationContext,
   popupCtx: PopupContext,
   context: LogEntryAnimationContext
-): void {
+): Promise<void> {
   const { entry } = context;
   const eventType = getEventTypeFromEntry(entry);
 
@@ -38,23 +41,22 @@ export function playDrawEventAnimation(
   const definitions = useGameStore.getState().definitions;
   const eventDesc = definitions?.events[eventType]?.desc || eventType;
 
-  // 1. Show popup immediately at screen center
-  showCenterPopup(popupCtx, eventDesc, effect.textColor, effect.iconEmoji, duration);
+  // 1. Show popup and wait for it to fully dismiss
+  await showCenterPopup(popupCtx, eventDesc, effect.textColor, effect.iconEmoji, duration);
 
-  // 2. Delay the event-specific animation to stagger visual focus
-  const animationDelay = 500
+  // 2. Small gap after popup dismisses before starting effect
+  await new Promise<void>((resolve) => ctx.scene.time.delayedCall(EFFECT_START_GAP_MS, resolve));
 
-  ctx.scene.time.delayedCall(animationDelay, () => {
-    if (eventType === 'thunder') {
-      playLightningStrikeAnimation(ctx, context);
-    } else if (eventType === 'herb') {
-      playHerbAnimation(ctx, context);
-    } else if (eventType === 'wind_gust') {
-      playWindGustAnimation(ctx, context);
-    } else if (eventType === 'lucky_bubble') {
-      playBubbleAnimation(ctx, context);
-    }
-  });
+  // 3. Play the event-specific effect animation
+  if (eventType === 'thunder') {
+    playLightningStrikeAnimation(ctx, context);
+  } else if (eventType === 'herb') {
+    playHerbAnimation(ctx, context);
+  } else if (eventType === 'wind_gust') {
+    playWindGustAnimation(ctx, context);
+  } else if (eventType === 'lucky_bubble') {
+    playBubbleAnimation(ctx, context);
+  }
 }
 
 /**

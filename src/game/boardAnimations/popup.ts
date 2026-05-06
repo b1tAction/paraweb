@@ -21,10 +21,12 @@ export type PopupContext = {
 // Track the active popup elements for cleanup
 let activePopupPanel: Phaser.GameObjects.Image | null = null;
 let activePopupText: Phaser.GameObjects.Text | null = null;
+let activePopupResolver: (() => void) | null = null;
 
 /**
  * Show a center popup with the event name, splitting background and text
  * into separate depth layers so fullscreen effects can render between them.
+ * Returns a Promise that resolves when the popup has fully dismissed.
  */
 export function showCenterPopup(
   ctx: PopupContext,
@@ -32,9 +34,12 @@ export function showCenterPopup(
   _textColor: string,
   iconEmoji?: string,
   duration: number = 2500
-): void {
-  // Close existing popup if any
+): Promise<void> {
+  // Close existing popup if any (also resolves any pending promise)
   closeCenterPopup(ctx);
+
+  let resolveFunc!: () => void;
+  const popupPromise = new Promise<void>((resolve) => { resolveFunc = resolve; });
 
   const cam = ctx.scene.cameras.main;
   // Use stable screen pixel coordinates for center positioning.
@@ -97,6 +102,7 @@ export function showCenterPopup(
 
   activePopupPanel = panel;
   activePopupText = text;
+  activePopupResolver = resolveFunc;
 
   // Entrance animation for both elements
   ctx.tweens.add({
@@ -128,6 +134,11 @@ export function showCenterPopup(
     onComplete: () => {
       panel.destroy();
       if (activePopupPanel === panel) activePopupPanel = null;
+      // Resolve the popup promise once the panel has fully dismissed
+      if (activePopupResolver === resolveFunc) {
+        activePopupResolver();
+        activePopupResolver = null;
+      }
     },
   });
 
@@ -143,10 +154,13 @@ export function showCenterPopup(
       if (activePopupText === text) activePopupText = null;
     },
   });
+
+  return popupPromise;
 }
 
 /**
  * Close the current popup if one is active.
+ * Also resolves any pending popup promise so awaiters don't hang.
  */
 export function closeCenterPopup(ctx: PopupContext): void {
   if (activePopupPanel) {
@@ -158,5 +172,10 @@ export function closeCenterPopup(ctx: PopupContext): void {
     ctx.tweens.killTweensOf(activePopupText);
     activePopupText.destroy();
     activePopupText = null;
+  }
+  // Resolve the pending promise so awaiters don't hang
+  if (activePopupResolver) {
+    activePopupResolver();
+    activePopupResolver = null;
   }
 }
