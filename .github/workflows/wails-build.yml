@@ -233,26 +233,22 @@ jobs:
       - name: Build Wails desktop binary
         run: wails build -clean -s -platform linux/amd64 -tags webkit2_41
 
-      - name: Download AppImage tools (fail fast + validate)
+      - name: Download AppImage tools (linuxdeploy + gtk plugin)
         shell: bash
         run: |
           set -euo pipefail
 
-          curl -fL -sS --retry 3 -o linuxdeploy-x86_64.AppImage \
-            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          curl -fL -sS --retry 3 -o linuxdeploy-plugin-gtk-x86_64.AppImage \
-            https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
+          # linuxdeploy binary (AppImage)
+          wget -c "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
 
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk-x86_64.AppImage
+          # linuxdeploy-plugin-gtk has no Releases anymore; use the project's recommended installer script
+          wget -c "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh"
 
-          # Guard against downloading HTML/text error pages (e.g. "Not Found")
-          file linuxdeploy-x86_64.AppImage | grep -E "ELF|executable" >/dev/null
-          file linuxdeploy-plugin-gtk-x86_64.AppImage | grep -E "ELF|executable" >/dev/null
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk.sh
 
-      - name: Sanity check linuxdeploy tools
-        run: |
+          # optional sanity checks
           ./linuxdeploy-x86_64.AppImage --version
-          ./linuxdeploy-plugin-gtk-x86_64.AppImage --plugin-api-version
+          ./linuxdeploy-plugin-gtk.sh --help >/dev/null
 
       - name: Create AppImage
         run: |
