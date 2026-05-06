@@ -91,8 +91,7 @@ export const StartScene: React.FC = () => {
       />
 
       <section style={styles.panel} aria-label="start">
-        <label style={styles.label}>
-          NICKNAME
+        <label style={styles.label} aria-label="昵称">
           <input
             value={nickname}
             onChange={(e) => {
@@ -102,7 +101,7 @@ export const StartScene: React.FC = () => {
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleStart();
             }}
-            placeholder="Enter your name"
+            placeholder="输入昵称..."
             style={styles.input}
             maxLength={20}
             autoFocus
@@ -110,7 +109,7 @@ export const StartScene: React.FC = () => {
         </label>
 
         <button type="button" onClick={handleStart} disabled={isStarting} style={styles.primaryButton}>
-          {isStarting ? 'CONNECTING...' : 'START GAME'}
+          {isStarting ? '连接中...' : '开始游戏'}
         </button>
 
         <button
@@ -192,7 +191,10 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff7d6',
   },
   logo: {
-    width: 'min(520px, 78vw)',
+    width: 'min(640px, 86vw)',
+    display: 'block',
+    alignSelf: 'center',
+    margin: '0 auto',
     imageRendering: 'pixelated',
     filter: 'drop-shadow(0 12px 20px rgba(0,0,0,0.45))',
   },
@@ -211,12 +213,13 @@ const styles: Record<string, React.CSSProperties> = {
   label: {
     display: 'flex',
     flexDirection: 'column',
+    alignItems: 'center',
     gap: '7px',
     fontSize: '13px',
     color: '#f6df9e',
   },
   input: {
-    width: '100%',
+    width: 'min(320px, 100%)',
     boxSizing: 'border-box',
     padding: '12px 13px',
     color: '#20322a',
@@ -228,7 +231,11 @@ const styles: Record<string, React.CSSProperties> = {
     outline: 'none',
   },
   primaryButton: {
-    minHeight: '48px',
+    width: 'min(260px, 76vw)',
+    aspectRatio: '112 / 60',
+    alignSelf: 'center',
+    minHeight: 0,
+    padding: 0,
     color: '#352c20',
     backgroundImage: 'url("/assets/button/button_up.png")',
     backgroundSize: '100% 100%',
