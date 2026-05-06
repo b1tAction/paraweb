@@ -171,11 +171,9 @@ export class NakamaService {
     const candidateFaction =
       merged.faction?.trim() ||
       store.faction?.trim() ||
-      '';
+      'qing_long';  // Default fallback matching backend parseFactionFromMetadata behavior
 
-    if (candidateFaction) {
-      merged.faction = candidateFaction;
-    }
+    merged.faction = candidateFaction;  // Always set; never send empty faction
 
     return Object.keys(merged).length > 0 ? merged : undefined;
   }

@@ -22,6 +22,25 @@ import type {
 } from '../types/protocol';
 import { normalizePlayerStats } from '../game/logEntryPlayback';
 
+// Merge new player data into existing order: preserve current order, update data, append new players at end
+function mergePlayersPreservingOrder(currentPlayers: Player[], newPlayers: Player[]): Player[] {
+  const currentPlayerIds = new Set(currentPlayers.map((p) => p.player_id));
+  const newPlayerMap = new Map(newPlayers.map((p) => [p.player_id, p]));
+
+  // Existing players in their current order, updated with new data
+  const merged = currentPlayers
+    .map((p) => newPlayerMap.get(p.player_id) ?? p);
+
+  // Append players that joined after the initial order was established
+  for (const p of newPlayers) {
+    if (!currentPlayerIds.has(p.player_id)) {
+      merged.push(p);
+    }
+  }
+
+  return merged;
+}
+
 // ========== 场景枚举 ==========
 
 export enum Scene {
@@ -214,7 +233,7 @@ interface GameState {
 
 // ========== 创建 Store ==========
 
-export const useGameStore = create<GameState>((set) => ({
+export const useGameStore = create<GameState>((set, get) => ({
   // ========== 初始状态 ==========
 
   session: null,
@@ -271,7 +290,23 @@ export const useGameStore = create<GameState>((set) => ({
 
   setAvailableActions: (available) => set({ availableActions: available }),
 
-  setWaitingSync: (waiting) => set({ waitingSync: waiting }),
+  setWaitingSync: (waiting) => {
+    const currentPlayers = get().players;
+    if (waiting && currentPlayers.length > 0) {
+      // Sync faction from WaitingSync to players array so
+      // faction changes in the lobby are reflected immediately.
+      const updatedPlayers = currentPlayers.map((player) => {
+        const waitingPlayer = waiting.players.find((wp) => wp.user_id === player.player_id);
+        if (waitingPlayer && waitingPlayer.faction && waitingPlayer.faction !== player.faction) {
+          return { ...player, faction: waitingPlayer.faction };
+        }
+        return player;
+      });
+      set({ waitingSync: waiting, players: updatedPlayers });
+    } else {
+      set({ waitingSync: waiting });
+    }
+  },
 
   setMiniGameStart: (start) => set({ miniGameStart: start }),
 
@@ -308,11 +343,17 @@ export const useGameStore = create<GameState>((set) => ({
       ? [...state.pendingEntries, ...nextSync.entries] 
       : state.pendingEntries;
 
+    // Preserve existing player order when syncing, append new players at end
+    const nextPlayersRaw = nextSync.players?.map(normalizePlayerStats);
+    const mergedPlayers = nextPlayersRaw
+      ? mergePlayersPreservingOrder(state.players, nextPlayersRaw)
+      : state.players;
+
     return {
       stateSyncQueue: restQueue,
       globalState: nextSync.global_state as GlobalState,
       turnState: nextSync.turn_state as TurnState,
-      players: nextSync.players?.map(normalizePlayerStats) || state.players,
+      players: mergedPlayers,
       currentPlayerId: nextSync.current_player_id,
       round: nextSync.round ?? state.round,
       turn: nextSync.turn ?? state.turn,
