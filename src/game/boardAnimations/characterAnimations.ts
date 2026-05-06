@@ -76,6 +76,45 @@ export function shouldSuppressSettlementEffect(entry: LogEntry, settlementPlayer
 
 // --- Character animation functions ---
 
+// Lightweight buff change animation: only floating text, no ring or marker shake
+export function playBuffChangeAnimation(
+  ctx: BoardAnimationContext,
+  context: LogEntryAnimationContext,
+  followPlayerId?: string | null,
+  settlementPlayer?: Player | null
+): void {
+  const { entry } = context;
+  if (shouldSuppressSettlementEffect(entry, settlementPlayer)) return;
+
+  const marker = ctx.playerMarkers.get(entry.target) ?? ctx.playerMarkers.get(followPlayerId || '');
+  if (!marker) return;
+
+  const effect = describeLogEntryEffect(entry, useGameStore.getState().definitions);
+  const x = marker.x;
+  const y = marker.y;
+
+  const text = ctx.scene.add.text(x, y - 42, effect.label, {
+    fontFamily: GAME_FONT_FAMILY,
+    fontSize: '22px',
+    fontStyle: 'bold',
+    color: effect.textColor,
+    align: 'center',
+    stroke: '#0b1020',
+    strokeThickness: 5,
+  });
+  text.setOrigin(0.5, 0.5);
+  text.setDepth(worldDepth(LAYER_EFFECT_TEXT_BASE, y));
+
+  ctx.tweens.add({
+    targets: text,
+    y: y - 72,
+    alpha: 0,
+    duration: 800,
+    ease: 'Cubic.easeOut',
+    onComplete: () => text.destroy(),
+  });
+}
+
 export function playGenericLogEntryEffect(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,

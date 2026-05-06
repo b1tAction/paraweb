@@ -29,10 +29,15 @@ const BOSS_ACTION_TYPES = new Set(['boss_damage', 'boss_attack', 'boss_skill']);
 
 const BOSS_DEFEATED_ANIMATION_DELAY_MS = 1900;
 
+// Gap between popup dismiss and effect start for draw_event
+const EFFECT_START_GAP_MS = 200;
+// Estimated extra time for draw_event effect animations after popup dismiss
+const DRAW_EVENT_EFFECT_EXTRA_MS = 1000;
+
 const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
   'damage->death': 180,
   'fell_down->death': 180,
-  'draw_event->death': 400,
+  'draw_event->death': 600,
   'death->respawn': 240,
 };
 
@@ -84,12 +89,16 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
     delayMs: ({ entry }) => {
       const eventType = getMetadataString(entry.metadata, 'event_type');
       const config = getEventEffectConfig(eventType);
-      return config.duration || DEFAULT_ACTION_ANIMATION_DELAY_MS;
+      return (config.duration || DEFAULT_ACTION_ANIMATION_DELAY_MS) + EFFECT_START_GAP_MS + DRAW_EVENT_EFFECT_EXTRA_MS;
     },
   },
   add_buff: {
     renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry),
-    delayMs: ({ entry }) => (isReverseClockLostBuffEntry(entry) ? 1800 : DEFAULT_ACTION_ANIMATION_DELAY_MS),
+    delayMs: ({ entry }) => (isReverseClockLostBuffEntry(entry) ? 1800 : 800),
+  },
+  remove_buff: {
+    renderOnBoard: true,
+    delayMs: 800,
   },
   boss_damage: {
     renderOnBoard: true,
@@ -130,6 +139,10 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
     renderOnBoard: false,
     delayMs: 0,
   },
+  add_item: {
+    renderOnBoard: false,
+    delayMs: 0,
+  },
 };
 
 export function isLogEntryAnimationCandidate(entry?: LogEntry | null) {
@@ -167,7 +180,7 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
 
   // Thunder draw_event should not be skipped by immediate damage chaining.
   if (currentActionType === 'draw_event' && currentEventType === 'thunder' && nextActionType === 'damage') {
-    return 900;
+    return 2800 + EFFECT_START_GAP_MS + DRAW_EVENT_EFFECT_EXTRA_MS;
   }
 
   if (context.nextEntry) {

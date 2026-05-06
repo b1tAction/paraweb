@@ -63,7 +63,7 @@ import { type PopupContext } from './boardAnimations/popup';
 import type { BoardAnimationContext } from './boardAnimations/eventAnimations';
 import { playDrawEventAnimation, playLightningStrikeWorldAnimation } from './boardAnimations/eventAnimations';
 import { playBossDamageAnimation, playBossAttackAnimation, playBossSkillAnimation } from './boardAnimations/bossAnimations';
-import { playGenericLogEntryEffect, playDamageAnimation, playDeathAnimation, playRespawnAnimation, playHealAnimation, playModifyLpAnimation } from './boardAnimations/characterAnimations';
+import { playGenericLogEntryEffect, playDamageAnimation, playDeathAnimation, playRespawnAnimation, playHealAnimation, playModifyLpAnimation, playBuffChangeAnimation } from './boardAnimations/characterAnimations';
 import { playMoveAnimation, playTeleportAnimation } from './boardAnimations/movementAnimations';
 
 type PathNode = {
@@ -175,6 +175,8 @@ export class ForestBoardScene extends Phaser.Scene {
     fell_down: (context) => playDeathAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
     respawn: (context) => playRespawnAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer, () => this.refreshCellMarkerStates()),
     modify_lp: (context) => playModifyLpAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
+    add_buff: (context) => playBuffChangeAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
+    remove_buff: (context) => playBuffChangeAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
     draw_event: (context) => playDrawEventAnimation(this.buildAnimationCtx(), this.buildPopupCtx(), context),
     boss_damage: (context) => playBossDamageAnimation(this.buildAnimationCtx(), context),
     boss_attack: (context) => playBossAttackAnimation(this.buildAnimationCtx(), context),
