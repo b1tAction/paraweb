@@ -258,7 +258,7 @@ jobs:
           cat > AppDir/paradiced.desktop << 'EOF'
           [Desktop Entry]
           Name=ParaDiced
-          Exec=paradiced
+          Exec=ParaDiced
           Icon=paradiced
           Type=Application
           Categories=Game;
