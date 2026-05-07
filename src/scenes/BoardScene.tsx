@@ -1682,7 +1682,6 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundImage: 'url("/assets/buff/frame.png")',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center',
-    backgroundSize: '520px auto',
     filter: 'drop-shadow(0 5px 10px rgba(0, 0, 0, 0.36))',
     boxSizing: 'border-box',
   },
