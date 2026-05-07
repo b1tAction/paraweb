@@ -5,10 +5,17 @@
  * 实现消息监听、路由和场景切换逻辑
  */
 
-import { Client, Session, Socket, Match, MatchData } from '@heroiclabs/nakama-js';
-import { useGameStore, Scene } from '../store/gameStore';
+import { Client, type Match, type MatchData, Session, type Socket } from '@heroiclabs/nakama-js';
 import * as opcodes from '../api/opcodes';
-import * as protocol from '../types/protocol';
+import { Scene, useGameStore } from '../store/gameStore';
+import type * as protocol from '../types/protocol';
+import {
+  getNakamaHttpApiBaseUrl,
+  getNakamaSdkPort,
+  getNakamaWebSocketUrl,
+  type NakamaEndpoint,
+  parseNakamaEndpoint,
+} from '../utils/nakamaEndpoint';
 
 /**
  * NakamaService 类
@@ -16,15 +23,11 @@ import * as protocol from '../types/protocol';
  * 单例模式，通过 gameService 导出实例
  */
 export class NakamaService {
+  private endpoint: NakamaEndpoint;
   private client: Client;
   private serverKey: string = 'defaultkey';
-  private host: string = '';
-  private port: string = '';
-  private useSSL: boolean = false;
 
-  private readonly DEFAULT_HOST: string = this.resolveDefaultHost();
-  private readonly DEFAULT_PORT: string = (import.meta as any).env?.VITE_NAKAMA_PORT || '7350';
-  private readonly DEFAULT_USE_SSL: boolean = String((import.meta as any).env?.VITE_NAKAMA_SSL || 'false').toLowerCase() === 'true';
+  private readonly DEFAULT_ENDPOINT_INPUT: string = this.resolveDefaultEndpointInput();
 
   // Device ID prefix for device-UUID-based authentication
   private readonly DEVICE_ID_PREFIX = 'paradiced_';
@@ -33,42 +36,68 @@ export class NakamaService {
   private readonly STORAGE_KEY_REFRESH_TOKEN = 'paradiced_refresh_token';
   private readonly STORAGE_KEY_USERNAME = 'paradiced_username';
   private readonly STORAGE_KEY_DEVICE_UUID = 'paradiced_device_uuid';
-  private readonly STORAGE_KEY_NAKAMA_HOST = 'paradiced_nakama_host';
-  private readonly STORAGE_KEY_NAKAMA_PORT = 'paradiced_nakama_port';
-  private readonly STORAGE_KEY_NAKAMA_SSL = 'paradiced_nakama_ssl';
+  private readonly STORAGE_KEY_NAKAMA_ENDPOINT = 'paradiced_nakama_endpoint';
+  private readonly LEGACY_STORAGE_KEYS_NAKAMA = [
+    'paradiced_nakama_host',
+    'paradiced_nakama_port',
+    'paradiced_nakama_ssl',
+  ];
 
   constructor() {
-    this.loadServerConfig();
-    // 注意：nakama-js 构造函数参数顺序 (serverkey, host, port, useSSL)
-    this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
+    this.endpoint = this.loadServerConfig();
+    this.client = this.createClient();
   }
 
-  private resolveDefaultHost(): string {
-    const configuredHost = (import.meta as any).env?.VITE_NAKAMA_HOST?.trim();
-    if (configuredHost) {
-      return configuredHost;
+  private resolveDefaultEndpointInput(): string {
+    const configuredEndpoint = import.meta.env.VITE_NAKAMA_ENDPOINT?.trim();
+    if (configuredEndpoint) {
+      return configuredEndpoint;
     }
 
-    const browserHost = typeof window !== 'undefined' ? window.location?.hostname : '';
-    if (browserHost && browserHost !== 'localhost' && browserHost !== 'wails.localhost') {
-      return browserHost;
+    if (typeof window !== 'undefined') {
+      const browserHost = window.location?.hostname || '';
+      if (browserHost && browserHost !== 'localhost' && browserHost !== 'wails.localhost') {
+        const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+        const port = window.location.port ? `:${window.location.port}` : '';
+        return `${protocol}://${browserHost}${port}`;
+      }
     }
 
-    return '127.0.0.1';
+    return '127.0.0.1:17350';
   }
 
-  private loadServerConfig() {
-    const host = localStorage.getItem(this.STORAGE_KEY_NAKAMA_HOST)?.trim();
-    const port = localStorage.getItem(this.STORAGE_KEY_NAKAMA_PORT)?.trim();
-    const sslStr = localStorage.getItem(this.STORAGE_KEY_NAKAMA_SSL);
+  private loadServerConfig(): NakamaEndpoint {
+    this.removeLegacyServerConfig();
 
-    this.host = host || this.DEFAULT_HOST;
-    this.port = port || this.DEFAULT_PORT;
-    this.useSSL = sslStr == null ? this.DEFAULT_USE_SSL : sslStr === 'true';
+    const storedEndpoint = localStorage.getItem(this.STORAGE_KEY_NAKAMA_ENDPOINT)?.trim();
+    if (storedEndpoint) {
+      try {
+        return parseNakamaEndpoint(storedEndpoint);
+      } catch (error) {
+        console.warn('[Nakama] 保存的服务器地址无效，回退到默认地址', error);
+        localStorage.removeItem(this.STORAGE_KEY_NAKAMA_ENDPOINT);
+      }
+    }
+
+    return parseNakamaEndpoint(this.DEFAULT_ENDPOINT_INPUT);
+  }
+
+  private removeLegacyServerConfig() {
+    this.LEGACY_STORAGE_KEYS_NAKAMA.forEach((key) => {
+      localStorage.removeItem(key);
+    });
+  }
+
+  private createClient(): Client {
+    return new Client(this.serverKey, this.endpoint.host, getNakamaSdkPort(this.endpoint), this.endpoint.useSSL);
   }
 
   private rebuildClient() {
-    this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
+    this.client = this.createClient();
+  }
+
+  private createConfiguredSocket(): Socket {
+    return this.client.createSocket(this.endpoint.useSSL);
   }
 
   /**
@@ -113,39 +142,33 @@ export class NakamaService {
     bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
     bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
 
-    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
-  getServerConfig(): { host: string; port: string; useSSL: boolean } {
-    return { host: this.host, port: this.port, useSSL: this.useSSL };
+  getServerConfig(): NakamaEndpoint & { sdkPort: string; httpApiBaseUrl: string; webSocketUrl: string } {
+    return {
+      ...this.endpoint,
+      sdkPort: getNakamaSdkPort(this.endpoint),
+      httpApiBaseUrl: getNakamaHttpApiBaseUrl(this.endpoint),
+      webSocketUrl: getNakamaWebSocketUrl(this.endpoint),
+    };
   }
 
-  setServerConfig(host: string, port: string, useSSL: boolean) {
-    const normalizedHost = host.trim();
-    const normalizedPort = port.trim();
+  setServerConfig(endpointInput: string) {
+    const nextEndpoint = parseNakamaEndpoint(endpointInput);
 
-    if (!normalizedHost) {
-      throw new Error('服务器地址不能为空');
-    }
-    if (!normalizedPort || !/^\d+$/.test(normalizedPort)) {
-      throw new Error('端口必须是数字');
-    }
-
-    this.host = normalizedHost;
-    this.port = normalizedPort;
-    this.useSSL = useSSL;
-
-    localStorage.setItem(this.STORAGE_KEY_NAKAMA_HOST, this.host);
-    localStorage.setItem(this.STORAGE_KEY_NAKAMA_PORT, this.port);
-    localStorage.setItem(this.STORAGE_KEY_NAKAMA_SSL, String(this.useSSL));
-
+    this.endpoint = nextEndpoint;
+    localStorage.setItem(this.STORAGE_KEY_NAKAMA_ENDPOINT, nextEndpoint.endpoint);
+    this.removeLegacyServerConfig();
     this.rebuildClient();
 
     console.log('[Nakama] 服务器配置已更新', {
-      host: this.host,
-      port: this.port,
-      useSSL: this.useSSL,
+      endpoint: this.endpoint.endpoint,
+      host: this.endpoint.host,
+      port: this.endpoint.port,
+      path: this.endpoint.path,
+      useSSL: this.endpoint.useSSL,
     });
   }
 
@@ -159,21 +182,15 @@ export class NakamaService {
     const merged: Record<string, string> = { ...(metadata || {}) };
 
     const candidateDisplayName =
-      merged.display_name?.trim() ||
-      store.displayName?.trim() ||
-      store.session?.username?.trim() ||
-      '';
+      merged.display_name?.trim() || store.displayName?.trim() || store.session?.username?.trim() || '';
 
     if (candidateDisplayName) {
       merged.display_name = candidateDisplayName;
     }
 
-    const candidateFaction =
-      merged.faction?.trim() ||
-      store.faction?.trim() ||
-      'qing_long';  // Default fallback matching backend parseFactionFromMetadata behavior
+    const candidateFaction = merged.faction?.trim() || store.faction?.trim() || 'qing_long'; // Default fallback matching backend parseFactionFromMetadata behavior
 
-    merged.faction = candidateFaction;  // Always set; never send empty faction
+    merged.faction = candidateFaction; // Always set; never send empty faction
 
     return Object.keys(merged).length > 0 ? merged : undefined;
   }
@@ -202,8 +219,8 @@ export class NakamaService {
     // authenticateDevice: create=true auto-creates account if not exists
     const session = await this.client.authenticateDevice(
       deviceId,
-      true,      // create = true, auto-register if not exists
-      deviceId   // initial username = deviceId (will be overridden with display_name)
+      true, // create = true, auto-register if not exists
+      deviceId, // initial username = deviceId (will be overridden with display_name)
     );
 
     console.log('[Nakama] 认证成功', {
@@ -235,7 +252,7 @@ export class NakamaService {
     localStorage.setItem(this.STORAGE_KEY_USERNAME, displayName);
 
     // Create and connect socket
-    const socket = this.client.createSocket();
+    const socket = this.createConfiguredSocket();
     await socket.connect(session, false);
 
     console.log('[Nakama] WebSocket 连接已建立');
@@ -299,8 +316,8 @@ export class NakamaService {
     // authenticateDevice: create=true auto-creates account if not exists
     const session = await this.client.authenticateDevice(
       deviceId,
-      true,      // create = true, auto-register if not exists
-      username   // username as display name
+      true, // create = true, auto-register if not exists
+      username, // username as display name
     );
 
     console.log('[Nakama] 认证成功', {
@@ -314,7 +331,7 @@ export class NakamaService {
     localStorage.setItem(this.STORAGE_KEY_USERNAME, username);
 
     // Create and connect socket
-    const socket = this.client.createSocket();
+    const socket = this.createConfiguredSocket();
     await socket.connect(session, false);
 
     console.log('[Nakama] WebSocket 连接已建立');
@@ -343,7 +360,7 @@ export class NakamaService {
       dummyEmail,
       password,
       isRegister, // true = 注册，false = 登录
-      username    // username 用作显示名称
+      username, // username 用作显示名称
     );
 
     console.log('[Nakama] 认证成功', {
@@ -356,7 +373,7 @@ export class NakamaService {
     localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
 
     // 创建并连接 socket
-    const socket = this.client.createSocket();
+    const socket = this.createConfiguredSocket();
     await socket.connect(session, false);
 
     console.log('[Nakama] WebSocket 连接已建立');
@@ -405,7 +422,7 @@ export class NakamaService {
           localStorage.setItem(this.STORAGE_KEY_TOKEN, session.token);
           localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
           console.log('[Nakama] Session 刷新成功');
-        } catch (refreshError: any) {
+        } catch {
           console.log('[Nakama] Session 刷新失败，需要重新登录');
           localStorage.removeItem(this.STORAGE_KEY_TOKEN);
           localStorage.removeItem(this.STORAGE_KEY_REFRESH_TOKEN);
@@ -419,7 +436,7 @@ export class NakamaService {
       });
 
       // 创建并连接 socket
-      const socket = this.client.createSocket();
+      const socket = this.createConfiguredSocket();
       await socket.connect(session, false);
 
       console.log('[Nakama] WebSocket 连接已建立');
@@ -433,9 +450,8 @@ export class NakamaService {
       this.setupListeners(socket);
 
       return true;
-
-    } catch (error: any) {
-      console.error('[Nakama] Session 恢复失败', error.message);
+    } catch (error: unknown) {
+      console.error('[Nakama] Session 恢复失败', error instanceof Error ? error.message : error);
       localStorage.removeItem(this.STORAGE_KEY_TOKEN);
       localStorage.removeItem(this.STORAGE_KEY_REFRESH_TOKEN);
       return false;
@@ -474,7 +490,7 @@ export class NakamaService {
     const session = await this.client.authenticateDevice(
       deviceId,
       true, // create = true, 如果用户不存在则创建
-      displayName // username 用作显示名称
+      displayName, // username 用作显示名称
     );
 
     console.log('[Nakama] 认证成功', {
@@ -483,7 +499,7 @@ export class NakamaService {
     });
 
     // nakama-js: createSocket() 返回 Socket
-    const socket = this.client.createSocket();
+    const socket = this.createConfiguredSocket();
 
     // nakama-js: connect 无需 context, createStatus = false
     await socket.connect(session, false);
@@ -505,9 +521,7 @@ export class NakamaService {
     // nakama-js: 使用 onmatchdata 回调属性 (对比 Go 的 MatchDataHandler)
     socket.onmatchdata = (matchData: MatchData) => {
       // 解码数据 (Uint8Array -> JSON)
-      const data = matchData.data
-        ? JSON.parse(new TextDecoder().decode(matchData.data))
-        : {};
+      const data = matchData.data ? JSON.parse(new TextDecoder().decode(matchData.data)) : {};
 
       console.log(`[Nakama] 收到 OpCode: ${matchData.op_code} (${opcodes.getOpCodeName(matchData.op_code)})`, data);
 
@@ -679,9 +693,7 @@ export class NakamaService {
   private handleGameOver(data: protocol.GameOver) {
     const store = useGameStore.getState();
     const isWaitingRoomTermination =
-      store.currentScene === Scene.Lobby &&
-      !data.winner_id &&
-      (!data.stats || data.stats.length === 0);
+      store.currentScene === Scene.Lobby && !data.winner_id && (!data.stats || data.stats.length === 0);
 
     if (isWaitingRoomTermination) {
       store.setJoinRoomNotice('房主已解散房间');
@@ -693,7 +705,10 @@ export class NakamaService {
 
     store.setGameOver(data);
 
-    if (store.currentScene === Scene.Board || (store.currentScene === Scene.MiniGameSubmitRank && store.miniGameResultPending)) {
+    if (
+      store.currentScene === Scene.Board ||
+      (store.currentScene === Scene.MiniGameSubmitRank && store.miniGameResultPending)
+    ) {
       store.setPendingScene(Scene.GameOver);
     } else {
       store.setPendingScene(null);
@@ -756,7 +771,7 @@ export class NakamaService {
   /**
    * 4. 场景路由 (对齐 Go CLI)
    */
-  private routeSceneByState(globalState: string) {
+  routeSceneByState(globalState: string) {
     const store = useGameStore.getState();
     const normalized = globalState.trim();
 
@@ -826,7 +841,7 @@ export class NakamaService {
    * @param opCode 操作码
    * @param payload 数据负载
    */
-  async sendOpCode(opCode: number, payload: any = {}): Promise<void> {
+  async sendOpCode(opCode: number, payload: unknown = {}): Promise<void> {
     const { socket, match } = useGameStore.getState();
 
     if (!socket || !match) {
@@ -859,15 +874,15 @@ export class NakamaService {
     // First try with query filter; if that returns nothing, fall back to
     // unfiltered listing (some Nakama versions/configs may not support
     // label query on authoritative matches).
-    let result;
+    let result: Awaited<ReturnType<Client['listMatches']>>;
     try {
       result = await this.client.listMatches(
         session,
-        20,    // limit
-        true,  // authoritative
-        '',    // label (unused for authoritative matches)
-        0,     // min size: include empty matches
-        4,     // max size
+        20, // limit
+        true, // authoritative
+        '', // label (unused for authoritative matches)
+        0, // min size: include empty matches
+        4, // max size
         '+label.status:waiting +label.game:paradiced', // query filter
       );
     } catch {
@@ -875,11 +890,11 @@ export class NakamaService {
       console.log('[Nakama] Label query failed, falling back to unfiltered listing');
       result = await this.client.listMatches(
         session,
-        20,    // limit
-        true,  // authoritative
-        '',    // label
-        0,     // min size
-        4,     // max size
+        20, // limit
+        true, // authoritative
+        '', // label
+        0, // min size
+        4, // max size
       );
     }
 
@@ -896,6 +911,10 @@ export class NakamaService {
 
     if (!session) {
       throw new Error('[Nakama] 没有有效的 session');
+    }
+
+    if (!socket) {
+      throw new Error('[Nakama] 没有有效的 socket');
     }
 
     console.log('[Nakama] 创建房间', { lobbyName, maxPlayers });
@@ -924,7 +943,7 @@ export class NakamaService {
     // nakama-js: joinMatch 返回 Promise<Match>
     // 关键：携带 display_name metadata，避免服务端 waiting_sync 回退到 user_id
     const joinMetadata = this.buildJoinMetadata();
-    const match = await socket!.joinMatch(matchId, undefined, joinMetadata);
+    const match = await socket.joinMatch(matchId, undefined, joinMetadata);
 
     useGameStore.getState().setMatch(match);
     useGameStore.getState().setMatchId(match.match_id || matchId);
@@ -1047,7 +1066,7 @@ export class NakamaService {
   /**
    * 14. 提交小游戏数据 (服务端计算排名)
    */
-  async sendMiniGameDataSubmit(gameType: string, gameData: Record<string, any>): Promise<void> {
+  async sendMiniGameDataSubmit(gameType: string, gameData: Record<string, unknown>): Promise<void> {
     console.log('[Nakama] 提交小游戏数据', { gameType, gameData });
     await this.sendOpCode(opcodes.OpMiniGameDataSubmit, {
       game_type: gameType,

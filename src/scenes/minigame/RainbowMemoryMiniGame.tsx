@@ -1,28 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
-import { styles } from './MiniGameStyles';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
+import { styles } from './MiniGameStyles';
 
 // Robust seeded PRNG
 function xmur3(str: string) {
   let h = 1779033703 ^ str.length;
   for (let i = 0; i < str.length; i++) {
     h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-    h = h << 13 | h >>> 19;
+    h = (h << 13) | (h >>> 19);
   }
-  return function () {
+  return () => {
     h = Math.imul(h ^ (h >>> 16), 2246822507);
     h = Math.imul(h ^ (h >>> 13), 3266489909);
-    return (h ^= h >>> 16) >>> 0;
+    h ^= h >>> 16;
+    return h >>> 0;
   };
 }
 
 function mulberry32(a: number) {
-  return function () {
-    var t = a += 0x6D2B79F5;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  return () => {
+    a += 0x6d2b79f5;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
@@ -35,7 +38,7 @@ function seededShuffle<T>(array: T[], rand: () => number): T[] {
   return arr;
 }
 
-const COLOR_MAP: Record<string, { name: string, value: string }> = {
+const COLOR_MAP: Record<string, { name: string; value: string }> = {
   red: { name: '红', value: '#ff4d4d' },
   orange: { name: '橙', value: '#ffa64d' },
   yellow: { name: '黄', value: '#ffff4d' },
@@ -48,13 +51,14 @@ const COLOR_MAP: Record<string, { name: string, value: string }> = {
 };
 
 const COLORS = Object.keys(COLOR_MAP);
+const RAINBOW_GRID_CELLS = Array.from({ length: 9 }, (_, index) => ({ id: `rainbow-cell-${index}`, index }));
 
 export interface RainbowMemoryMiniGameProps {
   isParticipant: boolean;
   submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
-  onSubmit: (gameData: Record<string, any>) => void;
+  onSubmit: (gameData: Record<string, unknown>) => void;
 }
 
 type Phase = 'memorize' | 'hide' | 'challenge' | 'finished';
@@ -131,7 +135,7 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
   if (phase === 'finished') {
     const { miniGameStart, miniGameResult, myPlayerId, players } = useGameStore.getState();
     const participants = miniGameStart?.players || [];
-    const allPlayersData = players.map(p => ({
+    const allPlayersData = players.map((p) => ({
       displayName: p.display_name || p.player_id,
       userId: p.player_id,
     }));
@@ -140,25 +144,30 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
       <div style={styles.mathGameContainer}>
         <h3 style={styles.resultTitle}>记忆挑战完成!</h3>
         <div style={styles.miniRankingList}>
-          {participants.map(pId => {
+          {participants.map((pId) => {
             const isMe = pId === myPlayerId;
-            const playerInfo = players.find(p => p.player_id === pId);
-            const name = getDisambiguatedDisplayName(
-              playerInfo?.display_name || pId,
-              pId,
-              allPlayersData
-            );
-            const resultEntry = miniGameResult?.rankings.find(r => r.player_id === pId);
+            const playerInfo = players.find((p) => p.player_id === pId);
+            const name = getDisambiguatedDisplayName(playerInfo?.display_name || pId, pId, allPlayersData);
+            const resultEntry = miniGameResult?.rankings.find((r) => r.player_id === pId);
             const isFinished = !!resultEntry;
+            const resultAccuracy =
+              typeof resultEntry?.game_data?.accuracy === 'number' ? resultEntry.game_data.accuracy : null;
+            const resultTimeMs =
+              typeof resultEntry?.game_data?.time_ms === 'number' ? resultEntry.game_data.time_ms : null;
 
             return (
               <div key={pId} style={styles.miniRankingItem}>
-                <span style={{ fontWeight: isMe ? 'bold' : 'normal' }}>{name} {isMe ? '(我)' : ''}</span>
+                <span style={{ fontWeight: isMe ? 'bold' : 'normal' }}>
+                  {name} {isMe ? '(我)' : ''}
+                </span>
                 {isMe ? (
-                  <span style={styles.statusFinished}>{accuracy === 1 ? '正确' : '错误'} | {(finalTimeMs / 1000).toFixed(2)}s</span>
+                  <span style={styles.statusFinished}>
+                    {accuracy === 1 ? '正确' : '错误'} | {(finalTimeMs / 1000).toFixed(2)}s
+                  </span>
                 ) : isFinished ? (
                   <span style={styles.statusFinished}>
-                    {resultEntry.game_data?.accuracy === 1 ? '正确' : '错误'} | {(resultEntry.game_data?.time_ms / 1000).toFixed(2)}s
+                    {resultAccuracy === 1 ? '正确' : '错误'} |{' '}
+                    {resultTimeMs === null ? '?' : (resultTimeMs / 1000).toFixed(2)}s
                   </span>
                 ) : (
                   <span style={styles.statusPlaying}>正在记忆/答题...</span>
@@ -168,7 +177,7 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
           })}
         </div>
         <p style={{ ...styles.gameDataDetail, fontSize: '14px', textAlign: 'center' }}>
-          {isSubmitting ? '同步中...' : (miniGameResult ? '全员挑战结束，即将跳转...' : '等待全员结束...')}
+          {isSubmitting ? '同步中...' : miniGameResult ? '全员挑战结束，即将跳转...' : '等待全员结束...'}
         </p>
         {submitError && <p style={{ color: 'red', fontSize: '12px', textAlign: 'center' }}>{submitError}</p>}
       </div>
@@ -188,9 +197,11 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
           <span style={{ color: '#666' }}>准备...</span>
         ) : phase === 'challenge' ? (
           <>
-            请点击 <span style={{ ...styles.targetColorHighlight, backgroundColor: COLOR_MAP[targetColor].value }}>
+            请点击{' '}
+            <span style={{ ...styles.targetColorHighlight, backgroundColor: COLOR_MAP[targetColor].value }}>
               {COLOR_MAP[targetColor].name}
-            </span> 色块
+            </span>{' '}
+            色块
           </>
         ) : (
           '挑战结束'
@@ -198,16 +209,23 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
       </div>
 
       <div style={styles.rainbowGrid}>
-        {gridColors.map((color, idx) => (
-          <div
-            key={idx}
-            style={{
-              ...styles.colorSquare,
-              backgroundColor: phase === 'memorize' ? COLOR_MAP[color].value : '#ffffff'
-            }}
-            onClick={() => handleSquareClick(color)}
-          />
-        ))}
+        {RAINBOW_GRID_CELLS.map((cell) => {
+          const color = gridColors[cell.index];
+          return (
+            <button
+              type="button"
+              key={cell.id}
+              aria-label={color ? `选择${COLOR_MAP[color].name}色块` : '空色块'}
+              style={{
+                ...styles.colorSquare,
+                backgroundColor: color && phase === 'memorize' ? COLOR_MAP[color].value : '#ffffff',
+              }}
+              onClick={() => {
+                if (color) handleSquareClick(color);
+              }}
+            />
+          );
+        })}
       </div>
     </div>
   );

@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
-import { styles } from './MiniGameStyles';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
+import { styles } from './MiniGameStyles';
 
 export interface VernierMiniGameProps {
   isParticipant: boolean;
   submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
-  onSubmit: (gameData: Record<string, any>) => void;
+  onSubmit: (gameData: Record<string, unknown>) => void;
 }
 
 type Phase = 'countdown' | 'playing' | 'reveal' | 'finished';
@@ -26,7 +27,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
   const [position, setPosition] = useState(50); // 0 to 100 percentage
   const [deviation, setDeviation] = useState<number | null>(null);
   const [animatedDeviation, setAnimatedDeviation] = useState(0);
-  
+
   const [isBtnActive, setIsBtnActive] = useState(false);
   const finishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -39,8 +40,8 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
   }, []);
 
   // Seeded parameters
-  const frequency = 0.0025; 
-  const amplitude = 42; 
+  const frequency = 0.0025;
+  const amplitude = 42;
 
   // Animation Loop - Cleanly handles phase changes
   useEffect(() => {
@@ -75,7 +76,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
         // Ease out quad
         const easeProgress = 1 - (1 - progress) * (1 - progress);
         setAnimatedDeviation(easeProgress * deviation);
-        
+
         if (progress < 1) {
           requestAnimationFrame(animateCount);
         }
@@ -103,7 +104,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
     const dev = Math.abs(position - 50);
     setDeviation(dev);
     setPhase('reveal');
-    
+
     onSubmit({ deviation: dev });
 
     // Wait 3.5s then show the full ranking list
@@ -119,7 +120,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
   // Helper to calculate highlight bar style
   const getHighlightStyle = () => {
     if (deviation === null || phase === 'countdown' || phase === 'playing') return { display: 'none' };
-    
+
     const isRight = position >= 50;
     return {
       left: isRight ? '50%' : `${50 - animatedDeviation}%`,
@@ -131,14 +132,12 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
     return (
       <div style={styles.vernierContainer}>
         <h3 style={styles.resultTitle}>锁定完成!</h3>
-        <div style={{ ...styles.deviationText, color: '#e74c3c' }}>
-          误差: {animatedDeviation.toFixed(2)}%
-        </div>
-        
+        <div style={{ ...styles.deviationText, color: '#e74c3c' }}>误差: {animatedDeviation.toFixed(2)}%</div>
+
         <div style={{ ...styles.vernierTrack, opacity: 0.9 }}>
           <div style={styles.vernierIndicator}>▼</div>
           <div style={styles.vernierIndicatorBottom}>▼</div>
-          
+
           {/* Animated Highlight Bar - Above the ruler */}
           <div style={{ ...styles.vernierHighlight, ...getHighlightStyle(), zIndex: 10 }} />
 
@@ -154,7 +153,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
 
   if (phase === 'finished') {
     const participants = miniGameStart?.players || [];
-    const allPlayersData = players.map(p => ({
+    const allPlayersData = players.map((p) => ({
       displayName: p.display_name || p.player_id,
       userId: p.player_id,
     }));
@@ -164,25 +163,25 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
         <h3 style={styles.resultTitle}>最终排名</h3>
 
         <div style={styles.miniRankingList}>
-          {participants.map(pId => {
+          {participants.map((pId) => {
             const isMe = pId === myPlayerId;
-            const playerInfo = players.find(p => p.player_id === pId);
-            const name = getDisambiguatedDisplayName(
-              playerInfo?.display_name || pId,
-              pId,
-              allPlayersData
-            );
-            const resultEntry = miniGameResult?.rankings.find(r => r.player_id === pId);
+            const playerInfo = players.find((p) => p.player_id === pId);
+            const name = getDisambiguatedDisplayName(playerInfo?.display_name || pId, pId, allPlayersData);
+            const resultEntry = miniGameResult?.rankings.find((r) => r.player_id === pId);
             const isFinished = !!resultEntry;
+            const resultDeviation =
+              typeof resultEntry?.game_data?.deviation === 'number' ? resultEntry.game_data.deviation : null;
 
             return (
               <div key={pId} style={styles.miniRankingItem}>
-                <span style={{ fontWeight: isMe ? 'bold' : 'normal' }}>{name} {isMe ? '(我)' : ''}</span>
+                <span style={{ fontWeight: isMe ? 'bold' : 'normal' }}>
+                  {name} {isMe ? '(我)' : ''}
+                </span>
                 {isMe ? (
                   <span style={styles.statusFinished}>{deviation?.toFixed(2)}%</span>
                 ) : isFinished ? (
                   <span style={styles.statusFinished}>
-                    {resultEntry.game_data?.deviation?.toFixed(2)}%
+                    {resultDeviation === null ? '?' : resultDeviation.toFixed(2)}%
                   </span>
                 ) : (
                   <span style={styles.statusPlaying}>正在瞄准中...</span>
@@ -192,7 +191,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
           })}
         </div>
         <p style={{ ...styles.gameDataDetail, fontSize: '14px', textAlign: 'center' }}>
-          {isSubmitting ? '同步中...' : (miniGameResult ? '全员挑战结束，即将跳转...' : '等待其他玩家...')}
+          {isSubmitting ? '同步中...' : miniGameResult ? '全员挑战结束，即将跳转...' : '等待其他玩家...'}
         </p>
         {submitError && <p style={{ color: 'red', fontSize: '12px', textAlign: 'center' }}>{submitError}</p>}
       </div>
@@ -210,7 +209,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
       <div style={styles.vernierTrack}>
         <div style={styles.vernierIndicator}>▼</div>
         <div style={styles.vernierIndicatorBottom}>▼</div>
-        
+
         {/* Animated Highlight Bar - Above the ruler */}
         <div style={{ ...styles.vernierHighlight, ...getHighlightStyle(), zIndex: 10 }} />
 
@@ -220,12 +219,20 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
       </div>
 
       {phase === 'playing' && (
-        <button 
+        <button
+          type="button"
           style={{ ...styles.stopBtn, ...(isBtnActive ? styles.stopBtnActive : {}) }}
           onMouseDown={() => setIsBtnActive(true)}
-          onMouseUp={() => { setIsBtnActive(false); handleStop(); }}
+          onMouseUp={() => {
+            setIsBtnActive(false);
+            handleStop();
+          }}
           onTouchStart={() => setIsBtnActive(true)}
-          onTouchEnd={(e) => { e.preventDefault(); setIsBtnActive(false); handleStop(); }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            setIsBtnActive(false);
+            handleStop();
+          }}
         >
           STOP!
         </button>

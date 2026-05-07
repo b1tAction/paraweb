@@ -22,9 +22,9 @@ export interface DisambiguationPlayer {
 export function getDisambiguatedDisplayName(
   displayName: string,
   userId: string,
-  allPlayers: DisambiguationPlayer[]
+  allPlayers: DisambiguationPlayer[],
 ): string {
-  const duplicates = allPlayers.filter(p => p.displayName === displayName);
+  const duplicates = allPlayers.filter((p) => p.displayName === displayName);
   if (duplicates.length <= 1) {
     return displayName;
   }

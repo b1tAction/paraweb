@@ -1,18 +1,26 @@
-import * as Phaser from 'phaser';
+import type * as Phaser from 'phaser';
 import type { LogEntry, Player } from '../../types/protocol';
-import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
+import {
+  CHARACTER_HALF_HEIGHT,
+  GAME_FONT_FAMILY,
+  PROJECTILE_CHARGE_ANIMATION_KEY,
+  PROJECTILE_FIREBALL_ANIMATION_KEY,
+  PROJECTILE_FLY_DURATION_MS,
+  PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY,
+  PROJECTILE_SPEAR_ANIMATION_KEY,
+} from '../boardConstants';
+import { isBossPlayer } from '../bossVisualConfig';
 import type { CharacterRenderOptions, CharacterRenderProfile } from '../characterRenderConfig';
 import {
-  getCharacterRenderer,
-  getCharacterEffectOffsetY,
-  getAnimationKey,
-  resolveCharacterProfile,
   type CharacterAnimationState,
+  getAnimationKey,
+  getCharacterEffectOffsetY,
+  getCharacterRenderer,
+  resolveCharacterProfile,
 } from '../characterRenderConfig';
-import { isBossPlayer } from '../bossVisualConfig';
-import { getMetadataString, getMetadataNumber, getMetadataBoolean } from '../logEntryPlayback';
+import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
+import { getMetadataBoolean, getMetadataNumber, getMetadataString } from '../logEntryPlayback';
 import { LAYER_EFFECT_BASE, LAYER_EFFECT_TEXT_BASE, worldDepth } from '../renderLayers';
-import { GAME_FONT_FAMILY, CHARACTER_HALF_HEIGHT, PROJECTILE_CHARGE_ANIMATION_KEY, PROJECTILE_SPEAR_ANIMATION_KEY, PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY, PROJECTILE_FIREBALL_ANIMATION_KEY, PROJECTILE_FLY_DURATION_MS } from '../boardConstants';
 import type { BoardAnimationContext } from './eventAnimations';
 
 // Map profile id to projectile animation key for boss damage crit
@@ -29,17 +37,18 @@ export function getBossPlayer(players: Player[]): Player | null {
   return players.find(isBossPlayer) ?? null;
 }
 
-export function getBossMarker(players: Player[], playerMarkers: Map<string, Phaser.GameObjects.Sprite>): Phaser.GameObjects.Sprite | null {
+export function getBossMarker(
+  players: Player[],
+  playerMarkers: Map<string, Phaser.GameObjects.Sprite>,
+): Phaser.GameObjects.Sprite | null {
   const bossPlayer = getBossPlayer(players);
-  return bossPlayer ? playerMarkers.get(bossPlayer.player_id) ?? null : null;
+  return bossPlayer ? (playerMarkers.get(bossPlayer.player_id) ?? null) : null;
 }
 
 export function getBossTargetIds(entry: LogEntry): string[] {
   const rawTargets = entry.metadata?.targets;
   if (Array.isArray(rawTargets)) {
-    return rawTargets
-      .map((target) => String(target).trim())
-      .filter(Boolean);
+    return rawTargets.map((target) => String(target).trim()).filter(Boolean);
   }
 
   return getMetadataString(entry.metadata, 'targets')
@@ -51,7 +60,7 @@ export function getBossTargetIds(entry: LogEntry): string[] {
 function resolveCharacterProfileForPlayer(
   player: Player,
   players: Player[],
-  characterRenderOptions?: CharacterRenderOptions
+  characterRenderOptions?: CharacterRenderOptions,
 ): CharacterRenderProfile {
   const order = players.indexOf(player);
   return resolveCharacterProfile(player, order, characterRenderOptions);
@@ -61,7 +70,7 @@ function resolveCharacterProfileFromMarker(
   marker: Phaser.GameObjects.Sprite,
   players: Player[],
   playerMarkers: Map<string, Phaser.GameObjects.Sprite>,
-  characterRenderOptions?: CharacterRenderOptions
+  characterRenderOptions?: CharacterRenderOptions,
 ): CharacterRenderProfile {
   const player = players.find((p) => playerMarkers.get(p.player_id) === marker);
   if (!player) return resolveCharacterProfileForPlayer(players[0], players, characterRenderOptions);
@@ -71,7 +80,7 @@ function resolveCharacterProfileFromMarker(
 function getPlayerIdForMarker(
   marker: Phaser.GameObjects.Sprite,
   players: Player[],
-  playerMarkers: Map<string, Phaser.GameObjects.Sprite>
+  playerMarkers: Map<string, Phaser.GameObjects.Sprite>,
 ): string | undefined {
   return players.find((player) => playerMarkers.get(player.player_id) === marker)?.player_id;
 }
@@ -79,7 +88,7 @@ function getPlayerIdForMarker(
 function getMarkerEffectPoint(
   marker: Phaser.GameObjects.Sprite,
   ctx: BoardAnimationContext,
-  playerId?: string
+  playerId?: string,
 ): { x: number; y: number } {
   const resolvedPlayerId = playerId ?? getPlayerIdForMarker(marker, ctx.players, ctx.playerMarkers);
   const profile = resolvedPlayerId
@@ -99,7 +108,7 @@ export function playBossProfileAnimation(
   players: Player[],
   playerMarkers: Map<string, Phaser.GameObjects.Sprite>,
   characterRenderOptions?: CharacterRenderOptions,
-  returnToIdle = true
+  returnToIdle = true,
 ): boolean {
   const profile = resolveCharacterProfileFromMarker(marker, players, playerMarkers, characterRenderOptions);
   const renderer = getCharacterRenderer(characterRenderOptions);
@@ -127,7 +136,7 @@ function playProjectileFly(
   fromY: number,
   toX: number,
   toY: number,
-  animKey: string
+  animKey: string,
 ): void {
   const projectile = ctx.scene.add.sprite(fromX, fromY, animKey);
   projectile.setOrigin(0.5, 0.5);
@@ -152,7 +161,7 @@ export function playBossPulse(
   color: number,
   textColor = '#ffebee',
   scale = 2.2,
-  playerId?: string
+  playerId?: string,
 ): void {
   const { x, y } = getMarkerEffectPoint(marker, ctx, playerId);
 
@@ -197,7 +206,7 @@ export function playBossLineEffect(
   fromMarker: Phaser.GameObjects.Sprite,
   toMarker: Phaser.GameObjects.Sprite,
   color: number,
-  label?: string
+  label?: string,
 ): void {
   const fromPoint = getMarkerEffectPoint(fromMarker, ctx);
   const toPoint = getMarkerEffectPoint(toMarker, ctx);
@@ -239,14 +248,15 @@ export function playBossLineEffect(
     alpha: 0,
     duration: 760,
     ease: 'Cubic.easeOut',
-    onComplete: () => cleanupTargets.forEach((target) => target.destroy()),
+    onComplete: () => {
+      cleanupTargets.forEach((target) => {
+        target.destroy();
+      });
+    },
   });
 }
 
-export function playBossThornsPulse(
-  ctx: BoardAnimationContext,
-  marker: Phaser.GameObjects.Sprite
-): void {
+export function playBossThornsPulse(ctx: BoardAnimationContext, marker: Phaser.GameObjects.Sprite): void {
   playBossPulse(ctx, marker, 'Boss 荆棘', 0x8e24aa, '#f3e5f5', 2.05);
 
   const { x: centerX, y: centerY } = getMarkerEffectPoint(marker, ctx);
@@ -308,7 +318,10 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
       const attackState: CharacterAnimationState = 'attack_crit';
       const attackAnimEvent = `animationcomplete-${getAnimationKey(sourceProfile, attackState)}`;
 
-      if (sourceProfile.animations[attackState] && sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)) {
+      if (
+        sourceProfile.animations[attackState] &&
+        sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)
+      ) {
         sourceMarker.removeAllListeners(attackAnimEvent);
         sourceRenderer.play(ctx.scene, sourceMarker, sourceProfile, attackState);
         sourceMarker.once(attackAnimEvent, () => {
@@ -328,7 +341,10 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
       const attackState: CharacterAnimationState = Math.random() < 0.5 ? 'attack_1' : 'attack_2';
       const attackAnimEvent = `animationcomplete-${getAnimationKey(sourceProfile, attackState)}`;
 
-      if (sourceProfile.animations[attackState] && sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)) {
+      if (
+        sourceProfile.animations[attackState] &&
+        sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)
+      ) {
         sourceMarker.removeAllListeners(attackAnimEvent);
         sourceRenderer.play(ctx.scene, sourceMarker, sourceProfile, attackState);
         sourceMarker.once(attackAnimEvent, () => {
@@ -348,7 +364,7 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
     ctx.players,
     ctx.playerMarkers,
     ctx.characterRenderOptions,
-    !isDefeated
+    !isDefeated,
   );
 
   bossMarker.setTint(0xffffff);
@@ -366,8 +382,14 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
       if (!currentBossPlayer || !currentBossMarker) return;
 
       playBossProfileAnimation(
-        ctx.scene, currentBossMarker, currentBossPlayer.player_id, 'defeated',
-        ctx.players, ctx.playerMarkers, ctx.characterRenderOptions, false
+        ctx.scene,
+        currentBossMarker,
+        currentBossPlayer.player_id,
+        'defeated',
+        ctx.players,
+        ctx.playerMarkers,
+        ctx.characterRenderOptions,
+        false,
       );
     });
   }
@@ -385,14 +407,27 @@ export function playBossAttackAnimation(ctx: BoardAnimationContext, context: Log
   }
 
   playBossProfileAnimation(
-    ctx.scene, bossMarker, bossPlayer.player_id, 'attack',
-    ctx.players, ctx.playerMarkers, ctx.characterRenderOptions
+    ctx.scene,
+    bossMarker,
+    bossPlayer.player_id,
+    'attack',
+    ctx.players,
+    ctx.playerMarkers,
+    ctx.characterRenderOptions,
   );
 
   const attackType = getMetadataString(entry.metadata, 'attack_type') || 'normal';
   const isCrit = attackType === 'crit' || getMetadataBoolean(entry.metadata, 'is_crit');
   const color = isCrit ? 0xff1744 : 0xd32f2f;
-  playBossPulse(ctx, bossMarker, isCrit ? 'Boss 暴击' : 'Boss 普攻', color, '#ffebee', isCrit ? 2.4 : 2.0, bossPlayer.player_id);
+  playBossPulse(
+    ctx,
+    bossMarker,
+    isCrit ? 'Boss 暴击' : 'Boss 普攻',
+    color,
+    '#ffebee',
+    isCrit ? 2.4 : 2.0,
+    bossPlayer.player_id,
+  );
 
   if (targetMarker) {
     playBossLineEffect(ctx, bossMarker, targetMarker, color, isCrit ? 'CRIT' : 'ATTACK');
@@ -402,7 +437,7 @@ export function playBossAttackAnimation(ctx: BoardAnimationContext, context: Log
 export function playBossThunderFlash(
   ctx: BoardAnimationContext,
   marker: Phaser.GameObjects.Sprite,
-  playerId?: string
+  playerId?: string,
 ): void {
   const { x, y } = getMarkerEffectPoint(marker, ctx, playerId);
 
@@ -417,10 +452,7 @@ export function playBossThunderFlash(
   });
 }
 
-export function playBossThunderStrike(
-  ctx: BoardAnimationContext,
-  marker: Phaser.GameObjects.Sprite
-): void {
+export function playBossThunderStrike(ctx: BoardAnimationContext, marker: Phaser.GameObjects.Sprite): void {
   const landingX = marker.x;
   const landingY = marker.y + CHARACTER_HALF_HEIGHT;
 
@@ -439,18 +471,20 @@ export function playBossThunderStrike(
   ctx.scene.cameras.main.shake(640, 0.005);
 }
 
-export function playBossSkillAnimation(
-  ctx: BoardAnimationContext,
-  context: LogEntryAnimationContext
-): void {
+export function playBossSkillAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
   const { entry } = context;
   const bossPlayer = getBossPlayer(ctx.players);
   const bossMarker = getBossMarker(ctx.players, ctx.playerMarkers);
   if (!bossPlayer || !bossMarker) return;
 
   playBossProfileAnimation(
-    ctx.scene, bossMarker, bossPlayer.player_id, 'skill_cast',
-    ctx.players, ctx.playerMarkers, ctx.characterRenderOptions
+    ctx.scene,
+    bossMarker,
+    bossPlayer.player_id,
+    'skill_cast',
+    ctx.players,
+    ctx.playerMarkers,
+    ctx.characterRenderOptions,
   );
 
   const skillType = getMetadataString(entry.metadata, 'skill_type') || 'skill';
@@ -473,7 +507,9 @@ export function playBossSkillAnimation(
       break;
     case 'curse':
       playBossPulse(ctx, bossMarker, 'Boss 诅咒', 0x7e57c2, '#f3e5f5', 2.1, bossPlayer.player_id);
-      targetMarkers.forEach((marker) => playBossPulse(ctx, marker, '诅咒', 0x7e57c2, '#f3e5f5', 1.8));
+      targetMarkers.forEach((marker) => {
+        playBossPulse(ctx, marker, '诅咒', 0x7e57c2, '#f3e5f5', 1.8);
+      });
       break;
     case 'rest':
       playBossPulse(ctx, bossMarker, 'Boss 回复', 0x66bb6a, '#e8f5e9', 2.2, bossPlayer.player_id);

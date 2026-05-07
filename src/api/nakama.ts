@@ -4,8 +4,8 @@
  * 导出 nakama-js 的类型和 Client 类
  */
 
+export type { Match, MatchData, Presence, Session, Socket } from '@heroiclabs/nakama-js';
 export { Client } from '@heroiclabs/nakama-js';
-export type { Session, Socket, Match, MatchData, Presence } from '@heroiclabs/nakama-js';
 
 /**
  * RoomLabel - parsed match label JSON structure
