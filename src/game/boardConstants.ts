@@ -84,6 +84,14 @@ export const LOST_WAY_RECOVERY_START_DELAY = 1800;    // recovery shader progres
 export const LOST_WAY_RECOVERY_DURATION = 500;        // recovery duration
 export const LOST_WAY_TOTAL_EFFECT_MS = 2300;         // total effect duration after popup
 
+// Hidden buff animation timing constants (ms)
+export const HIDDEN_BUFF_DISSOLVE_START_DELAY = 200;    // delay before dissolve begins
+export const HIDDEN_BUFF_DISSOLVE_DURATION = 800;       // dissolve/disintegrate duration
+export const HIDDEN_BUFF_HIDDEN_DURATION = 400;          // hidden (fully dissolved) duration
+export const HIDDEN_BUFF_RECOVERY_START_DELAY = 1200;   // recovery start (200+800+400)
+export const HIDDEN_BUFF_RECOVERY_DURATION = 500;       // recovery/reassemble duration
+export const HIDDEN_BUFF_TOTAL_EFFECT_MS = 1700;        // total effect duration after popup
+
 // Dizzy animation timing constants (ms)
 export const DIZZY_TOTAL_EFFECT_MS = 1500;            // total dizzy effect duration
 export const DIZZY_TINT_COLOR = 0x9c27b0;             // purple tint for stunned look
