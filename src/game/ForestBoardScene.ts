@@ -71,6 +71,15 @@ import {
   PROJECTILE_FIREBALL_ANIMATION_KEY,
   PROJECTILE_FIREBALL_FRAME_COUNT,
   PROJECTILE_FRAME_RATE,
+  RELIC_TEXTURE_KEY,
+  RELIC_BOMB_TEXTURE_KEY,
+  RELIC_BOMB_ANIMATION_KEY,
+  RELIC_BOMB_FRAME_COUNT,
+  RELIC_BOMB_FRAME_RATE,
+  RELIC_BOMB_FRAME_WIDTH,
+  RELIC_BOMB_FRAME_HEIGHT,
+  WEAPON_CATEGORIES,
+  WEAPON_ICON_KEYS,
 } from './boardConstants';
 import { type PopupContext } from './boardAnimations/popup';
 import type { BoardAnimationContext } from './boardAnimations/eventAnimations';
@@ -307,6 +316,22 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: 150
     });
 
+    // Load relic chest image for relic event
+    this.load.image(RELIC_TEXTURE_KEY, '/assets/effects/relic.png');
+
+    // Load relic bomb sprite sheet for relic event explosion
+    this.load.spritesheet(RELIC_BOMB_TEXTURE_KEY, '/assets/effects/relic-bomb.png', {
+      frameWidth: RELIC_BOMB_FRAME_WIDTH,
+      frameHeight: RELIC_BOMB_FRAME_HEIGHT
+    });
+
+    // Load weapon icon images for relic event fly-out animation
+    WEAPON_CATEGORIES.forEach((category) => {
+      WEAPON_ICON_KEYS[category].forEach((iconName) => {
+        this.load.image(`weapon-${category}-${iconName}`, `/assets/weapons/${category}/${iconName}.png`);
+      });
+    });
+
     this.load.image('event-popup-frame', '/assets/frame/event_frame.png');
 
     this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
@@ -486,6 +511,16 @@ export class ForestBoardScene extends Phaser.Scene {
       frameRate: 12,
       repeat: 0
     });
+
+    // Create relic bomb animation for relic event explosion (9 frames)
+    if (!this.anims.exists(RELIC_BOMB_ANIMATION_KEY)) {
+      this.anims.create({
+        key: RELIC_BOMB_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(RELIC_BOMB_TEXTURE_KEY, { start: 0, end: RELIC_BOMB_FRAME_COUNT - 1 }),
+        frameRate: RELIC_BOMB_FRAME_RATE,
+        repeat: 0
+      });
+    }
 
     if (!this.anims.exists(WARP_DOOR_ANIMATION_KEY)) {
       this.anims.create({

@@ -5,7 +5,7 @@ import type { AnimationOrchestrator } from '../animationOrchestrator';
 import type { CharacterRenderOptions } from '../characterRenderConfig';
 import { resolveCharacterProfile, getCharacterRenderer, getAnimationKey } from '../characterRenderConfig';
 import { LAYER_FULLSCREEN_EFFECT, LAYER_SHADER_OVERLAY, LAYER_LOST_WAY_CHARACTER, worldDepth, LAYER_EFFECT_BASE } from '../renderLayers';
-import { CHARACTER_HALF_HEIGHT, LOST_WAY_DISSOLVE_START_DELAY, LOST_WAY_DISSOLVE_DURATION, LOST_WAY_DIZZY_START_DELAY, LOST_WAY_DIZZY_DURATION, LOST_WAY_RECOVERY_START_DELAY, LOST_WAY_RECOVERY_DURATION, LOST_WAY_TOTAL_EFFECT_MS, DIZZY_TINT_COLOR, HIDDEN_BUFF_DISSOLVE_START_DELAY, HIDDEN_BUFF_DISSOLVE_DURATION, HIDDEN_BUFF_RECOVERY_START_DELAY, HIDDEN_BUFF_RECOVERY_DURATION, HIDDEN_BUFF_TOTAL_EFFECT_MS } from '../boardConstants';
+import { CHARACTER_HALF_HEIGHT, LOST_WAY_DISSOLVE_START_DELAY, LOST_WAY_DISSOLVE_DURATION, LOST_WAY_DIZZY_START_DELAY, LOST_WAY_DIZZY_DURATION, LOST_WAY_RECOVERY_START_DELAY, LOST_WAY_RECOVERY_DURATION, LOST_WAY_TOTAL_EFFECT_MS, DIZZY_TINT_COLOR, HIDDEN_BUFF_DISSOLVE_START_DELAY, HIDDEN_BUFF_DISSOLVE_DURATION, HIDDEN_BUFF_RECOVERY_START_DELAY, HIDDEN_BUFF_RECOVERY_DURATION, HIDDEN_BUFF_TOTAL_EFFECT_MS, RELIC_TEXTURE_KEY, RELIC_BOMB_TEXTURE_KEY, RELIC_BOMB_ANIMATION_KEY, RELIC_CHEST_APPEAR_DELAY, RELIC_CHEST_APPEAR_DURATION, RELIC_BOMB_START_DELAY, RELIC_WEAPON_FLY_DELAY, RELIC_WEAPON_FLY_DURATION, RELIC_WEAPON_DISAPPEAR_DELAY, RELIC_WEAPON_DISAPPEAR_DURATION, RELIC_TOTAL_EFFECT_MS, RELIC_CHEST_OFFSET_X, RELIC_CHEST_START_OFFSET_Y, RELIC_CHEST_LAND_OFFSET_Y, RELIC_BOMB_SCALE, RELIC_WEAPON_LANDING_OFFSETS, RELIC_WEAPON_LAND_Y_OFFSET, RELIC_WEAPON_PEAK_HEIGHT_MIN, RELIC_WEAPON_PEAK_HEIGHT_MAX, WEAPON_CATEGORIES, WEAPON_ICON_KEYS, RELIC_WEAPON_COUNT } from '../boardConstants';
 import { LOST_WAY_DISSOLVE_SHADER_NAME, LOST_WAY_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/lostWayDissolve';
 import { HIDDEN_BUFF_DISSOLVE_SHADER_NAME, HIDDEN_BUFF_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/hiddenBuffDissolve';
 import { getEventEffectConfig, getEventTypeFromEntry } from '../eventAnimations';
@@ -69,6 +69,8 @@ export async function playDrawEventAnimation(
     playLostWayAnimation(ctx, context);
   } else if (eventType === 'hidden_buff') {
     playHiddenBuffAnimation(ctx, context);
+  } else if (eventType === 'relic') {
+    playRelicAnimation(ctx, context);
   }
 }
 
@@ -614,6 +616,167 @@ export function playHiddenBuffAnimation(ctx: BoardAnimationContext, context: Log
         if (shaderObj.active) shaderObj.destroy();
         if (cleanupTracker.active) cleanupTracker.destroy();
       },
+    });
+  });
+}
+
+/**
+ * Shuffle an array in-place using Fisher-Yates algorithm.
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+/**
+ * Pick a random icon key from a weapon category.
+ */
+function randomWeaponIconKey(category: string): string {
+  const icons = WEAPON_ICON_KEYS[category as keyof typeof WEAPON_ICON_KEYS];
+  if (!icons || icons.length === 0) return '';
+  const iconName = icons[Math.floor(Math.random() * icons.length)];
+  return `weapon-${category}-${iconName}`;
+}
+
+/**
+ * Play the relic chest animation: chest drops from above to the player's front,
+ * explodes (smaller scale), then weapons fly out in parabolic arcs and land
+ * near the player's feet level, before sparkling and fading away.
+ */
+export function playRelicAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  // Chest lands slightly above feet level (visual centering), offset to the right
+  const feetY = marker.y + CHARACTER_HALF_HEIGHT;
+  const chestTargetX = marker.x + RELIC_CHEST_OFFSET_X;
+  const chestTargetY = feetY + RELIC_CHEST_LAND_OFFSET_Y; // slightly above feet for better visual
+  const chestStartY = chestTargetY + RELIC_CHEST_START_OFFSET_Y; // start above (drops down)
+
+  // --- Phase 1: Chest drops from above (scale 0→1.5, y from above to landing) ---
+  const chestSprite = ctx.scene.add.image(chestTargetX, chestStartY, RELIC_TEXTURE_KEY);
+  chestSprite.setOrigin(0.5, 0.5);
+  chestSprite.setScale(0);
+  chestSprite.setAlpha(0);
+  chestSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+
+  ctx.orchestrator.registerCleanupOnTimer(chestSprite, RELIC_TOTAL_EFFECT_MS + 500);
+
+  ctx.scene.time.delayedCall(RELIC_CHEST_APPEAR_DELAY, () => {
+    ctx.tweens.add({
+      targets: chestSprite,
+      scaleX: { from: 0, to: 1.5 },
+      scaleY: { from: 0, to: 1.5 },
+      alpha: { from: 0, to: 1 },
+      y: { from: chestStartY, to: chestTargetY },
+      duration: RELIC_CHEST_APPEAR_DURATION,
+      ease: 'Bounce.easeOut', // bouncing landing feel
+    });
+  });
+
+  // --- Phase 2: Chest fade out + Bomb explosion (smaller scale, at chest position) ---
+  ctx.scene.time.delayedCall(RELIC_BOMB_START_DELAY, () => {
+    // Fade out chest
+    ctx.tweens.add({
+      targets: chestSprite,
+      alpha: { from: 1, to: 0 },
+      duration: 200,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        if (chestSprite.active) chestSprite.destroy();
+      },
+    });
+
+    // Play bomb explosion spritesheet (smaller scale to just cover the chest)
+    const bombSprite = ctx.scene.add.sprite(chestTargetX, chestTargetY, RELIC_BOMB_TEXTURE_KEY);
+    bombSprite.setScale(RELIC_BOMB_SCALE);
+    bombSprite.setOrigin(0.5, 0.5);
+    bombSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+    bombSprite.setTint(0xffd700); // golden tint
+    bombSprite.play(RELIC_BOMB_ANIMATION_KEY);
+
+    ctx.orchestrator.registerCleanupOnAnimationComplete(bombSprite);
+
+    ctx.scene.cameras.main.shake(300, 0.004);
+  });
+
+  // --- Phase 3: Weapon parabolic fly-out (rise then fall to feet) ---
+  ctx.scene.time.delayedCall(RELIC_WEAPON_FLY_DELAY, () => {
+    const categories = shuffleArray([...WEAPON_CATEGORIES]).slice(0, RELIC_WEAPON_COUNT);
+    const weaponSprites: Phaser.GameObjects.Image[] = [];
+
+    categories.forEach((category, i) => {
+      const textureKey = randomWeaponIconKey(category);
+      if (!textureKey) return;
+
+      const landingX = chestTargetX + RELIC_WEAPON_LANDING_OFFSETS[i];
+      const peakHeight = RELIC_WEAPON_PEAK_HEIGHT_MIN + Math.random() * (RELIC_WEAPON_PEAK_HEIGHT_MAX - RELIC_WEAPON_PEAK_HEIGHT_MIN);
+      const peakY = chestTargetY - peakHeight;
+
+      const weaponSprite = ctx.scene.add.image(chestTargetX, chestTargetY, textureKey);
+      weaponSprite.setScale(0);
+      weaponSprite.setAlpha(0);
+      weaponSprite.setOrigin(0.5, 0.5);
+      weaponSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+      weaponSprites.push(weaponSprite);
+
+      // Quick appear
+      ctx.tweens.add({
+        targets: weaponSprite,
+        scaleX: { from: 0, to: 0.8 },
+        scaleY: { from: 0, to: 0.8 },
+        alpha: { from: 0, to: 1 },
+        duration: 100,
+      });
+
+      // X-axis: horizontal movement to landing position (full duration)
+      ctx.tweens.add({
+        targets: weaponSprite,
+        x: landingX,
+        duration: RELIC_WEAPON_FLY_DURATION,
+        ease: 'Sine.easeInOut',
+      });
+
+      // Y-axis rise phase: fly upward (decelerating)
+      ctx.tweens.add({
+        targets: weaponSprite,
+        y: peakY,
+        duration: 300,
+        ease: 'Quad.easeOut',
+      });
+
+      // Y-axis fall phase: fall back down to landing level (accelerating, delayed after rise)
+      ctx.tweens.add({
+        targets: weaponSprite,
+        y: feetY + RELIC_WEAPON_LAND_Y_OFFSET, // land slightly above feet height
+        delay: 300,
+        duration: 400,
+        ease: 'Quad.easeIn',
+      });
+    });
+
+    // --- Phase 4: Weapons sparkle + fade out (after landing and staying briefly) ---
+    ctx.scene.time.delayedCall(RELIC_WEAPON_DISAPPEAR_DELAY - RELIC_WEAPON_FLY_DELAY, () => {
+      weaponSprites.forEach((sprite) => {
+        // Golden sparkle tint
+        sprite.setTint(0xffd700);
+
+        ctx.tweens.add({
+          targets: sprite,
+          alpha: { from: 1, to: 0 },
+          scaleX: { from: 0.8, to: 1.2 },
+          scaleY: { from: 0.8, to: 1.2 },
+          duration: RELIC_WEAPON_DISAPPEAR_DURATION,
+          ease: 'Sine.easeOut',
+          onComplete: () => {
+            if (sprite.active) sprite.destroy();
+          },
+        });
+      });
     });
   });
 }
