@@ -25,6 +25,13 @@ export const LP_MINUS_FRAME_HEIGHT = 64;
 export const LP_MINUS_FRAME_COUNT = 21;
 export const LP_MINUS_FRAME_RATE = 18;
 
+export const DIVINE_BLESS_WINGS_TEXTURE_KEY = 'divine-bless-wings';
+export const DIVINE_BLESS_WINGS_SCALE = 0.2;
+export const DIVINE_BLESS_WINGS_OFFSET_Y = -4;
+export const DIVINE_BLESS_WINGS_APPEAR_DURATION = 280;
+export const DIVINE_BLESS_WINGS_HOLD_DURATION = 520;
+export const DIVINE_BLESS_WINGS_DISAPPEAR_DURATION = 320;
+
 export const BLACKHOLE_TEXTURE_KEY = 'blackhole';
 export const BLACKHOLE_ANIMATION_KEY = 'blackhole-rotate';
 export const BLACKHOLE_ANI_TEXTURE_KEY = 'blackhole-ani';

@@ -38,6 +38,7 @@ import {
   LP_ADD_FRAME_RATE,
   LP_MINUS_TEXTURE_KEY,
   LP_MINUS_ANIMATION_KEY,
+  DIVINE_BLESS_WINGS_TEXTURE_KEY,
   LP_MINUS_FRAME_WIDTH,
   LP_MINUS_FRAME_HEIGHT,
   LP_MINUS_FRAME_COUNT,
@@ -318,6 +319,7 @@ export class ForestBoardScene extends Phaser.Scene {
 
     // Load relic chest image for relic event
     this.load.image(RELIC_TEXTURE_KEY, '/assets/effects/relic.png');
+    this.load.image(DIVINE_BLESS_WINGS_TEXTURE_KEY, '/assets/effects/wings.png');
 
     // Load relic bomb sprite sheet for relic event explosion
     this.load.spritesheet(RELIC_BOMB_TEXTURE_KEY, '/assets/effects/relic-bomb.png', {
