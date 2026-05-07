@@ -33,6 +33,8 @@ const BOSS_DEFEATED_ANIMATION_DELAY_MS = 1900;
 const EFFECT_START_GAP_MS = 200;
 // Estimated extra time for draw_event effect animations after popup dismiss
 const DRAW_EVENT_EFFECT_EXTRA_MS = 1000;
+// Lost way animation total duration (popup 2500 + gap 200 + effect 2300)
+const LOST_WAY_ANIMATION_DELAY_MS = 5000;
 
 const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
   'damage->death': 180,
@@ -187,6 +189,11 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   // Ghost_hit draw_event should chain to damage with overlap (popup must finish first).
   if (currentActionType === 'draw_event' && currentEventType === 'ghost_hit' && nextActionType === 'damage') {
     return 2900;
+  }
+
+  // Lost way draw_event has a longer animation (dissolve + recovery phases).
+  if (currentActionType === 'draw_event' && currentEventType === 'lost_way') {
+    return LOST_WAY_ANIMATION_DELAY_MS;
   }
 
   if (context.nextEntry) {
