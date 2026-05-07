@@ -9,6 +9,8 @@ import { useGameStore, Scene } from './store/gameStore';
 import { gameService } from './service/NakamaService';
 import {
   HomeScene,
+  CreateRoomScene,
+  JoinRoomScene,
   LobbyScene,
   BoardScene,
   MiniGameSubmitRankScene,
@@ -20,8 +22,8 @@ import {
  */
 const sceneComponents: Record<Scene, React.ComponentType> = {
   [Scene.Home]: HomeScene,
-  [Scene.CreateRoom]: HomeScene, // 暂时复用 HomeScene
-  [Scene.JoinRoom]: HomeScene, // 暂时复用 HomeScene
+  [Scene.CreateRoom]: CreateRoomScene,
+  [Scene.JoinRoom]: JoinRoomScene,
   [Scene.Lobby]: LobbyScene,
   [Scene.Loading]: LoadingScene,
   [Scene.MiniGameSubmitRank]: MiniGameSubmitRankScene,
@@ -73,12 +75,11 @@ function BossBattleScene() {
  */
 const App: React.FC = () => {
   const currentScene = useGameStore((state) => state.currentScene);
-
   // 用于跟踪是否正在恢复 session
   const [isRestoring, setIsRestoring] = useState(true);
-
-  // 应用启动时尝试恢复 session
+  // 应用启动时尝试恢复 session。
   useEffect(() => {
+
     const tryRestore = async () => {
       try {
         const restored = await gameService.restoreSession();
@@ -97,6 +98,9 @@ const App: React.FC = () => {
   if (isRestoring) {
     return (
       <div style={styles.app}>
+        <span className="zpix-font-loader" aria-hidden="true">
+          Zpix 中文字体预加载
+        </span>
         <main style={styles.main}>
           <LoadingScene />
         </main>
@@ -104,22 +108,41 @@ const App: React.FC = () => {
     );
   }
 
-  const SceneComponent = sceneComponents[currentScene] || HomeScene;
+  const isMiniGameOverlay = currentScene === Scene.MiniGameSubmitRank;
+  const SceneComponent = isMiniGameOverlay ? BoardScene : (sceneComponents[currentScene] || HomeScene);
+  const isHomeScene =
+    currentScene === Scene.Home ||
+    currentScene === Scene.CreateRoom ||
+    currentScene === Scene.JoinRoom;
 
   return (
     <div style={styles.app}>
-      <header style={styles.header}>
-        <h1 style={styles.logo}>ParaDiced</h1>
-        <nav style={styles.nav}>
-          <span>场景：{currentScene}</span>
-        </nav>
-      </header>
-      <main style={styles.main}>
+      <span className="zpix-font-loader" aria-hidden="true">
+        Zpix 中文字体预加载
+      </span>
+      {!isHomeScene && (
+        <header style={styles.header}>
+          <h1 style={styles.logo}>ParaDiced</h1>
+          <nav style={styles.nav}>
+            <span>场景：{currentScene}</span>
+          </nav>
+        </header>
+      )}
+      <main style={isHomeScene ? { ...styles.main, ...styles.homeMain } : styles.main}>
         <SceneComponent />
       </main>
-      <footer style={styles.footer}>
-        <p>派乐代 - 回合制派对游戏</p>
-      </footer>
+
+      {isMiniGameOverlay && (
+        <div style={styles.overlay}>
+          <MiniGameSubmitRankScene />
+        </div>
+      )}
+
+      {!isHomeScene && (
+        <footer style={styles.footer}>
+          <p>派乐代 - 回合制派对游戏</p>
+        </footer>
+      )}
     </div>
   );
 };
@@ -152,6 +175,9 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     padding: '20px',
   },
+  homeMain: {
+    padding: 0,
+  },
   footer: {
     backgroundColor: '#333',
     color: 'white',
@@ -162,6 +188,18 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     padding: '20px',
     textAlign: 'center',
+  },
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
   },
 };
 

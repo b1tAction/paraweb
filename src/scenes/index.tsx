@@ -3,9 +3,11 @@
  */
 
 export { HomeScene } from './HomeScene';
+export { CreateRoomScene } from './CreateRoomScene';
+export { JoinRoomScene } from './JoinRoomScene';
 export { LobbyScene } from './LobbyScene';
 export { BoardScene } from './BoardScene';
-export { MiniGameSubmitRankScene, MiniGameSubmitRankScene as MiniGameScene } from './MiniGameScene';
+export { MiniGameSubmitRankScene, MiniGameSubmitRankScene as MiniGameScene } from './minigame';
 export { GameOverScene } from './GameOverScene';
 
 // TODO: 后续添加其他场景

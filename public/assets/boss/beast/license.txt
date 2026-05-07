@@ -1,0 +1,2 @@
+Source: boss.zip / CraftPix asset pack. License reference: https://craftpix.net/file-licenses/
+Integrated files: portrait.png (cropped from Idle.png), idle.png, hurt.png (from Hurt.png), attack.png, skill_cast.png, defeated.png. Do not redistribute original PSD/source files separately.

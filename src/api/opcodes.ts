@@ -7,11 +7,8 @@
 
 // ========== Server -> Client Messages ==========
 
-/** 完整状态同步 - 进入新状态时广播 */
+/** 完整状态同步 (含增量动画 entries) - 进入新状态时广播 */
 export const OpStateSync = 1;
-
-/** 回合效果列表 - 用于客户端渲染 */
-export const OpTurnSync = 2;
 
 /** 决策请求 - 请求用户输入 (掷骰子、道具选择等) */
 export const OpDecisionRequest = 3;
@@ -37,6 +34,9 @@ export const OpActionRejected = 9;
 /** 等待同步 - 游戏开始前房主等待状态 */
 export const OpWaitingSync = 10;
 
+/** 开始游戏确认 - 房主开始游戏后广播地图配置 */
+export const OpStartGameAck = 11;
+
 // ========== Client -> Server Messages ==========
 
 /** 掷骰子请求 */
@@ -51,11 +51,20 @@ export const OpUseSkill = 102;
 /** 决策选择响应 */
 export const OpUserChoice = 103;
 
-/** 小游戏排名提交 (已废弃 - 服务端计算) */
-export const OpMiniGameResultSubmit = 104;
+/** 房主移出等待房间玩家 */
+export const OpKickPlayer = 104;
 
 /** 房主开始游戏请求 */
 export const OpStartGame = 105;
+
+/** 轮结束就绪信号 - 客户端渲染完毕后发送 */
+export const OpRoundReady = 106;
+
+/** 小游戏数据提交 - 客户端提交 game_data，服务端计算排名 */
+export const OpMiniGameDataSubmit = 107;
+
+/** 等待房间玩家设置更新 */
+export const OpUpdateLobbyPlayer = 108;
 
 // ========== OpCode 工具函数 ==========
 
@@ -63,7 +72,6 @@ export const OpStartGame = 105;
 export function getOpCodeName(opCode: number): string {
   const names: Record<number, string> = {
     [OpStateSync]: 'state_sync',
-    [OpTurnSync]: 'turn_sync',
     [OpDecisionRequest]: 'decision_request',
     [OpAvailable]: 'available',
     [OpMiniGameStart]: 'mini_game_start',
@@ -72,12 +80,16 @@ export function getOpCodeName(opCode: number): string {
     [OpFullSync]: 'full_sync',
     [OpActionRejected]: 'action_rejected',
     [OpWaitingSync]: 'waiting_sync',
+    [OpStartGameAck]: 'start_game_ack',
     [OpRollDice]: 'roll_dice',
     [OpUseItem]: 'use_item',
     [OpUseSkill]: 'use_skill',
     [OpUserChoice]: 'user_choice',
-    [OpMiniGameResultSubmit]: 'mini_game_result_submit',
+    [OpKickPlayer]: 'kick_player',
     [OpStartGame]: 'start_game',
+    [OpRoundReady]: 'round_ready',
+    [OpMiniGameDataSubmit]: 'mini_game_data_submit',
+    [OpUpdateLobbyPlayer]: 'update_lobby_player',
   };
   return names[opCode] || 'unknown';
 }

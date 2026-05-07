@@ -23,29 +23,37 @@ export interface StateSync {
   turn: number;
   /** 是否暂停 (等待决策) */
   paused: boolean;
-  /** 所有玩家状态 */
+  /** 玩家列表 */
   players: Player[];
   /** 地图信息 */
   map: MapInfo;
-}
-
-/**
- * TurnSync - 回合效果列表
- * 在执行效果后广播，客户端按顺序渲染
- */
-export interface TurnSync {
-  /** 当前轮次 */
-  round: number;
-  /** 当前回合索引 */
-  turn: number;
-  /** 当前回合玩家 ID */
-  current_player_id: string;
-  /** 日志条目列表 */
-  entries: LogEntry[];
+  /** 回合效果日志 */
+  entries?: LogEntry[];
 }
 
 /**
  * LogEntry - 游戏日志条目
+ *
+ * metadata 字段契约 (按 action_type 分类):
+ * - damage: hp_change, blocked_by?, piercing?
+ * - heal: hp_change
+ * - modify_lp: lp_change
+ * - move: steps, start_pos, end_pos, path
+ * - add_buff: buff_type, duration
+ * - remove_buff: buff_type
+ * - draw_event: event_type
+ * - draw_item: item_type
+ * - draw_buff: buff_type
+ * - teleport: from_pos, to_pos
+ * - steal_buff: stolen_by, buff_type
+ * - fell_down: position, hp_change
+ * - respawn: checkpoint_pos
+ * - boss_damage: damage, is_crit, boss_remaining_hp
+ * - boss_attack: attack_type, target
+ * - boss_skill: skill_type, targets
+ * - dice_roll: dice_type, dice_steps
+ * - dice_upgrade: from_dice, to_dice
+ * - state: from, to
  */
 export interface LogEntry {
   /** 时间戳 */
@@ -100,6 +108,8 @@ export interface Player {
   position: number;
   /** 生命值 */
   hp: number;
+  /** 最大生命值 (用于血条渲染) */
+  max_hp: number;
   /** 幸运值 */
   lp: number;
   /** 增益效果列表 */
@@ -114,6 +124,8 @@ export interface Player {
   is_dead: boolean;
   /** 是否跳过回合 */
   skip_turn: boolean;
+  /** 是否 Boss 特殊玩家 */
+  is_boss?: boolean;
 }
 
 /**
@@ -138,6 +150,8 @@ export interface Item {
   type: string;
   /** 中文显示名称 */
   name: string;
+  /** 是否需要选择目标 */
+  targetable?: boolean;
 }
 
 /**
@@ -191,6 +205,20 @@ export interface MiniGameStart {
   game_type: string;
   /** 参与玩家 ID 列表 */
   players: string[];
+  /** 连接信息 (可选，用于 Colyseus 实时模式) */
+  connection?: MiniGameConn;
+}
+
+/**
+ * MiniGameConn - 小游戏实时连接信息 (用于 Colyseus 等)
+ */
+export interface MiniGameConn {
+  /** 服务器 URL */
+  url: string;
+  /** 房间 ID */
+  room_id: string;
+  /** 认证 Token */
+  token: string;
 }
 
 /**
@@ -211,6 +239,8 @@ export interface RankingEntry {
   display_name: string;
   /** 排名 (1-4) */
   rank: number;
+  /** 小游戏原始数据 (不同 game_type 有不同结构) */
+  game_data?: Record<string, any>;
 }
 
 /**
@@ -287,6 +317,115 @@ export interface WaitingPlayer {
   is_host: boolean;
 }
 
+/**
+ * StartGameAck - 开始游戏确认信号
+ * 房主发送 OpStartGame 后，服务端广播此信号给所有玩家
+ */
+export interface StartGameAck {
+  /** 完整地图配置 */
+  map_config: MapConfig;
+  /** 定义目录 (事件/增益/道具的完整元数据) */
+  definitions: DefinitionsConfig;
+}
+
+/**
+ * MapConfig - 完整地图配置 (对齐 pkg/net.MapConfig)
+ * 包含地图所有格子的完整信息，用于前端渲染
+ */
+export interface MapConfig {
+  /** 地图长度 (格子数) */
+  length: number;
+  /** 起点索引 */
+  start_index: number;
+  /** 终点索引 (Boss 格子) */
+  end_index: number;
+  /** 格子配置列表 */
+  cells: MapCellConfig[];
+}
+
+/**
+ * MapCellConfig - 完整格子配置 (对齐 pkg/net.MapCellConfig)
+ * 包含格子类型、绘制类型、概率等完整信息
+ */
+export interface MapCellConfig {
+  /** 格子索引 (0 到 Length-1) */
+  index: number;
+  /** 格子类型 (normal, fragile, fog, checkpoint, boss, event) */
+  cell_type: string;
+  /** 是否已破坏 (仅 Fragile 类型) */
+  is_broken: boolean;
+  /** 事件 ID (仅 Event 类型格子) */
+  event_id: string;
+  /** 是否激活迷雾 (仅 Fog 类型) */
+  fog_active: boolean;
+  /** 绘制类型 (none, event, item) - 决定着陆时抽取什么 */
+  draw_type: string;
+  /** 好事件概率权重 */
+  prob_good: number;
+  /** 中性事件概率权重 */
+  prob_neutral: number;
+  /** 坏事件概率权重 */
+  prob_bad: number;
+}
+
+// ========== 定义目录类型 ==========
+
+/**
+ * DefinitionsConfig - 定义目录
+ * 通过 OpStartGameAck 推送，客户端用于查表获取 name/desc
+ */
+export interface DefinitionsConfig {
+  /** 事件定义 */
+  events: Record<string, EventDefinitionConfig>;
+  /** 增益定义 */
+  buffs: Record<string, BuffDefinitionConfig>;
+  /** 道具定义 */
+  items: Record<string, ItemDefinitionConfig>;
+}
+
+/**
+ * EventDefinitionConfig - 事件定义配置
+ */
+export interface EventDefinitionConfig {
+  type: string;
+  evaluation: number;
+  category: string; // "good"/"neutral"/"bad"
+  english_name: string;
+  name: string;
+  desc: string;
+}
+
+/**
+ * BuffDefinitionConfig - 增益定义配置
+ */
+export interface BuffDefinitionConfig {
+  type: string;
+  evaluation: number;
+  category: string; // "good"/"neutral"/"bad"
+  english_name: string;
+  name: string;
+  desc: string;
+  duration: number;
+  is_positive: boolean;
+  is_negative: boolean;
+  is_hidden: boolean;
+  is_boss: boolean;
+  is_faction: boolean;
+  is_draw: boolean;
+}
+
+/**
+ * ItemDefinitionConfig - 道具定义配置
+ */
+export interface ItemDefinitionConfig {
+  type: string;
+  evaluation: number;
+  category: string; // "good"/"neutral"/"bad"
+  english_name: string;
+  name: string;
+  desc: string;
+}
+
 // ========== 客户端 -> 服务端消息类型 ==========
 
 /**
@@ -310,7 +449,8 @@ export interface UseItem {
  * UseSkill - 使用技能请求
  */
 export interface UseSkill {
-  // 空对象，服务端检查玩家阵营和充能状态
+  /** 目标玩家 UUID（白虎劫运需要指定目标） */
+  target_id?: string;
 }
 
 /**
@@ -324,11 +464,22 @@ export interface UserChoice {
 }
 
 /**
- * MiniGameResultSubmit - 小游戏结果提交 (已废弃)
+ * KickPlayer - 房主移出等待房间玩家
  */
-export interface MiniGameResultSubmit {
-  /** 排名 */
-  rank: number;
+export interface KickPlayer {
+  /** 被移出玩家的用户 ID */
+  target_id: string;
+}
+
+/**
+ * MiniGameDataSubmit - 小游戏数据提交
+ * 客户端提交 game_data，服务端根据 game_type 计算排名
+ */
+export interface MiniGameDataSubmit {
+  /** 小游戏类型 */
+  game_type: string;
+  /** 游戏数据 (不同 game_type 有不同结构) */
+  game_data: Record<string, any>;
 }
 
 /**
@@ -336,4 +487,12 @@ export interface MiniGameResultSubmit {
  */
 export interface StartGame {
   // 空对象
+}
+
+/**
+ * RoundReady - 轮结束就绪信号
+ * 客户端在 RoundEndWait 状态下，完成当前轮动画渲染后发送
+ */
+export interface RoundReady {
+  // 空对象，服务端检查所有客户端已发送就绪信号
 }

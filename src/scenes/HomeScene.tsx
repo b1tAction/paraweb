@@ -1,425 +1,322 @@
 /**
- * HomeScene - 主菜单场景
- *
- * 提供登录、创建房间和加入房间功能
+ * StartScene - first step before room browsing.
  */
 
-import React, { useState } from 'react';
-import { useGameStore } from '../store/gameStore';
+import React, { useEffect, useRef, useState } from 'react';
+import { Scene, useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
 
-export const HomeScene: React.FC = () => {
-  const { session, myPlayerId, displayName, matchId, setMyPlayerId } = useGameStore();
-
-  const getErrorMessage = async (err: unknown): Promise<string> => {
-    if (err instanceof Response) {
-      try {
-        const data = await err.clone().json();
-        if (data && typeof data === 'object') {
-          const maybeData = data as {
-            message?: string;
-            error?: string;
-            detail?: string;
-          };
-          if (typeof maybeData.message === 'string' && maybeData.message.trim()) {
-            return maybeData.message;
-          }
-          if (typeof maybeData.error === 'string' && maybeData.error.trim()) {
-            return maybeData.error;
-          }
-          if (typeof maybeData.detail === 'string' && maybeData.detail.trim()) {
-            return maybeData.detail;
-          }
-        }
-      } catch {
-        // ignore json parse errors
-      }
-
-      try {
-        const text = (await err.clone().text()).trim();
-        if (text) {
-          return text;
-        }
-      } catch {
-        // ignore text parse errors
-      }
-
-      return `HTTP ${err.status}: ${err.statusText || '请求失败'}`;
-    }
-
-    if (err instanceof Error && err.message) {
-      return err.message;
-    }
-
-    if (typeof err === 'string' && err.trim()) {
-      return err;
-    }
-
-    if (err && typeof err === 'object') {
-      const maybeError = err as {
-        message?: string;
-        error?: string;
-        detail?: string;
-        statusText?: string;
-        status?: number;
-      };
-
-      if (typeof maybeError.message === 'string' && maybeError.message.trim()) {
-        return maybeError.message;
-      }
-      if (typeof maybeError.error === 'string' && maybeError.error.trim()) {
-        return maybeError.error;
-      }
-      if (typeof maybeError.detail === 'string' && maybeError.detail.trim()) {
-        return maybeError.detail;
-      }
-      if (typeof maybeError.statusText === 'string' && maybeError.statusText.trim()) {
-        return maybeError.statusText;
-      }
-      if (typeof maybeError.status === 'number') {
-        return `请求失败 (status=${maybeError.status})`;
-      }
-
-      try {
-        return JSON.stringify(err);
-      } catch {
-        // ignore
-      }
-    }
-
+async function getErrorMessage(err: unknown): Promise<string> {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'string' && err.trim()) return err;
+  try {
+    return JSON.stringify(err);
+  } catch {
     return '未知错误';
+  }
+}
+
+export const StartScene: React.FC = () => {
+  const { session, displayName } = useGameStore();
+  const [nickname, setNickname] = useState('');
+  const hasHydratedNicknameRef = useRef(false);
+  const [serverHost, setServerHost] = useState('');
+  const [serverPort, setServerPort] = useState('');
+  const [serverSSL, setServerSSL] = useState(false);
+  const [useCustomServerOptions, setUseCustomServerOptions] = useState(false);
+  const [showServerConfig, setShowServerConfig] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStartPressed, setIsStartPressed] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const cfg = gameService.getServerConfig();
+    setServerHost(cfg.host);
+    setServerPort(cfg.port);
+    setServerSSL(cfg.useSSL);
+  }, []);
+
+  useEffect(() => {
+    if (displayName && !hasHydratedNicknameRef.current) {
+      setNickname(displayName);
+      hasHydratedNicknameRef.current = true;
+    }
+  }, [displayName]);
+
+  const handleSaveServerConfig = () => {
+    try {
+      const current = gameService.getServerConfig();
+      gameService.setServerConfig(
+        serverHost,
+        useCustomServerOptions ? serverPort : current.port,
+        useCustomServerOptions ? serverSSL : current.useSSL,
+      );
+      setError('');
+    } catch (err: any) {
+      setError(`服务器配置无效：${err?.message || '未知错误'}`);
+    }
   };
 
-  // 登录表单状态
-  const [username, setUsername] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [isRegister, setIsRegister] = useState<boolean>(false);
-
-  // 创建房间表单
-  const [faction, setFaction] = useState<string>('qing_long');
-  const [maxPlayers, setMaxPlayers] = useState<number>(4);
-
-  // 加入房间表单 (输入框的临时状态)
-  const [joinMatchId, setJoinMatchId] = useState<string>('');
-
-  // 错误信息
-  const [error, setError] = useState<string>('');
-
-  /**
-   * 处理登录/注册
-   */
-  const handleConnect = async () => {
-    if (!username || !password) {
-      setError('请输入用户名和密码');
-      return;
-    }
-
-    if (password.length < 8) {
-      setError('密码至少需要 8 位');
+  const handleStart = async () => {
+    const trimmedName = nickname.trim();
+    if (!trimmedName) {
+      setError('请输入昵称');
       return;
     }
 
     try {
       setError('');
-      // 使用用户名 + 密码认证 (自动注册或登录)
-      const session = await gameService.loginWithPassword(username, password, isRegister);
-      if (session.user_id) {
-        setMyPlayerId(session.user_id);
+      setIsStarting(true);
+      if (!session) {
+        await gameService.autoLogin();
       }
-      console.log('[HomeScene] 登录成功', { userId: session.user_id, username });
+      await gameService.updateDisplayName(trimmedName);
+      useGameStore.getState().setScene(Scene.JoinRoom);
     } catch (err: unknown) {
       const message = await getErrorMessage(err);
-      setError(`登录失败：${message}`);
-      console.error('[HomeScene] 登录失败', err);
+      setError(`开始失败：${message}`);
+    } finally {
+      setIsStarting(false);
     }
   };
 
-  /**
-   * 处理创建房间
-   */
-  const handleCreateRoom = async () => {
-    try {
-      setError('');
-      await gameService.createRoom(faction, maxPlayers);
-      console.log('[HomeScene] 房间创建成功');
-    } catch (err: unknown) {
-      const message = await getErrorMessage(err);
-      setError(`创建房间失败：${message}`);
-      console.error('[HomeScene] 创建房间失败', err);
-    }
-  };
+  return (
+    <main style={styles.page}>
+      <img
+        src="/assets/logo.png"
+        alt="ParaDiced"
+        style={styles.logo}
+        onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+          e.currentTarget.style.display = 'none';
+        }}
+      />
 
-  /**
-   * 处理加入房间
-   */
-  const handleJoinRoom = async () => {
-    if (!joinMatchId) {
-      setError('请输入房间 ID');
-      return;
-    }
+      <section style={styles.panel} aria-label="start">
+        <label style={styles.label} aria-label="昵称">
+          <input
+            value={nickname}
+            onChange={(e) => {
+              hasHydratedNicknameRef.current = true;
+              setNickname(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleStart();
+            }}
+            placeholder="输入昵称"
+            style={styles.input}
+            maxLength={20}
+            autoFocus
+          />
+        </label>
 
-    try {
-      setError('');
-      await gameService.joinRoom(joinMatchId);
-      console.log('[HomeScene] 加入房间成功');
-    } catch (err: unknown) {
-      const message = await getErrorMessage(err);
-      setError(`加入房间失败：${message}`);
-      console.error('[HomeScene] 加入房间失败', err);
-    }
-  };
+        <button
+          type="button"
+          onClick={handleStart}
+          disabled={isStarting}
+          style={{
+            ...styles.primaryButton,
+            ...(isStartPressed ? styles.primaryButtonPressed : undefined),
+            ...(isStarting ? styles.primaryButtonDisabled : undefined),
+          }}
+          onPointerDown={() => setIsStartPressed(true)}
+          onPointerUp={() => setIsStartPressed(false)}
+          onPointerLeave={() => setIsStartPressed(false)}
+          onPointerCancel={() => setIsStartPressed(false)}
+          onKeyDown={(event) => {
+            if (event.key === ' ' || event.key === 'Enter') {
+              setIsStartPressed(true);
+            }
+          }}
+          onKeyUp={() => setIsStartPressed(false)}
+        >
+          {isStarting ? '连接中...' : '开始游戏'}
+        </button>
 
-  // 已登录状态
-  if (session) {
-    return (
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h2 style={styles.title}>欢迎！</h2>
-          <button onClick={() => gameService.logout()} style={styles.logoutButton}>
-            登出
-          </button>
-        </div>
-        <p style={styles.info}>用户 ID: {myPlayerId || '加载中...'}</p>
-        <p style={styles.info}>用户名：{displayName}</p>
+        <button
+          type="button"
+          onClick={() => setShowServerConfig((visible) => !visible)}
+          style={styles.linkButton}
+        >
+          SERVER
+        </button>
 
-        {matchId && (
-          <div style={styles.roomInfo}>
-            <h3>当前房间</h3>
-            <p style={styles.matchId}>房间 ID: {matchId}</p>
-            <button onClick={() => navigator.clipboard.writeText(matchId)} style={styles.copyButton}>
-              复制 ID
+        {showServerConfig && (
+          <div style={styles.serverPanel}>
+            <label style={styles.label}>
+              HOST
+              <input
+                type="text"
+                value={serverHost}
+                onChange={(e) => setServerHost(e.target.value)}
+                placeholder="127.0.0.1"
+                style={styles.input}
+              />
+            </label>
+            <label style={styles.checkLabel}>
+              <input
+                type="checkbox"
+                checked={useCustomServerOptions}
+                onChange={(e) => setUseCustomServerOptions(e.target.checked)}
+              />
+              Custom port / SSL
+            </label>
+            {useCustomServerOptions && (
+              <>
+                <label style={styles.label}>
+                  PORT
+                  <input
+                    type="text"
+                    value={serverPort}
+                    onChange={(e) => setServerPort(e.target.value)}
+                    placeholder="7350"
+                    style={styles.input}
+                  />
+                </label>
+                <label style={styles.checkLabel}>
+                  <input
+                    type="checkbox"
+                    checked={serverSSL}
+                    onChange={(e) => setServerSSL(e.target.checked)}
+                  />
+                  SSL
+                </label>
+              </>
+            )}
+            <button type="button" onClick={handleSaveServerConfig} style={styles.secondaryButton}>
+              SAVE
             </button>
           </div>
         )}
 
-        <div style={styles.section}>
-          <h3>创建房间</h3>
-          <div style={styles.formGroup}>
-            <label>阵营：</label>
-            <select
-              value={faction}
-              onChange={(e) => setFaction(e.target.value)}
-              style={styles.select}
-            >
-              <option value="qing_long">青龙</option>
-              <option value="zhu_que">朱雀</option>
-              <option value="bai_hu">白虎</option>
-              <option value="xuan_wu">玄武</option>
-            </select>
-          </div>
-          <div style={styles.formGroup}>
-            <label>最大玩家数：</label>
-            <select
-              value={maxPlayers}
-              onChange={(e) => setMaxPlayers(Number(e.target.value))}
-              style={styles.select}
-            >
-              <option value={2}>2 人</option>
-              <option value={3}>3 人</option>
-              <option value={4}>4 人</option>
-            </select>
-          </div>
-          <button onClick={handleCreateRoom} style={styles.button}>
-            创建房间
-          </button>
-        </div>
-
-        <div style={styles.section}>
-          <h3>加入房间</h3>
-          <div style={styles.formGroup}>
-            <label>房间 ID：</label>
-            <input
-              type="text"
-              value={joinMatchId}
-              onChange={(e) => setJoinMatchId(e.target.value)}
-              placeholder="输入房间 ID"
-              style={styles.input}
-            />
-          </div>
-          <button onClick={handleJoinRoom} style={styles.button}>
-            加入房间
-          </button>
-        </div>
-
         {error && <p style={styles.error}>{error}</p>}
-      </div>
-    );
-  }
-
-  // 未登录状态
-  return (
-    <div style={styles.container}>
-      <h2 style={styles.title}>ParaDiced 派乐代</h2>
-      <p style={styles.subtitle}>回合制派对游戏</p>
-
-      <div style={styles.section}>
-        <h3>{isRegister ? '注册账号' : '登录'}</h3>
-        <div style={styles.formGroup}>
-          <label>用户名：</label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="输入用户名"
-            style={styles.input}
-          />
-        </div>
-        <div style={styles.formGroup}>
-          <label>密码：</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="输入密码"
-            style={styles.input}
-          />
-        </div>
-        <button onClick={handleConnect} style={styles.button}>
-          {isRegister ? '注册' : '登录'}
-        </button>
-        <div style={styles.toggleContainer}>
-          <span style={styles.toggleText}>
-            {isRegister ? '已有账号？' : '没有账号？'}
-          </span>
-          <button
-            onClick={() => {
-              setIsRegister(!isRegister);
-              setError('');
-            }}
-            style={styles.toggleButton}
-          >
-            {isRegister ? '去登录' : '去注册'}
-          </button>
-        </div>
-      </div>
-
-      {error && <p style={styles.error}>{error}</p>}
-    </div>
+      </section>
+    </main>
   );
 };
 
-// 简单样式
 const styles: Record<string, React.CSSProperties> = {
-  container: {
-    padding: '20px',
-    maxWidth: '400px',
-    margin: '0 auto',
-  },
-  header: {
+  page: {
+    position: 'fixed',
+    inset: 0,
     display: 'flex',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     alignItems: 'center',
-    marginBottom: '16px',
+    justifyContent: 'center',
+    gap: '28px',
+    padding: '24px',
+    backgroundImage: 'url("/assets/cover.png")',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    fontFamily: 'Zpix, sans-serif',
+    color: '#fff7d6',
   },
-  title: {
-    textAlign: 'center',
-    fontSize: '24px',
-    marginBottom: '8px',
+  logo: {
+    width: 'min(640px, 86vw)',
+    display: 'block',
+    alignSelf: 'center',
+    margin: '0 auto',
+    imageRendering: 'pixelated',
+    filter: 'drop-shadow(0 12px 20px rgba(0,0,0,0.45))',
   },
-  logoutButton: {
-    padding: '6px 12px',
-    backgroundColor: '#f44336',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-  },
-  subtitle: {
-    textAlign: 'center',
-    fontSize: '14px',
-    color: '#666',
-    marginBottom: '24px',
-  },
-  section: {
-    marginBottom: '24px',
-    padding: '16px',
-    border: '1px solid #ddd',
+  panel: {
+    width: 'min(420px, calc(100vw - 40px))',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px',
+    padding: '22px',
+    background: 'rgba(19, 32, 33, 0.72)',
+    border: '1px solid rgba(255, 233, 172, 0.38)',
     borderRadius: '8px',
+    boxShadow: '0 18px 44px rgba(0, 0, 0, 0.34)',
+    backdropFilter: 'blur(3px)',
   },
-  formGroup: {
-    marginBottom: '12px',
+  label: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '7px',
+    fontSize: '13px',
+    color: '#f6df9e',
   },
   input: {
-    width: '100%',
-    padding: '8px',
-    marginTop: '4px',
-    border: '1px solid #ccc',
-    borderRadius: '4px',
+    width: 'min(320px, 100%)',
     boxSizing: 'border-box',
-  },
-  select: {
-    width: '100%',
-    padding: '8px',
-    marginTop: '4px',
-    border: '1px solid #ccc',
-    borderRadius: '4px',
-    boxSizing: 'border-box',
-  },
-  button: {
-    width: '100%',
-    padding: '10px',
-    backgroundColor: '#4CAF50',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '16px',
-  },
-  error: {
-    color: 'red',
-    fontSize: '14px',
-    marginTop: '8px',
-  },
-  info: {
-    fontSize: '14px',
-    color: '#666',
-    marginBottom: '4px',
-  },
-  roomInfo: {
-    marginBottom: '16px',
-    padding: '12px',
-    border: '1px solid #4CAF50',
+    padding: '12px 13px',
+    color: '#20322a',
+    background: '#fff8df',
+    border: '1px solid rgba(58, 47, 32, 0.38)',
     borderRadius: '8px',
-    backgroundColor: '#f0f8f0',
+    fontFamily: 'inherit',
+    fontSize: '15px',
+    outline: 'none',
   },
-  matchId: {
-    fontSize: '12px',
-    color: '#333',
-    fontFamily: 'monospace',
-    wordBreak: 'break-all',
-    marginBottom: '8px',
-  },
-  copyButton: {
-    padding: '6px 12px',
-    backgroundColor: '#2196F3',
-    color: 'white',
+  primaryButton: {
+    width: 'min(260px, 76vw)',
+    aspectRatio: '112 / 60',
+    alignSelf: 'center',
+    minHeight: 0,
+    padding: 0,
+    color: '#352c20',
+    backgroundImage: 'url("/assets/button/button_up.png")',
+    backgroundSize: '100% 100%',
+    backgroundColor: 'transparent',
     border: 'none',
-    borderRadius: '4px',
     cursor: 'pointer',
-    fontSize: '14px',
+    fontFamily: 'inherit',
+    fontSize: '17px',
+    imageRendering: 'pixelated',
+    boxShadow: 'none',
   },
-  toggleContainer: {
-    marginTop: '12px',
-    textAlign: 'center',
+  primaryButtonPressed: {
+    backgroundImage: 'url("/assets/button/button_press.png")',
+    transform: 'translateY(2px)',
+  },
+  primaryButtonDisabled: {
+    filter: 'grayscale(0.7)',
+    opacity: 0.72,
+    cursor: 'not-allowed',
+  },
+  secondaryButton: {
+    minHeight: '38px',
+    color: '#fff7d6',
+    background: 'rgba(255, 247, 214, 0.1)',
+    border: '1px solid rgba(255, 247, 214, 0.35)',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  linkButton: {
+    alignSelf: 'center',
+    color: '#d6c38a',
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '12px',
+  },
+  serverPanel: {
     display: 'flex',
-    justifyContent: 'center',
+    flexDirection: 'column',
+    gap: '10px',
+    paddingTop: '4px',
+  },
+  checkLabel: {
+    display: 'flex',
     alignItems: 'center',
     gap: '8px',
+    color: '#ead8a3',
+    fontSize: '12px',
   },
-  toggleText: {
-    fontSize: '14px',
-    color: '#666',
-  },
-  toggleButton: {
-    padding: '4px 8px',
-    backgroundColor: 'transparent',
-    color: '#2196F3',
-    border: '1px solid #2196F3',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
+  error: {
+    margin: 0,
+    padding: '10px 12px',
+    color: '#ffe0d9',
+    background: 'rgba(97, 30, 22, 0.66)',
+    border: '1px solid rgba(255, 184, 172, 0.35)',
+    borderRadius: '8px',
+    fontSize: '13px',
   },
 };
 
-export default HomeScene;
+export const HomeScene = StartScene;
+export default StartScene;
