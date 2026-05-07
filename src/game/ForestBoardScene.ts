@@ -966,7 +966,9 @@ export class ForestBoardScene extends Phaser.Scene {
       marker.setData('characterProfileId', profile.id);
       this.restoreLivingPlayerAnimation(marker, player, profile);
       if (this.activeMoveAnimations.has(player.player_id)) {
-        marker.setDepth((marker.y ?? targetY) + 100);
+        if (!marker.getData('bossBattleDissolve')) {
+          marker.setDepth((marker.y ?? targetY) + 100);
+        }
       } else {
         this.tweens.add({
           targets: marker,
@@ -975,7 +977,9 @@ export class ForestBoardScene extends Phaser.Scene {
           duration: 250,
           ease: 'Sine.easeInOut',
           onUpdate: () => {
-            marker?.setDepth((marker.y ?? targetY) + 100);
+            if (!marker?.getData('bossBattleDissolve')) {
+              marker?.setDepth((marker.y ?? targetY) + 100);
+            }
           },
         });
       }

@@ -27,7 +27,7 @@ const IMMEDIATE_NEXT_ACTION_TYPES = new Set(['damage']);
 const BOSS_ACTION_TYPES = new Set(['boss_damage', 'boss_attack', 'boss_skill']);
 
 
-const BOSS_DEFEATED_ANIMATION_DELAY_MS = 1900;
+const BOSS_DEFEATED_ANIMATION_DELAY_MS = 2400;
 
 // Gap between popup dismiss and effect start for draw_event
 const EFFECT_START_GAP_MS = 200;
@@ -45,7 +45,7 @@ const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
   'fell_down->death': 180,
   'draw_event->death': 600,
   'death->respawn': 240,
-  'boss_attack->damage': 200,
+  'boss_attack->damage': 300,
 };
 
 export type LogEntryAnimationRule = {
@@ -113,21 +113,21 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
       const remainingHp = getMetadataNumber(entry.metadata, 'boss_remaining_hp');
       if (remainingHp !== null && remainingHp <= 0) return BOSS_DEFEATED_ANIMATION_DELAY_MS;
 
-      return getMetadataBoolean(entry.metadata, 'is_crit') ? 1500 : 1100;
+      return getMetadataBoolean(entry.metadata, 'is_crit') ? 2000 : 1800;
     },
   },
   boss_attack: {
     renderOnBoard: true,
-    delayMs: ({ entry }) => (getMetadataString(entry.metadata, 'attack_type') === 'crit' ? 1400 : 1100),
+    delayMs: ({ entry }) => (getMetadataString(entry.metadata, 'attack_type') === 'crit' ? 1900 : 1800),
   },
   boss_skill: {
     renderOnBoard: true,
     delayMs: ({ entry }) => {
       const skillType = getMetadataString(entry.metadata, 'skill_type');
-      if (skillType === 'thunder') return 1700;
-      if (skillType === 'curse' || skillType === 'rest') return 1500;
-      if (skillType === 'thorns') return 1300;
-      return 1500;
+      if (skillType === 'thunder') return 2300;
+      if (skillType === 'curse' || skillType === 'rest') return 1900;
+      if (skillType === 'thorns') return 1800;
+      return 1900;
     },
   },
   death: {

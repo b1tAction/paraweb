@@ -11,8 +11,9 @@ import {
 } from '../characterRenderConfig';
 import { isBossPlayer } from '../bossVisualConfig';
 import { getMetadataString, getMetadataNumber, getMetadataBoolean } from '../logEntryPlayback';
-import { LAYER_EFFECT_BASE, LAYER_EFFECT_TEXT_BASE, worldDepth } from '../renderLayers';
-import { GAME_FONT_FAMILY, CHARACTER_HALF_HEIGHT, PROJECTILE_CHARGE_ANIMATION_KEY, PROJECTILE_SPEAR_ANIMATION_KEY, PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY, PROJECTILE_FIREBALL_ANIMATION_KEY, PROJECTILE_FLY_DURATION_MS } from '../boardConstants';
+import { LAYER_EFFECT_BASE, LAYER_SHADER_OVERLAY, LAYER_BOSS_BATTLE_CHARACTER, worldDepth } from '../renderLayers';
+import { GAME_FONT_FAMILY, CHARACTER_HALF_HEIGHT, PROJECTILE_CHARGE_ANIMATION_KEY, PROJECTILE_SPEAR_ANIMATION_KEY, PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY, PROJECTILE_FIREBALL_ANIMATION_KEY, PROJECTILE_FLY_DURATION_MS, BOSS_BATTLE_DISSOLVE_DURATION, BOSS_BATTLE_HOLD_DURATION, BOSS_BATTLE_RECOVERY_DURATION } from '../boardConstants';
+import { BOSS_BATTLE_DISSOLVE_SHADER_NAME, BOSS_BATTLE_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/bossBattleDissolve';
 import type { BoardAnimationContext } from './eventAnimations';
 
 // Map profile id to projectile animation key for boss damage crit
@@ -119,7 +120,141 @@ export function playBossProfileAnimation(
   return true;
 }
 
-// --- Boss animation functions ---
+// --- Boss battle dissolve wrapper ---
+
+// Edge color presets for different boss action types
+const BOSS_EDGE_COLOR_RED: [number, number, number] = [0.9, 0.1, 0.05];
+const BOSS_EDGE_COLOR_PURPLE: [number, number, number] = [0.5, 0.15, 0.7];
+
+/**
+ * Play the boss battle dissolve animation: a full-screen shader overlay
+ * that expands outward from the center position. Preserved character markers
+ * (and their name labels) are raised above the overlay to remain visible
+ * in the "other space." After dissolve completes, the onDissolveComplete
+ * callback fires to play boss-specific effects. The overlay stays at
+ * progress=1 during the entire effects phase (black background), then
+ * recovers and marker depths are restored.
+ */
+function playBossBattleDissolveAnimation(
+  ctx: BoardAnimationContext,
+  centerMarker: Phaser.GameObjects.Sprite,
+  preservedPlayerIds: string[],
+  onDissolveComplete: () => void,
+  effectsDurationMs: number,
+  edgeColor: [number, number, number] = BOSS_EDGE_COLOR_RED
+): void {
+  const cam = ctx.scene.cameras.main;
+  const zoom = cam.zoom || 1;
+  const screenCenterX = cam.width / 2;
+  const screenCenterY = cam.height / 2;
+  const worldX = (screenCenterX - cam.centerX) / zoom + cam.centerX;
+  const worldY = (screenCenterY - cam.centerY) / zoom + cam.centerY;
+  const worldWidth = cam.width / zoom;
+  const worldHeight = cam.height / zoom;
+
+  // Compute center marker's normalized viewport position for uCenter
+  const screenX = (centerMarker.x - cam.worldView.x) * zoom;
+  const screenY = (centerMarker.y - cam.worldView.y) * zoom;
+  const uCenterX = screenX / cam.width;
+  const uCenterY = 1.0 - screenY / cam.height;
+
+  const progressHolder = { value: 0 };
+  const shaderObj = ctx.scene.add.shader(
+    {
+      name: BOSS_BATTLE_DISSOLVE_SHADER_NAME,
+      fragmentSource: BOSS_BATTLE_DISSOLVE_FRAGMENT_SOURCE,
+      setupUniforms: (setUniform: (name: string, value: any) => void) => {
+        setUniform('uProgress', progressHolder.value);
+        setUniform('uTime', ctx.scene.time.now / 1000);
+        setUniform('uResolution', [cam.width, cam.height]);
+        setUniform('uCenter', [uCenterX, uCenterY]);
+        setUniform('uEdgeColor', edgeColor);
+      },
+    },
+    worldX,
+    worldY,
+    worldWidth,
+    worldHeight
+  );
+  shaderObj.setOrigin(0.5, 0.5);
+  shaderObj.setScrollFactor(0);
+  shaderObj.setDepth(LAYER_SHADER_OVERLAY);
+
+  // --- Raise preserved markers above overlay ---
+  // Only preservedPlayerIds markers are raised; other characters remain
+  // hidden behind the shader overlay (part of the "other space" visual).
+  const originalDepths = new Map<string, number>();
+  preservedPlayerIds.forEach((playerId) => {
+    const marker = ctx.playerMarkers.get(playerId);
+    if (marker) {
+      originalDepths.set(playerId, marker.depth);
+      marker.setDepth(LAYER_BOSS_BATTLE_CHARACTER);
+      marker.setData('bossBattleDissolve', true);
+    }
+  });
+
+  // --- Cleanup tracker for interruption safety ---
+  const cleanupTracker = ctx.scene.add.container(0, 0);
+  const totalDuration = BOSS_BATTLE_DISSOLVE_DURATION + BOSS_BATTLE_HOLD_DURATION + effectsDurationMs + BOSS_BATTLE_RECOVERY_DURATION + 500;
+  ctx.orchestrator.registerCleanupOnTimer(cleanupTracker, totalDuration);
+  ctx.orchestrator.registerCleanupOnTimer(shaderObj, totalDuration);
+
+  cleanupTracker.once('destroy', () => {
+    // Restore preserved marker depths and clear dissolve flags
+    originalDepths.forEach((originalDepth, playerId) => {
+      const marker = ctx.playerMarkers.get(playerId);
+      if (marker && marker.active) {
+        marker.setDepth(originalDepth);
+        marker.setData('bossBattleDissolve', false);
+      }
+    });
+    ctx.tweens.killTweensOf(progressHolder);
+    if (shaderObj.active) shaderObj.destroy();
+  });
+
+  // --- Phase 1: Dissolve (progress 0→1) ---
+  ctx.tweens.add({
+    targets: progressHolder,
+    value: 1,
+    duration: BOSS_BATTLE_DISSOLVE_DURATION,
+    ease: 'Sine.easeIn',
+  });
+
+  ctx.scene.cameras.main.shake(150, 0.003);
+
+  // --- Phase 2: Brief hold then fire effects callback ---
+  ctx.scene.time.delayedCall(BOSS_BATTLE_DISSOLVE_DURATION + BOSS_BATTLE_HOLD_DURATION, () => {
+    if (!shaderObj.active) return;
+    onDissolveComplete();
+  });
+
+  // --- Phase 3: Recovery (progress 1→0) ---
+  // Recovery starts ONLY after effects are done, keeping the background
+  // fully black during the entire effects phase (like lost_way).
+  ctx.scene.time.delayedCall(BOSS_BATTLE_DISSOLVE_DURATION + BOSS_BATTLE_HOLD_DURATION + effectsDurationMs, () => {
+    if (!shaderObj.active) return;
+    ctx.tweens.add({
+      targets: progressHolder,
+      value: 0,
+      duration: BOSS_BATTLE_RECOVERY_DURATION,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        // Restore preserved marker depths and clear dissolve flags
+        originalDepths.forEach((originalDepth, playerId) => {
+          const marker = ctx.playerMarkers.get(playerId);
+          if (marker && marker.active) {
+            marker.setDepth(originalDepth);
+            marker.setData('bossBattleDissolve', false);
+          }
+        });
+        if (shaderObj.active) shaderObj.destroy();
+        if (cleanupTracker.active) cleanupTracker.destroy();
+      },
+    });
+  });
+}
+
+// --- Boss animation helper functions (with depthBase for dissolve mode) ---
 
 function playProjectileFly(
   ctx: BoardAnimationContext,
@@ -127,11 +262,12 @@ function playProjectileFly(
   fromY: number,
   toX: number,
   toY: number,
-  animKey: string
+  animKey: string,
+  depthBase = LAYER_EFFECT_BASE
 ): void {
   const projectile = ctx.scene.add.sprite(fromX, fromY, animKey);
   projectile.setOrigin(0.5, 0.5);
-  projectile.setDepth(worldDepth(LAYER_EFFECT_BASE, fromY) + 50);
+  projectile.setDepth(worldDepth(depthBase, fromY) + 50);
   projectile.setScale(1.5);
   projectile.play(animKey);
 
@@ -152,13 +288,14 @@ export function playBossPulse(
   color: number,
   textColor = '#ffebee',
   scale = 2.2,
-  playerId?: string
+  playerId?: string,
+  depthBase = LAYER_EFFECT_BASE
 ): void {
   const { x, y } = getMarkerEffectPoint(marker, ctx, playerId);
 
   const ring = ctx.scene.add.circle(x, y, 28, color, 0.14);
   ring.setStrokeStyle(4, color, 1);
-  ring.setDepth(worldDepth(LAYER_EFFECT_BASE, y));
+  ring.setDepth(worldDepth(depthBase, y));
 
   const text = ctx.scene.add.text(x, y - 46, label, {
     fontFamily: GAME_FONT_FAMILY,
@@ -170,7 +307,7 @@ export function playBossPulse(
     strokeThickness: 5,
   });
   text.setOrigin(0.5, 0.5);
-  text.setDepth(worldDepth(LAYER_EFFECT_TEXT_BASE, y));
+  text.setDepth(worldDepth(depthBase + 100, y));
 
   ctx.tweens.add({
     targets: ring,
@@ -197,7 +334,8 @@ export function playBossLineEffect(
   fromMarker: Phaser.GameObjects.Sprite,
   toMarker: Phaser.GameObjects.Sprite,
   color: number,
-  label?: string
+  label?: string,
+  depthBase = LAYER_EFFECT_BASE
 ): void {
   const fromPoint = getMarkerEffectPoint(fromMarker, ctx);
   const toPoint = getMarkerEffectPoint(toMarker, ctx);
@@ -205,7 +343,7 @@ export function playBossLineEffect(
   const fromY = fromPoint.y - 10;
   const toX = toPoint.x;
   const toY = toPoint.y - 10;
-  const depth = worldDepth(LAYER_EFFECT_BASE, Math.max(fromMarker.y, toMarker.y)) + 60;
+  const depth = worldDepth(depthBase, Math.max(fromMarker.y, toMarker.y)) + 60;
 
   const line = ctx.scene.add.graphics();
   line.lineStyle(6, color, 0.92);
@@ -245,9 +383,10 @@ export function playBossLineEffect(
 
 export function playBossThornsPulse(
   ctx: BoardAnimationContext,
-  marker: Phaser.GameObjects.Sprite
+  marker: Phaser.GameObjects.Sprite,
+  depthBase = LAYER_EFFECT_BASE
 ): void {
-  playBossPulse(ctx, marker, 'Boss 荆棘', 0x8e24aa, '#f3e5f5', 2.05);
+  playBossPulse(ctx, marker, 'Boss 荆棘', 0x8e24aa, '#f3e5f5', 2.05, undefined, depthBase);
 
   const { x: centerX, y: centerY } = getMarkerEffectPoint(marker, ctx);
   const spikes = ctx.scene.add.graphics();
@@ -263,7 +402,7 @@ export function playBossThornsPulse(
     spikes.strokePath();
   }
 
-  spikes.setDepth(worldDepth(LAYER_EFFECT_BASE, centerY) + 26);
+  spikes.setDepth(worldDepth(depthBase, centerY) + 26);
   ctx.tweens.add({
     targets: spikes,
     alpha: 0,
@@ -277,7 +416,54 @@ export function isBossReflectDamage(entry: LogEntry): boolean {
   return entry.action_type === 'damage' && entry.source === 'buff_thorns';
 }
 
-export function playBossDamageAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+export function playBossThunderFlash(
+  ctx: BoardAnimationContext,
+  marker: Phaser.GameObjects.Sprite,
+  playerId?: string,
+  depthBase = LAYER_EFFECT_BASE
+): void {
+  const { x, y } = getMarkerEffectPoint(marker, ctx, playerId);
+
+  const sprite = ctx.scene.add.sprite(x, y, 'skill-thunder1');
+  sprite.setScale(2.0);
+  sprite.setOrigin(0.5, 1.0);
+  sprite.setDepth(worldDepth(depthBase, y) + 100);
+  sprite.play('skill_thunder1_anim');
+
+  sprite.on('animationcomplete', () => {
+    sprite.destroy();
+  });
+}
+
+export function playBossThunderStrike(
+  ctx: BoardAnimationContext,
+  marker: Phaser.GameObjects.Sprite,
+  depthBase = LAYER_EFFECT_BASE
+): void {
+  const landingX = marker.x;
+  const landingY = marker.y + CHARACTER_HALF_HEIGHT;
+
+  const sprite = ctx.scene.add.sprite(landingX, landingY, 'skill-thunder2');
+  sprite.setScale(2.0);
+  sprite.setOrigin(0.5, 1.0);
+  sprite.setDepth(worldDepth(depthBase, landingY) + 100);
+  sprite.play('skill_thunder2_anim');
+
+  sprite.on('animationcomplete', () => {
+    sprite.destroy();
+  });
+
+  // Camera flash and shake
+  ctx.scene.cameras.main.flash(300, 255, 255, 200);
+  ctx.scene.cameras.main.shake(640, 0.005);
+}
+
+// --- Boss effect functions (pure effects, no dissolve) ---
+// These are called inside the dissolve wrapper callback,
+// using LAYER_BOSS_BATTLE_CHARACTER as depthBase so they
+// render above the shader overlay.
+
+function playBossDamageEffects(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
   const { entry } = context;
   const bossPlayer = getBossPlayer(ctx.players);
   const bossMarker = getBossMarker(ctx.players, ctx.playerMarkers);
@@ -291,6 +477,8 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
   const label = damage > 0 ? `Boss -${damage}${isCrit ? ' CRIT' : ''}` : `Boss 受击${isCrit ? ' CRIT' : ''}`;
 
   const sourceMarker = ctx.playerMarkers.get(entry.source);
+  const depthBase = LAYER_BOSS_BATTLE_CHARACTER;
+
   if (sourceMarker && sourceMarker !== bossMarker) {
     // Play player attack animation
     const sourcePlayer = ctx.players.find((p) => p.player_id === entry.source);
@@ -321,7 +509,7 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
       if (projectileAnimKey) {
         const sourcePoint = getMarkerEffectPoint(sourceMarker, ctx, entry.source);
         const bossPoint = getMarkerEffectPoint(bossMarker, ctx, bossPlayer.player_id);
-        playProjectileFly(ctx, sourcePoint.x, sourcePoint.y, bossPoint.x, bossPoint.y, projectileAnimKey);
+        playProjectileFly(ctx, sourcePoint.x, sourcePoint.y, bossPoint.x, bossPoint.y, projectileAnimKey, depthBase);
       }
     } else if (sourceProfile) {
       // Normal: random attack_1 or attack_2
@@ -337,7 +525,7 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
       }
     }
 
-    playBossLineEffect(ctx, sourceMarker, bossMarker, color, isCrit ? 'CRIT' : 'HIT');
+    playBossLineEffect(ctx, sourceMarker, bossMarker, color, isCrit ? 'CRIT' : 'HIT', depthBase);
   }
 
   playBossProfileAnimation(
@@ -353,7 +541,7 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
 
   bossMarker.setTint(0xffffff);
   ctx.scene.time.delayedCall(120, () => bossMarker.clearTint());
-  playBossPulse(ctx, bossMarker, label, color, '#ffebee', isCrit ? 2.75 : 2.2, bossPlayer.player_id);
+  playBossPulse(ctx, bossMarker, label, color, '#ffebee', isCrit ? 2.75 : 2.2, bossPlayer.player_id, depthBase);
 
   if (isCrit) {
     ctx.scene.cameras.main.flash(120, 255, 235, 235);
@@ -373,12 +561,13 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
   }
 }
 
-export function playBossAttackAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+function playBossAttackEffects(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
   const { entry } = context;
   const bossPlayer = getBossPlayer(ctx.players);
   const bossMarker = getBossMarker(ctx.players, ctx.playerMarkers);
   if (!bossPlayer || !bossMarker) return;
 
+  const depthBase = LAYER_BOSS_BATTLE_CHARACTER;
   const targetMarker = ctx.playerMarkers.get(entry.target);
   if (targetMarker) {
     bossMarker.setFlipX(targetMarker.x < bossMarker.x);
@@ -392,61 +581,20 @@ export function playBossAttackAnimation(ctx: BoardAnimationContext, context: Log
   const attackType = getMetadataString(entry.metadata, 'attack_type') || 'normal';
   const isCrit = attackType === 'crit' || getMetadataBoolean(entry.metadata, 'is_crit');
   const color = isCrit ? 0xff1744 : 0xd32f2f;
-  playBossPulse(ctx, bossMarker, isCrit ? 'Boss 暴击' : 'Boss 普攻', color, '#ffebee', isCrit ? 2.4 : 2.0, bossPlayer.player_id);
+  playBossPulse(ctx, bossMarker, isCrit ? 'Boss 暴击' : 'Boss 普攻', color, '#ffebee', isCrit ? 2.4 : 2.0, bossPlayer.player_id, depthBase);
 
   if (targetMarker) {
-    playBossLineEffect(ctx, bossMarker, targetMarker, color, isCrit ? 'CRIT' : 'ATTACK');
+    playBossLineEffect(ctx, bossMarker, targetMarker, color, isCrit ? 'CRIT' : 'ATTACK', depthBase);
   }
 }
 
-export function playBossThunderFlash(
-  ctx: BoardAnimationContext,
-  marker: Phaser.GameObjects.Sprite,
-  playerId?: string
-): void {
-  const { x, y } = getMarkerEffectPoint(marker, ctx, playerId);
-
-  const sprite = ctx.scene.add.sprite(x, y, 'skill-thunder1');
-  sprite.setScale(2.0);
-  sprite.setOrigin(0.5, 1.0);
-  sprite.setDepth(worldDepth(LAYER_EFFECT_BASE, y) + 100);
-  sprite.play('skill_thunder1_anim');
-
-  sprite.on('animationcomplete', () => {
-    sprite.destroy();
-  });
-}
-
-export function playBossThunderStrike(
-  ctx: BoardAnimationContext,
-  marker: Phaser.GameObjects.Sprite
-): void {
-  const landingX = marker.x;
-  const landingY = marker.y + CHARACTER_HALF_HEIGHT;
-
-  const sprite = ctx.scene.add.sprite(landingX, landingY, 'skill-thunder2');
-  sprite.setScale(2.0);
-  sprite.setOrigin(0.5, 1.0);
-  sprite.setDepth(worldDepth(LAYER_EFFECT_BASE, landingY) + 100);
-  sprite.play('skill_thunder2_anim');
-
-  sprite.on('animationcomplete', () => {
-    sprite.destroy();
-  });
-
-  // Camera flash and shake
-  ctx.scene.cameras.main.flash(300, 255, 255, 200);
-  ctx.scene.cameras.main.shake(640, 0.005);
-}
-
-export function playBossSkillAnimation(
-  ctx: BoardAnimationContext,
-  context: LogEntryAnimationContext
-): void {
+function playBossSkillEffects(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
   const { entry } = context;
   const bossPlayer = getBossPlayer(ctx.players);
   const bossMarker = getBossMarker(ctx.players, ctx.playerMarkers);
   if (!bossPlayer || !bossMarker) return;
+
+  const depthBase = LAYER_BOSS_BATTLE_CHARACTER;
 
   playBossProfileAnimation(
     ctx.scene, bossMarker, bossPlayer.player_id, 'skill_cast',
@@ -461,30 +609,109 @@ export function playBossSkillAnimation(
 
   switch (skillType) {
     case 'thunder':
-      playBossThunderFlash(ctx, bossMarker, bossPlayer.player_id);
+      playBossThunderFlash(ctx, bossMarker, bossPlayer.player_id, depthBase);
       // Delay per-player strikes so they start after the boss flash finishes
       ctx.scene.time.delayedCall(500, () => {
         targetIds.forEach((targetId) => {
           const targetMarker = ctx.playerMarkers.get(targetId);
           if (!targetMarker) return;
-          playBossThunderStrike(ctx, targetMarker);
+          playBossThunderStrike(ctx, targetMarker, depthBase);
         });
       });
       break;
     case 'curse':
-      playBossPulse(ctx, bossMarker, 'Boss 诅咒', 0x7e57c2, '#f3e5f5', 2.1, bossPlayer.player_id);
-      targetMarkers.forEach((marker) => playBossPulse(ctx, marker, '诅咒', 0x7e57c2, '#f3e5f5', 1.8));
+      playBossPulse(ctx, bossMarker, 'Boss 诅咒', 0x7e57c2, '#f3e5f5', 2.1, bossPlayer.player_id, depthBase);
+      targetMarkers.forEach((marker) => playBossPulse(ctx, marker, '诅咒', 0x7e57c2, '#f3e5f5', 1.8, undefined, depthBase));
       break;
     case 'rest':
-      playBossPulse(ctx, bossMarker, 'Boss 回复', 0x66bb6a, '#e8f5e9', 2.2, bossPlayer.player_id);
+      playBossPulse(ctx, bossMarker, 'Boss 回复', 0x66bb6a, '#e8f5e9', 2.2, bossPlayer.player_id, depthBase);
       break;
     case 'thorns':
-      playBossThornsPulse(ctx, bossMarker);
+      playBossThornsPulse(ctx, bossMarker, depthBase);
       break;
     default:
-      playBossPulse(ctx, bossMarker, `Boss ${skillType}`, 0x90a4ae, '#eceff1', 2.0, bossPlayer.player_id);
+      playBossPulse(ctx, bossMarker, `Boss ${skillType}`, 0x90a4ae, '#eceff1', 2.0, bossPlayer.player_id, depthBase);
       break;
   }
+}
+
+// --- Boss animation entry points (with dissolve wrapper) ---
+
+export function playBossDamageAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const bossPlayer = getBossPlayer(ctx.players);
+  const bossMarker = getBossMarker(ctx.players, ctx.playerMarkers);
+  if (!bossPlayer || !bossMarker) return;
+
+  const sourceMarker = ctx.playerMarkers.get(entry.source);
+  if (!sourceMarker) {
+    // No source marker: skip dissolve, play effects directly
+    playBossDamageEffects(ctx, context);
+    return;
+  }
+
+  // Dissolve from attacker position, preserve attacker and boss
+  playBossBattleDissolveAnimation(
+    ctx,
+    sourceMarker,
+    [entry.source, bossPlayer.player_id],
+    () => playBossDamageEffects(ctx, context),
+    1000,
+    BOSS_EDGE_COLOR_RED
+  );
+}
+
+export function playBossAttackAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const bossPlayer = getBossPlayer(ctx.players);
+  const bossMarker = getBossMarker(ctx.players, ctx.playerMarkers);
+  if (!bossPlayer || !bossMarker) return;
+
+  const targetMarker = ctx.playerMarkers.get(entry.target);
+
+  // Dissolve from boss position, preserve boss and target
+  const preservedIds = targetMarker
+    ? [bossPlayer.player_id, entry.target]
+    : [bossPlayer.player_id];
+
+  playBossBattleDissolveAnimation(
+    ctx,
+    bossMarker,
+    preservedIds,
+    () => playBossAttackEffects(ctx, context),
+    1000,
+    BOSS_EDGE_COLOR_RED
+  );
+}
+
+export function playBossSkillAnimation(
+  ctx: BoardAnimationContext,
+  context: LogEntryAnimationContext
+): void {
+  const { entry } = context;
+  const bossPlayer = getBossPlayer(ctx.players);
+  const bossMarker = getBossMarker(ctx.players, ctx.playerMarkers);
+  if (!bossPlayer || !bossMarker) return;
+
+  const skillType = getMetadataString(entry.metadata, 'skill_type') || 'skill';
+
+  // Self-targeting skills: only keep boss visible
+  // Attack/debuff skills: keep all characters visible (they are all targets)
+  const selfTargetingSkills = ['rest', 'thorns'];
+  const preservedIds = selfTargetingSkills.includes(skillType)
+    ? [bossPlayer.player_id]
+    : ctx.players.map((p) => p.player_id);
+
+  const effectsDuration = skillType === 'thunder' ? 1300 : 1000;
+
+  playBossBattleDissolveAnimation(
+    ctx,
+    bossMarker,
+    preservedIds,
+    () => playBossSkillEffects(ctx, context),
+    effectsDuration,
+    BOSS_EDGE_COLOR_PURPLE
+  );
 }
 
 export function playBossReflectAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
