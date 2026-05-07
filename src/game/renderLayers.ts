@@ -21,6 +21,7 @@ export const LAYER_POPUP_TEXT = 900;         // popup text labels
 export const LAYER_CAMERA_FX = 950;          // reserved for camera effects
 export const LAYER_SHADER_OVERLAY = 960;    // shader overlay for dissolve effects
 export const LAYER_LOST_WAY_CHARACTER = 970; // character temporarily raised during lost_way
+export const LAYER_HIDDEN_BUFF_CHARACTER = 975; // character temporarily raised during hidden_buff
 
 /**
  * Compute world-sorted depth for a given layer base and Y position.

@@ -5,8 +5,9 @@ import type { AnimationOrchestrator } from '../animationOrchestrator';
 import type { CharacterRenderOptions } from '../characterRenderConfig';
 import { resolveCharacterProfile, getCharacterRenderer, getAnimationKey } from '../characterRenderConfig';
 import { LAYER_FULLSCREEN_EFFECT, LAYER_SHADER_OVERLAY, LAYER_LOST_WAY_CHARACTER, worldDepth, LAYER_EFFECT_BASE } from '../renderLayers';
-import { CHARACTER_HALF_HEIGHT, LOST_WAY_DISSOLVE_START_DELAY, LOST_WAY_DISSOLVE_DURATION, LOST_WAY_DIZZY_START_DELAY, LOST_WAY_DIZZY_DURATION, LOST_WAY_RECOVERY_START_DELAY, LOST_WAY_RECOVERY_DURATION, LOST_WAY_TOTAL_EFFECT_MS, DIZZY_TINT_COLOR } from '../boardConstants';
+import { CHARACTER_HALF_HEIGHT, LOST_WAY_DISSOLVE_START_DELAY, LOST_WAY_DISSOLVE_DURATION, LOST_WAY_DIZZY_START_DELAY, LOST_WAY_DIZZY_DURATION, LOST_WAY_RECOVERY_START_DELAY, LOST_WAY_RECOVERY_DURATION, LOST_WAY_TOTAL_EFFECT_MS, DIZZY_TINT_COLOR, HIDDEN_BUFF_DISSOLVE_START_DELAY, HIDDEN_BUFF_DISSOLVE_DURATION, HIDDEN_BUFF_RECOVERY_START_DELAY, HIDDEN_BUFF_RECOVERY_DURATION, HIDDEN_BUFF_TOTAL_EFFECT_MS } from '../boardConstants';
 import { LOST_WAY_DISSOLVE_SHADER_NAME, LOST_WAY_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/lostWayDissolve';
+import { HIDDEN_BUFF_DISSOLVE_SHADER_NAME, HIDDEN_BUFF_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/hiddenBuffDissolve';
 import { getEventEffectConfig, getEventTypeFromEntry } from '../eventAnimations';
 import { useGameStore } from '../../store/gameStore';
 import { showCenterPopup, type PopupContext } from './popup';
@@ -66,6 +67,8 @@ export async function playDrawEventAnimation(
     playMosquitoAnimation(ctx, context);
   } else if (eventType === 'lost_way') {
     playLostWayAnimation(ctx, context);
+  } else if (eventType === 'hidden_buff') {
+    playHiddenBuffAnimation(ctx, context);
   }
 }
 
@@ -453,6 +456,159 @@ export function playLostWayAnimation(ctx: BoardAnimationContext, context: LogEnt
       onComplete: () => {
         // Stiffness (僵直) only clears when animation fully ends
         marker.clearTint();
+        renderer.play(ctx.scene, marker, profile, 'idle');
+        marker.setDepth(originalDepth);
+        if (shaderObj.active) shaderObj.destroy();
+        if (cleanupTracker.active) cleanupTracker.destroy();
+      },
+    });
+  });
+}
+
+/**
+ * Play the hidden buff effect: character itself disintegrates into blue-purple
+ * fragments that scatter outward (phase 1), stays dissolved in void
+ * (phase 2), then fragments reassemble back into the character (phase 3).
+ *
+ * Uses a FULL-SCREEN shader overlay (same approach as lost_way), with the
+ * effect localized around the character via the uCenter uniform. This
+ * eliminates the rectangular boundary artifact that occurred with the
+ * previous localized 200x200 shader quad approach (where uResolution
+ * didn't match the actual pixel dimensions due to camera zoom).
+ * The character fades out via alpha tween, while the full-screen shader
+ * shows fragment scatter visual only near the character position.
+ */
+export function playHiddenBuffAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const player = ctx.players.find((p) => p.player_id === entry.target);
+  const order = player ? ctx.players.indexOf(player) : 0;
+  const profile = player ? resolveCharacterProfile(player, order, ctx.characterRenderOptions) : null;
+  if (!profile) return;
+
+  const renderer = getCharacterRenderer(ctx.characterRenderOptions);
+  const HIDDEN_BUFF_TINT_COLOR = 0x1a237e;  // deep indigo tint for dimensional shift feel
+
+  // --- Create full-screen shader overlay (same approach as lost_way) ---
+  const cam = ctx.scene.cameras.main;
+  const zoom = cam.zoom || 1;
+  const screenCenterX = cam.width / 2;
+  const screenCenterY = cam.height / 2;
+  const worldX = (screenCenterX - cam.centerX) / zoom + cam.centerX;
+  const worldY = (screenCenterY - cam.centerY) / zoom + cam.centerY;
+  const worldWidth = cam.width / zoom;
+  const worldHeight = cam.height / zoom;
+
+  // Compute character's normalized position in the viewport (0-1)
+  // for the uCenter uniform that localizes the effect around the character.
+  const screenX = (marker.x - cam.worldView.x) * zoom;
+  const screenY = (marker.y - cam.worldView.y) * zoom;
+  const uCenterX = screenX / cam.width;
+  const uCenterY = 1.0 - screenY / cam.height;
+
+  const progressHolder = { value: 0 };
+  const disintegrateHolder = { value: 0 };
+  const shaderObj = ctx.scene.add.shader(
+    {
+      name: HIDDEN_BUFF_DISSOLVE_SHADER_NAME,
+      fragmentSource: HIDDEN_BUFF_DISSOLVE_FRAGMENT_SOURCE,
+      setupUniforms: (setUniform: (name: string, value: any) => void) => {
+        setUniform('uProgress', progressHolder.value);
+        setUniform('uTime', ctx.scene.time.now / 1000);
+        setUniform('uResolution', [cam.width, cam.height]);
+        setUniform('uDisintegrate', disintegrateHolder.value);
+        setUniform('uCenter', [uCenterX, uCenterY]);
+      },
+    },
+    worldX,
+    worldY,
+    worldWidth,
+    worldHeight
+  );
+  shaderObj.setOrigin(0.5, 0.5);
+  shaderObj.setScrollFactor(0);
+  shaderObj.setDepth(LAYER_SHADER_OVERLAY);
+
+  // --- Cleanup tracker for interruption safety ---
+  const originalDepth = marker.depth;
+
+  const cleanupTracker = ctx.scene.add.container(0, 0);
+  ctx.orchestrator.registerCleanupOnTimer(cleanupTracker, HIDDEN_BUFF_TOTAL_EFFECT_MS + 500);
+  ctx.orchestrator.registerCleanupOnTimer(shaderObj, HIDDEN_BUFF_TOTAL_EFFECT_MS + 500);
+
+  cleanupTracker.once('destroy', () => {
+    if (marker.active) {
+      marker.setDepth(originalDepth);
+      marker.clearTint();
+      marker.setAlpha(1);
+    }
+    if (marker.active) renderer.play(ctx.scene, marker, profile, 'idle');
+    ctx.tweens.killTweensOf(progressHolder);
+    ctx.tweens.killTweensOf(disintegrateHolder);
+    if (shaderObj.active) shaderObj.destroy();
+  });
+
+  // --- Apply tint for dimensional shift feel ---
+  marker.setTint(HIDDEN_BUFF_TINT_COLOR);
+
+  // --- Phase 1: Disintegrate (character fades out, fragments scatter outward) ---
+  ctx.scene.time.delayedCall(HIDDEN_BUFF_DISSOLVE_START_DELAY, () => {
+    // Character alpha: fade out (1→0)
+    ctx.tweens.add({
+      targets: marker,
+      alpha: { from: 1, to: 0 },
+      duration: HIDDEN_BUFF_DISSOLVE_DURATION,
+      ease: 'Sine.easeIn',
+    });
+
+    // Shader progress: fragment scatter effect appears
+    ctx.tweens.add({
+      targets: progressHolder,
+      value: 1,
+      duration: HIDDEN_BUFF_DISSOLVE_DURATION,
+      ease: 'Sine.easeIn',
+    });
+
+    // Disintegrate scatter: fragments fly outward
+    ctx.tweens.add({
+      targets: disintegrateHolder,
+      value: 1,
+      duration: HIDDEN_BUFF_DISSOLVE_DURATION,
+      ease: 'Quad.easeIn',
+    });
+
+    ctx.scene.cameras.main.shake(200, 0.003);
+  });
+
+  // --- Phase 3: Reassembly (character fades in, fragments converge inward) ---
+  ctx.scene.time.delayedCall(HIDDEN_BUFF_RECOVERY_START_DELAY, () => {
+    // Scatter converges inward: fragments fly back
+    ctx.tweens.add({
+      targets: disintegrateHolder,
+      value: 0,
+      duration: HIDDEN_BUFF_RECOVERY_DURATION,
+      ease: 'Sine.easeOut',
+    });
+
+    // Recovery: shader progress 1→0 (void fades away)
+    ctx.tweens.add({
+      targets: progressHolder,
+      value: 0,
+      duration: HIDDEN_BUFF_RECOVERY_DURATION,
+      ease: 'Sine.easeOut',
+    });
+
+    // Character alpha: fade in (0→1)
+    ctx.tweens.add({
+      targets: marker,
+      alpha: { from: 0, to: 1 },
+      duration: HIDDEN_BUFF_RECOVERY_DURATION,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        marker.clearTint();
+        marker.setAlpha(1);
         renderer.play(ctx.scene, marker, profile, 'idle');
         marker.setDepth(originalDepth);
         if (shaderObj.active) shaderObj.destroy();

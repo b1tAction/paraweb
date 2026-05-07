@@ -16,6 +16,7 @@ export type EventAnimationType =
   | 'bubble_float'  // blue bubble float effect
   | 'mosquito_attack' // mosquito sprite attack effect
   | 'lost_way_dissolve' // dark dissolve/glitch overlay effect
+  | 'hidden_buff_disintegrate' // blue-purple fragment scatter + void + reassemble effect
   | 'dizzy_stars'; // hurt+僵直+spinning stars dizzy effect
 
 export type EventEffectConfig = {
@@ -66,11 +67,11 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
 
   // Neutral events
   'hidden_buff': {
-    color: 0x757575,
-    textColor: '#f5f5f5',
-    animationType: 'neutral_pulse',
-    iconEmoji: '😵',
-    particleCount: 4,
+    color: 0x1a237e,
+    textColor: '#e8eaf6',
+    animationType: 'hidden_buff_disintegrate',
+    iconEmoji: '👁️',
+    particleCount: 6,
     duration: 2500
   },
   'exchange': {
