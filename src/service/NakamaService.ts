@@ -678,6 +678,19 @@ export class NakamaService {
 
   private handleGameOver(data: protocol.GameOver) {
     const store = useGameStore.getState();
+    const isWaitingRoomTermination =
+      store.currentScene === Scene.Lobby &&
+      !data.winner_id &&
+      (!data.stats || data.stats.length === 0);
+
+    if (isWaitingRoomTermination) {
+      store.setJoinRoomNotice('房主已解散房间');
+      store.resetMatchState();
+      store.setScene(Scene.JoinRoom);
+      console.log('[Nakama] 房间已解散');
+      return;
+    }
+
     store.setGameOver(data);
 
     if (store.currentScene === Scene.Board || (store.currentScene === Scene.MiniGameSubmitRank && store.miniGameResultPending)) {

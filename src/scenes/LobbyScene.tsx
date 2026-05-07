@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
-import { useGameStore } from '../store/gameStore';
+import { Scene, useGameStore } from '../store/gameStore';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const factionOptions = [
@@ -38,10 +38,11 @@ const factionSlots: Record<string, {
 };
 
 export const LobbyScene: React.FC = () => {
-  const { waitingSync, myPlayerId, matchId, faction: storedFaction } = useGameStore();
+  const { waitingSync, myPlayerId, matchId, faction: storedFaction, resetMatchState } = useGameStore();
   const [selectedFaction, setSelectedFaction] = useState(storedFaction || 'qing_long');
   const hasTouchedFactionRef = useRef(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const [isUpdatingFaction, setIsUpdatingFaction] = useState(false);
   const [notice, setNotice] = useState('');
 
@@ -114,6 +115,23 @@ export const LobbyScene: React.FC = () => {
       setNotice(errorMessage);
     } finally {
       setIsStarting(false);
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    if (isLeaving) return;
+
+    try {
+      setNotice('');
+      setIsLeaving(true);
+      await gameService.leaveRoom();
+    } catch (err) {
+      console.warn('[LobbyScene] leaveRoom failed', err);
+    } finally {
+      useGameStore.getState().setJoinRoomNotice('');
+      resetMatchState();
+      useGameStore.getState().setScene(Scene.JoinRoom);
+      setIsLeaving(false);
     }
   };
 
@@ -203,16 +221,36 @@ export const LobbyScene: React.FC = () => {
       <section style={styles.footerPanel}>
         <div style={styles.message}>{notice || message}</div>
         {isHost ? (
-          <button
-            type="button"
-            onClick={handleBegin}
-            disabled={!can_start || isStarting}
-            style={{ ...styles.beginButton, ...(!can_start || isStarting ? styles.beginButtonDisabled : undefined) }}
-          >
-            {isStarting ? 'STARTING...' : 'BEGIN'}
-          </button>
+          <div style={styles.hostActions}>
+            <button
+              type="button"
+              onClick={handleBegin}
+              disabled={!can_start || isStarting || isLeaving}
+              style={{ ...styles.beginButton, ...(!can_start || isStarting || isLeaving ? styles.beginButtonDisabled : undefined) }}
+            >
+              {isStarting ? 'STARTING...' : 'BEGIN'}
+            </button>
+            <button
+              type="button"
+              onClick={handleLeaveRoom}
+              disabled={isLeaving || isStarting}
+              style={{ ...styles.leaveButton, ...(isLeaving || isStarting ? styles.leaveButtonDisabled : undefined) }}
+            >
+              {isLeaving ? '解散中...' : '解散房间'}
+            </button>
+          </div>
         ) : (
-          <div style={styles.waitingText}>WAITING FOR HOST</div>
+          <div style={styles.guestActions}>
+            <div style={styles.waitingText}>WAITING FOR HOST</div>
+            <button
+              type="button"
+              onClick={handleLeaveRoom}
+              disabled={isLeaving}
+              style={{ ...styles.leaveButton, ...(isLeaving ? styles.leaveButtonDisabled : undefined) }}
+            >
+              {isLeaving ? '退出中...' : '退出房间'}
+            </button>
+          </div>
         )}
       </section>
     </main>
@@ -241,6 +279,24 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff0b8',
     fontSize: '24px',
     textShadow: '0 3px 0 rgba(0,0,0,0.42)',
+  },
+  leaveButton: {
+    minWidth: '118px',
+    minHeight: '40px',
+    padding: '8px 12px',
+    color: '#fff6d6',
+    background: 'rgba(41, 45, 49, 0.5)',
+    border: '1px solid rgba(255, 238, 184, 0.48)',
+    borderRadius: '8px',
+    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.24)',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '12px',
+    backdropFilter: 'blur(2px)',
+  },
+  leaveButtonDisabled: {
+    opacity: 0.68,
+    cursor: 'not-allowed',
   },
   loading: {
     position: 'fixed',
@@ -408,13 +464,30 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.72,
     cursor: 'not-allowed',
   },
+  hostActions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+    flexWrap: 'wrap',
+  },
+  guestActions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+    flexWrap: 'wrap',
+  },
   waitingText: {
+    minHeight: '40px',
     padding: '9px 14px',
     color: '#f8e9bb',
     background: 'rgba(15, 24, 28, 0.38)',
     borderRadius: '8px',
     fontSize: '13px',
     boxShadow: '0 8px 18px rgba(0, 0, 0, 0.18)',
+    display: 'flex',
+    alignItems: 'center',
   },
 };
 
