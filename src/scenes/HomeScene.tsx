@@ -26,6 +26,7 @@ export const StartScene: React.FC = () => {
   const [useCustomServerOptions, setUseCustomServerOptions] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [isStartPressed, setIsStartPressed] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -101,14 +102,33 @@ export const StartScene: React.FC = () => {
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleStart();
             }}
-            placeholder="输入昵称..."
+            placeholder="输入昵称"
             style={styles.input}
             maxLength={20}
             autoFocus
           />
         </label>
 
-        <button type="button" onClick={handleStart} disabled={isStarting} style={styles.primaryButton}>
+        <button
+          type="button"
+          onClick={handleStart}
+          disabled={isStarting}
+          style={{
+            ...styles.primaryButton,
+            ...(isStartPressed ? styles.primaryButtonPressed : undefined),
+            ...(isStarting ? styles.primaryButtonDisabled : undefined),
+          }}
+          onPointerDown={() => setIsStartPressed(true)}
+          onPointerUp={() => setIsStartPressed(false)}
+          onPointerLeave={() => setIsStartPressed(false)}
+          onPointerCancel={() => setIsStartPressed(false)}
+          onKeyDown={(event) => {
+            if (event.key === ' ' || event.key === 'Enter') {
+              setIsStartPressed(true);
+            }
+          }}
+          onKeyUp={() => setIsStartPressed(false)}
+        >
           {isStarting ? '连接中...' : '开始游戏'}
         </button>
 
@@ -245,6 +265,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'inherit',
     fontSize: '17px',
     imageRendering: 'pixelated',
+    boxShadow: 'none',
+  },
+  primaryButtonPressed: {
+    backgroundImage: 'url("/assets/button/button_press.png")',
+    transform: 'translateY(2px)',
+  },
+  primaryButtonDisabled: {
+    filter: 'grayscale(0.7)',
+    opacity: 0.72,
+    cursor: 'not-allowed',
   },
   secondaryButton: {
     minHeight: '38px',

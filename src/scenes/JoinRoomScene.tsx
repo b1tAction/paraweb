@@ -33,11 +33,15 @@ function getLobbyName(room: RoomListItem): string {
 
 export const JoinRoomScene: React.FC = () => {
   const joinRoomNotice = useGameStore((state) => state.joinRoomNotice);
+  const displayName = useGameStore((state) => state.displayName);
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [query, setQuery] = useState('');
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
   const [error, setError] = useState('');
 
   const visibleRooms = useMemo(() => {
@@ -93,6 +97,38 @@ export const JoinRoomScene: React.FC = () => {
     setError('请输入房间 ID 或房间名');
   };
 
+  const startEditingName = () => {
+    setNameDraft(displayName || '');
+    setIsEditingName(true);
+    setError('');
+  };
+
+  const cancelEditingName = () => {
+    setIsEditingName(false);
+    setNameDraft('');
+  };
+
+  const handleSaveDisplayName = async () => {
+    const trimmedName = nameDraft.trim();
+    if (!trimmedName) {
+      setError('昵称不能为空');
+      return;
+    }
+
+    try {
+      setError('');
+      setIsSavingName(true);
+      await gameService.updateDisplayName(trimmedName);
+      setIsEditingName(false);
+      setNameDraft('');
+    } catch (err: unknown) {
+      const message = await getErrorMessage(err);
+      setError(`修改昵称失败：${message}`);
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
   const handleJoin = async () => {
     if (!selectedMatchId) {
       setError('请选择一个房间');
@@ -115,24 +151,59 @@ export const JoinRoomScene: React.FC = () => {
 
   return (
     <main style={styles.page}>
-      <div style={styles.cornerTitle}>CONNECT</div>
+      <div style={styles.cornerTitle}>加入房间</div>
 
-      <section style={styles.panel}>
-        <div style={styles.actionRow}>
-          <button type="button" onClick={refreshRooms} disabled={isLoading} style={styles.smallButton}>
-            {isLoading ? 'LOADING' : 'REFRESH'}
-          </button>
-          <button type="button" onClick={handleSearch} style={styles.smallButton}>
-            SEARCH
-          </button>
-          <button
-            type="button"
-            onClick={() => useGameStore.getState().setScene(Scene.CreateRoom)}
-            style={styles.smallButton}
-          >
-            CREATE
-          </button>
+      <div style={styles.panelStack}>
+        <div style={styles.welcomeRow}>
+          {isEditingName ? (
+            <>
+              <span style={styles.welcomeText}>欢迎！</span>
+              <input
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSaveDisplayName();
+                  if (e.key === 'Escape') cancelEditingName();
+                }}
+                placeholder="输入昵称"
+                maxLength={20}
+                disabled={isSavingName}
+                style={styles.nameInput}
+                autoFocus
+              />
+              <button type="button" onClick={handleSaveDisplayName} disabled={isSavingName} style={styles.nameButton}>
+                {isSavingName ? '保存中' : '确认'}
+              </button>
+              <button type="button" onClick={cancelEditingName} disabled={isSavingName} style={styles.nameButton}>
+                取消
+              </button>
+            </>
+          ) : (
+            <>
+              <span style={styles.welcomeText}>欢迎！{displayName || '玩家'}</span>
+              <button type="button" onClick={startEditingName} style={styles.nameLinkButton}>
+                修改昵称
+              </button>
+            </>
+          )}
         </div>
+
+        <section style={styles.panel}>
+          <div style={styles.actionRow}>
+            <button type="button" onClick={refreshRooms} disabled={isLoading} style={styles.smallButton}>
+              {isLoading ? '加载中' : '刷新'}
+            </button>
+            <button type="button" onClick={handleSearch} style={styles.smallButton}>
+              搜索房间
+            </button>
+            <button
+              type="button"
+              onClick={() => useGameStore.getState().setScene(Scene.CreateRoom)}
+              style={styles.smallButton}
+            >
+              创建房间
+            </button>
+          </div>
 
         <input
           value={query}
@@ -140,13 +211,13 @@ export const JoinRoomScene: React.FC = () => {
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleSearch();
           }}
-          placeholder="Search lobby name or room id"
+          placeholder="搜索房间名或房间 ID"
           style={styles.searchInput}
         />
 
         <div style={styles.roomList}>
           {visibleRooms.length === 0 && (
-            <div style={styles.emptyState}>{isLoading ? 'Searching...' : 'No lobby found'}</div>
+            <div style={styles.emptyState}>{isLoading ? '搜索中...' : '暂无可用房间，刷新试试'}</div>
           )}
 
           {visibleRooms.map((room) => {
@@ -170,17 +241,18 @@ export const JoinRoomScene: React.FC = () => {
 
         {selectedMatchId && !selectedRoom && (
           <div style={styles.directRoom}>
-            ROOM ID: <span style={styles.directRoomId}>{selectedMatchId}</span>
+            房间 ID: <span style={styles.directRoomId}>{selectedMatchId}</span>
           </div>
         )}
 
         <button type="button" onClick={handleJoin} disabled={isJoining || !selectedMatchId} style={styles.joinButton}>
-          {isJoining ? 'JOINING...' : 'JOIN'}
+          {isJoining ? '加入中...' : '加入房间'}
         </button>
 
         {joinRoomNotice && <p style={styles.notice}>{joinRoomNotice}</p>}
         {error && <p style={styles.error}>{error}</p>}
-      </section>
+        </section>
+      </div>
     </main>
   );
 };
@@ -201,15 +273,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cornerTitle: {
     position: 'fixed',
-    left: '28px',
-    top: '24px',
+    left: '72px',
+    top: '68px',
     color: '#fff0b8',
-    fontSize: '24px',
+    fontSize: '36px',
     textShadow: '0 3px 0 rgba(0,0,0,0.42)',
   },
-  panel: {
+  panelStack: {
     width: 'min(620px, calc(100vw - 56px))',
     maxHeight: 'calc(100vh - 96px)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  panel: {
+    width: '100%',
+    minHeight: 0,
     display: 'flex',
     flexDirection: 'column',
     gap: '14px',
@@ -219,6 +298,61 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     boxShadow: '0 18px 44px rgba(0,0,0,0.34)',
     backdropFilter: 'blur(3px)',
+  },
+  welcomeRow: {
+    minHeight: '38px',
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'flex-start',
+    gap: '8px',
+    flexWrap: 'wrap',
+    color: '#fff0b8',
+  },
+  welcomeText: {
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '24px',
+    textShadow: '0 2px 0 rgba(0,0,0,0.38)',
+  },
+  nameInput: {
+    width: 'min(220px, 100%)',
+    minHeight: '34px',
+    boxSizing: 'border-box',
+    padding: '8px 10px',
+    color: '#20322a',
+    background: '#fff8df',
+    border: '1px solid rgba(58, 47, 32, 0.38)',
+    borderRadius: '8px',
+    fontFamily: 'inherit',
+    fontSize: '13px',
+    outline: 'none',
+  },
+  nameButton: {
+    minHeight: '34px',
+    padding: '0 10px',
+    color: '#fff7d6',
+    background: 'rgba(255, 247, 214, 0.1)',
+    border: '1px solid rgba(255, 247, 214, 0.3)',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '12px',
+  },
+  nameLinkButton: {
+    minHeight: '28px',
+    padding: 0,
+    color: '#a8e6cf',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: 0,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '12px',
+    textDecoration: 'underline',
+    lineHeight: 1,
+    boxShadow: 'none',
   },
   actionRow: {
     display: 'grid',
@@ -304,16 +438,16 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff7d6',
   },
   joinButton: {
+    alignSelf: 'center',
     minHeight: '48px',
-    color: '#352c20',
-    backgroundImage: 'url("/assets/button/button_up.png")',
-    backgroundSize: '100% 100%',
-    backgroundColor: 'transparent',
-    border: 'none',
+    padding: '0 36px',
+    color: '#20322a',
+    background: 'rgba(255, 255, 255, 0.62)',
+    border: '1px solid rgba(255, 255, 255, 0.72)',
+    borderRadius: '8px',
     cursor: 'pointer',
     fontFamily: 'inherit',
     fontSize: '17px',
-    imageRendering: 'pixelated',
   },
   notice: {
     margin: 0,
