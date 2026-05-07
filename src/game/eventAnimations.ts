@@ -8,7 +8,7 @@ export type EventAnimationType =
   | 'debuff_spin'   // purple debuff spin effect
   | 'item_sparkle'  // golden item sparkle effect
   | 'teleport_swap' // blue teleport swap effect
-  | 'curse_cloud'   // dark curse cloud effect
+  | 'skull_gaze_bomb' // purple skull + bomb explosion effect
   | 'lightning_strike' // yellow lightning strike effect
   | 'ghost_attack'  // grey ghost attack effect
   | 'wind_gust'     // orange wind gust effect
@@ -120,13 +120,13 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
     particleCount: 6,
     duration: 2500
   },
-  'curse_buddha': {
+  'skull_gaze': {
     color: 0x7b1fa2,
     textColor: '#f3e5f5',
-    animationType: 'curse_cloud',
-    iconEmoji: '🙏',
+    animationType: 'skull_gaze_bomb',
+    iconEmoji: '💀',
     particleCount: 9,
-    duration: 2500
+    duration: 2800
   },
   'lost_way': {
     color: 0xbf360c,
