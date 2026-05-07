@@ -190,6 +190,24 @@ export function shouldEnterGameOverAfterBoardAnimations(input: BoardGameOverTran
   );
 }
 
+type BoardMiniGameTransitionInput = {
+  currentScene: Scene;
+  globalState: string;
+  hasPendingAnimations: boolean;
+  stateSyncQueueLength: number;
+  diceRollStatus: DiceRollView['status'];
+};
+
+export function shouldEnterMiniGameAfterBoardAnimations(input: BoardMiniGameTransitionInput) {
+  return (
+    (input.globalState === 'round_mini_game' || input.globalState === 'RoundMiniGame') &&
+    input.currentScene === Scene.Board &&
+    input.stateSyncQueueLength === 0 &&
+    !input.hasPendingAnimations &&
+    input.diceRollStatus === 'idle'
+  );
+}
+
 type ReverseClockBuffFlight = {
   key: string;
   startX: number;
@@ -343,6 +361,8 @@ export const BoardScene: React.FC = () => {
    */
   const handleRollDice = () => {
     console.log('[BoardScene] 掷骰子');
+    setItemTargetSelection(null);
+    setSkillTargetSelection(false);
     setRolledDiceTurnKey(`${storeRound}:${storeTurn}:${currentPlayerId || myPlayerId}`);
     setDiceRollView({
       status: 'awaiting_result',
@@ -503,6 +523,7 @@ export const BoardScene: React.FC = () => {
     if (
       itemTargetSelection &&
       (
+        currentScene !== Scene.Board ||
         !isMainAction ||
         !isMyTurn ||
         !availableActions ||
@@ -514,10 +535,11 @@ export const BoardScene: React.FC = () => {
       setItemTargetSelection(null);
     }
 
-    if (skillTargetSelection && !canKeepSkillTargetSelection) {
+    if (skillTargetSelection && (currentScene !== Scene.Board || !canKeepSkillTargetSelection)) {
       setSkillTargetSelection(false);
     }
   }, [
+    currentScene,
     availableActions,
     decisionRequest,
     hasPendingAnimations,
@@ -614,6 +636,25 @@ export const BoardScene: React.FC = () => {
     store.setPendingScene(null);
     store.setScene(Scene.GameOver);
   }, [currentScene, diceRollView.status, gameOver, hasPendingAnimations, pendingScene, stateSyncQueue.length]);
+
+  useEffect(() => {
+    if (!shouldEnterMiniGameAfterBoardAnimations({
+      currentScene,
+      globalState,
+      hasPendingAnimations,
+      stateSyncQueueLength: stateSyncQueue.length,
+      diceRollStatus: diceRollView.status,
+    })) {
+      return;
+    }
+
+    const store = useGameStore.getState();
+    if (store.currentScene !== Scene.Board) return;
+
+    console.log('[BoardScene] Board animations finished, entering MiniGame');
+    store.setPendingScene(null);
+    store.setScene(Scene.MiniGameSubmitRank);
+  }, [currentScene, diceRollView.status, globalState, hasPendingAnimations, stateSyncQueue.length]);
 
   useEffect(() => {
     if (isTurnEndSettlement && currentPlayerId) {
@@ -1265,7 +1306,7 @@ export const BoardScene: React.FC = () => {
           </div>
         )}
 
-        {itemTargetSelection && (
+        {currentScene === Scene.Board && itemTargetSelection && (
           <div style={styles.decisionBackdrop}>
             <div style={styles.selectionPanel}>
               <div style={styles.selectionEyebrow}>道具使用</div>
@@ -1303,7 +1344,7 @@ export const BoardScene: React.FC = () => {
           </div>
         )}
 
-        {skillTargetSelection && (
+        {currentScene === Scene.Board && skillTargetSelection && (
           <div style={styles.decisionBackdrop}>
             <div style={styles.selectionPanel}>
               <div style={styles.selectionEyebrow}>技能释放</div>
@@ -1828,7 +1869,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '320px',
     padding: '42px 34px 28px',
     backgroundImage: 'url("/assets/frame/frame_choose.png")',
-    backgroundSize: '600px auto',
+    backgroundSize: '700px auto',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
     pointerEvents: 'auto',
