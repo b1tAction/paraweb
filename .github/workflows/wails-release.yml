@@ -189,12 +189,12 @@ jobs:
         run: wails version
 
       - name: Build Wails desktop binary
-        run: wails build -clean -s -platform darwin/arm64
+        run: wails build -clean -s -platform darwin/arm64 -o ParaDiced
 
       - name: Package and generate checksum
         run: |
           cd build/bin
-          zip -r ParaDiced-darwin-arm64.zip ParaDiced.app
+          zip -r ParaDiced-darwin-arm64.zip *.app
           tag="${{ needs.prepare-release.outputs.tag }}"
           asset_name="ParaDiced-darwin-arm64-$tag.zip"
           mv ParaDiced-darwin-arm64.zip "$asset_name"
@@ -224,7 +224,22 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential pkg-config
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            pkg-config \
+            file \
+            patchelf \
+            libfuse2 \
+            libglib2.0-0 \
+            libnss3 \
+            libx11-6 \
+            libxext6 \
+            libxrender1 \
+            libxrandr2
+          # Ubuntu package transition: libasound2 -> libasound2t64 on newer images
+          sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -268,13 +283,24 @@ jobs:
         run: wails version
 
       - name: Build Wails desktop binary
-        run: wails build -clean -s -platform linux/amd64
+        run: wails build -clean -s -platform linux/amd64 -tags webkit2_41
 
       - name: Download AppImage tools
+        shell: bash
         run: |
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk-x86_64.AppImage
+          set -euo pipefail
+
+          # linuxdeploy binary (AppImage)
+          wget -c "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+
+          # linuxdeploy-plugin-gtk has no Releases anymore; use the project's recommended installer script
+          wget -c "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh"
+
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk.sh
+
+          # optional sanity checks
+          ./linuxdeploy-x86_64.AppImage --version
+          ./linuxdeploy-plugin-gtk.sh --help >/dev/null
 
       - name: Create AppImage
         run: |
@@ -284,7 +310,7 @@ jobs:
           cat > AppDir/paradiced.desktop << 'EOF'
           [Desktop Entry]
           Name=ParaDiced
-          Exec=paradiced
+          Exec=ParaDiced
           Icon=paradiced
           Type=Application
           Categories=Game;
