@@ -469,6 +469,18 @@ export const BoardScene: React.FC = () => {
     diceRollView.status === 'rolling' ||
     diceRollView.status === 'result' ||
     isBlockingDiceUpgradeAnimation;
+  const selectedItemStillAvailable = Boolean(
+    itemTargetSelection &&
+      actionView?.items.some((item) => item.id === itemTargetSelection.id)
+  );
+  const canKeepSkillTargetSelection = Boolean(
+    skillTargetSelection &&
+      isMainAction &&
+      isMyTurn &&
+      availableActions?.can_use_skill &&
+      !decisionRequest &&
+      !hasPendingAnimations
+  );
   const activeAnimationContext = useMemo(
     () => createLogEntryAnimationContext(playedEntries, pendingEntries),
     [playedEntries, pendingEntries]
@@ -486,6 +498,36 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === settlementPlayerId) ||
       null
     : null;
+
+  useEffect(() => {
+    if (
+      itemTargetSelection &&
+      (
+        !isMainAction ||
+        !isMyTurn ||
+        !availableActions ||
+        Boolean(decisionRequest) ||
+        hasPendingAnimations ||
+        !selectedItemStillAvailable
+      )
+    ) {
+      setItemTargetSelection(null);
+    }
+
+    if (skillTargetSelection && !canKeepSkillTargetSelection) {
+      setSkillTargetSelection(false);
+    }
+  }, [
+    availableActions,
+    decisionRequest,
+    hasPendingAnimations,
+    isMainAction,
+    isMyTurn,
+    itemTargetSelection,
+    selectedItemStillAvailable,
+    skillTargetSelection,
+    canKeepSkillTargetSelection,
+  ]);
 
   useEffect(() => {
     const entry = activeAnimationContext?.entry;
@@ -1225,7 +1267,8 @@ export const BoardScene: React.FC = () => {
 
         {itemTargetSelection && (
           <div style={styles.decisionBackdrop}>
-            <div style={styles.decisionSection}>
+            <div style={styles.selectionPanel}>
+              <div style={styles.selectionEyebrow}>道具使用</div>
               <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', color: '#333' }}>选择道具目标玩家</h3>
               <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#666' }}>
                 请为道具 {itemTargetSelection.name} 选择一个作用目标
@@ -1241,17 +1284,17 @@ export const BoardScene: React.FC = () => {
                       });
                       setItemTargetSelection(null);
                     }}
-                    style={styles.decisionButton}
+                    style={styles.selectionChoiceButton}
                   >
                     <span style={styles.targetPlayerName}>{getPlayerName(player.player_id)}</span>
                     <span style={styles.targetPlayerPosition}>位置 {player.position}</span>
                   </button>
                 ))}
               </div>
-              <div style={{ marginTop: '16px', textAlign: 'right' }}>
+              <div style={styles.selectionFooter}>
                 <button
                   onClick={() => setItemTargetSelection(null)}
-                  style={{ ...styles.decisionButton, backgroundColor: '#9e9e9e', padding: '6px 12px' }}
+                  style={styles.selectionCancelButton}
                 >
                   取消
                 </button>
@@ -1262,7 +1305,8 @@ export const BoardScene: React.FC = () => {
 
         {skillTargetSelection && (
           <div style={styles.decisionBackdrop}>
-            <div style={styles.decisionSection}>
+            <div style={styles.selectionPanel}>
+              <div style={styles.selectionEyebrow}>技能释放</div>
               <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', color: '#333' }}>选择技能目标玩家</h3>
               <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#666' }}>
                 请为劫运选择一个作用目标
@@ -1278,17 +1322,17 @@ export const BoardScene: React.FC = () => {
                       });
                       setSkillTargetSelection(false);
                     }}
-                    style={styles.decisionButton}
+                    style={styles.selectionChoiceButton}
                   >
                     <span style={styles.targetPlayerName}>{getPlayerName(player.player_id)}</span>
                     <span style={styles.targetPlayerPosition}>位置 {player.position}</span>
                   </button>
                 ))}
               </div>
-              <div style={{ marginTop: '16px', textAlign: 'right' }}>
+              <div style={styles.selectionFooter}>
                 <button
                   onClick={() => setSkillTargetSelection(false)}
-                  style={{ ...styles.decisionButton, backgroundColor: '#9e9e9e', padding: '6px 12px' }}
+                  style={styles.selectionCancelButton}
                 >
                   取消
                 </button>
@@ -1604,7 +1648,7 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundImage: 'url("/assets/buff/frame.png")',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center',
-    backgroundSize: '100% 100%',
+    backgroundSize: '520px auto',
     filter: 'drop-shadow(0 5px 10px rgba(0, 0, 0, 0.36))',
     boxSizing: 'border-box',
   },
@@ -1779,6 +1823,22 @@ const styles: Record<string, React.CSSProperties> = {
     width: 'min(700px, calc(100vw - 40px))',
     pointerEvents: 'auto',
   },
+  selectionPanel: {
+    width: 'min(560px, calc(100vw - 40px))',
+    minHeight: '320px',
+    padding: '42px 34px 28px',
+    backgroundImage: 'url("/assets/frame/frame_choose.png")',
+    backgroundSize: '600px auto',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+    pointerEvents: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    color: '#4f2f13',
+    textShadow: '0 1px 0 rgba(255, 248, 229, 0.55)',
+    filter: 'drop-shadow(0 18px 26px rgba(24, 12, 4, 0.36))',
+  },
   decisionBackdrop: {
     position: 'absolute',
     inset: 0,
@@ -1791,8 +1851,48 @@ const styles: Record<string, React.CSSProperties> = {
   decisionOptions: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: '8px',
-    marginTop: '12px',
+    gap: '12px',
+    marginTop: '16px',
+  },
+  selectionEyebrow: {
+    alignSelf: 'flex-start',
+    marginBottom: '8px',
+    padding: '4px 10px',
+    borderRadius: '999px',
+    backgroundColor: 'rgba(124, 76, 31, 0.14)',
+    color: '#8a5523',
+    fontSize: '12px',
+    fontWeight: 800,
+    letterSpacing: '0.04em',
+  },
+  selectionChoiceButton: {
+    padding: '12px 16px',
+    minWidth: '148px',
+    border: '1px solid rgba(126, 77, 34, 0.24)',
+    borderRadius: '8px',
+    background: 'linear-gradient(180deg, rgba(255, 251, 238, 0.94) 0%, rgba(249, 232, 198, 0.96) 100%)',
+    color: '#5b3614',
+    boxShadow: '0 8px 16px rgba(76, 44, 17, 0.14)',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '6px',
+  },
+  selectionFooter: {
+    marginTop: '20px',
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+  selectionCancelButton: {
+    padding: '10px 18px',
+    border: '1px solid rgba(122, 88, 51, 0.28)',
+    borderRadius: '8px',
+    background: 'linear-gradient(180deg, rgba(136, 110, 82, 0.96) 0%, rgba(108, 83, 57, 0.98) 100%)',
+    color: '#fff7ea',
+    cursor: 'pointer',
+    fontWeight: 800,
+    boxShadow: '0 8px 16px rgba(32, 18, 8, 0.2)',
   },
   decisionButton: {
     padding: '10px 16px',
@@ -1808,14 +1908,16 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: '116px',
   },
   targetPlayerName: {
-    fontSize: '14px',
+    fontSize: '15px',
     fontWeight: 800,
-    lineHeight: 1.1,
+    lineHeight: 1.2,
+    color: '#5b3614',
   },
   targetPlayerPosition: {
     fontSize: '12px',
-    lineHeight: 1.1,
-    opacity: 0.86,
+    lineHeight: 1.2,
+    opacity: 0.72,
+    color: '#7b5331',
   },
   debugLogPanel: {
     pointerEvents: 'auto',
