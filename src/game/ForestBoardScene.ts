@@ -283,6 +283,12 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: 128
     });
 
+    // Load ghost effect sprite sheet for ghost_hit event
+    this.load.spritesheet('ghost-effect', '/assets/effects/ghost.png', {
+      frameWidth: 150,
+      frameHeight: 150
+    });
+
     this.load.image('event-popup-frame', '/assets/frame/event_frame.png');
 
     this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
@@ -425,6 +431,14 @@ export class ForestBoardScene extends Phaser.Scene {
     this.anims.create({
       key: 'bubble_anim',
       frames: this.anims.generateFrameNumbers('bubble-effect', { start: 0, end: 19 }),
+      frameRate: 20,
+      repeat: 0
+    });
+
+    // Create ghost hit animation for ghost_hit event (8 frames, fast playback)
+    this.anims.create({
+      key: 'ghost_hit_anim',
+      frames: this.anims.generateFrameNumbers('ghost-effect', { start: 0, end: 7 }),
       frameRate: 20,
       repeat: 0
     });

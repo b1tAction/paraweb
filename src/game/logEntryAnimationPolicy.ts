@@ -184,6 +184,11 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
     return 2800 + EFFECT_START_GAP_MS + DRAW_EVENT_EFFECT_EXTRA_MS;
   }
 
+  // Ghost_hit draw_event should chain to damage with overlap (popup must finish first).
+  if (currentActionType === 'draw_event' && currentEventType === 'ghost_hit' && nextActionType === 'damage') {
+    return 2900;
+  }
+
   if (context.nextEntry) {
     const transitionKey = `${context.entry.action_type}->${context.nextEntry.action_type}`;
     const transitionDelay = ACTION_TRANSITION_DELAY_MS[transitionKey];
