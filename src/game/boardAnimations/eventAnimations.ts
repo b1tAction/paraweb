@@ -58,11 +58,66 @@ export async function playDrawEventAnimation(
     playWindGustAnimation(ctx, context);
   } else if (eventType === 'lucky_bubble') {
     playBubbleAnimation(ctx, context);
+  } else if (eventType === 'skull_gaze') {
+    playSkullGazeBombAnimation(ctx, context);
   } else if (eventType === 'ghost_hit') {
     playGhostHitAnimation(ctx, context);
   } else if (eventType === 'lost_way') {
     playLostWayAnimation(ctx, context);
   }
+}
+
+/**
+ * Play the skull gaze + bomb explosion effect for skull_gaze event.
+ * Purple skull appears at character's feet, then bomb explosion with purple tint
+ * starts shortly after. Skull fades out while explosion continues.
+ */
+export function playSkullGazeBombAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const centerX = marker.x;
+  // Center effects at player body mid-point instead of feet
+  const bodyCenterY = marker.y;
+
+  // 1. Skull sprite centered at player body
+  const skullSprite = ctx.scene.add.sprite(centerX, bodyCenterY, 'skull-gaze-effect');
+  skullSprite.setScale(1.5);
+  skullSprite.setOrigin(0.5, 0.5);
+  skullSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  skullSprite.play('skull_gaze_anim');
+
+  // 2. Bomb explosion centered at player body (150ms delay)
+  ctx.scene.time.delayedCall(150, () => {
+    const bombSprite = ctx.scene.add.sprite(centerX, bodyCenterY, 'bomb-effect');
+    bombSprite.setScale(2.0);
+    bombSprite.setOrigin(0.5, 0.5);
+    bombSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+    // Apply purple tint to the explosion
+    bombSprite.setTint(0x9c27b0);
+    bombSprite.play('bomb_anim');
+
+    bombSprite.on('animationcomplete', () => {
+      bombSprite.destroy();
+    });
+  });
+
+  // 3. Skull fades out after its animation completes
+  skullSprite.on('animationcomplete', () => {
+    ctx.tweens.add({
+      targets: skullSprite,
+      alpha: { from: 1, to: 0 },
+      duration: 300,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        skullSprite.destroy();
+      }
+    });
+  });
+
+  // 4. Camera shake for impact feel
+  ctx.scene.cameras.main.shake(400, 0.003);
 }
 
 /**
