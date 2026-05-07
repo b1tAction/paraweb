@@ -37,6 +37,8 @@ const DRAW_EVENT_EFFECT_EXTRA_MS = 1000;
 const LOST_WAY_ANIMATION_DELAY_MS = 5000;
 // Hidden buff animation total duration (popup 2500 + gap 200 + effect 1700)
 const HIDDEN_BUFF_ANIMATION_DELAY_MS = 4400;
+// Relic animation total duration (popup 2500 + gap 200 + effect 2800 + buffer 200)
+const RELIC_ANIMATION_DELAY_MS = 5700;
 
 const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
   'damage->death': 180,
@@ -206,6 +208,11 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   // Hidden buff draw_event has a custom animation (disintegrate + void + reassemble phases).
   if (currentActionType === 'draw_event' && currentEventType === 'hidden_buff') {
     return HIDDEN_BUFF_ANIMATION_DELAY_MS;
+  }
+
+  // Relic draw_event has a custom animation (chest appear + bomb + weapon fly-out + disappear).
+  if (currentActionType === 'draw_event' && currentEventType === 'relic') {
+    return RELIC_ANIMATION_DELAY_MS;
   }
 
   if (context.nextEntry) {

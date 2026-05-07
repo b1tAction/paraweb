@@ -17,7 +17,8 @@ export type EventAnimationType =
   | 'mosquito_attack' // mosquito sprite attack effect
   | 'lost_way_dissolve' // dark dissolve/glitch overlay effect
   | 'hidden_buff_disintegrate' // blue-purple fragment scatter + void + reassemble effect
-  | 'dizzy_stars'; // hurt+僵直+spinning stars dizzy effect
+  | 'dizzy_stars' // hurt+僵直+spinning stars dizzy effect
+  | 'relic_open'; // chest appear + bomb explosion + weapon fly-out + disappear effect
 
 export type EventEffectConfig = {
   color: number;
@@ -51,7 +52,7 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
   'relic': {
     color: 0xffd700,
     textColor: '#fff9c4',
-    animationType: 'item_sparkle',
+    animationType: 'relic_open',
     iconEmoji: '⚔️',
     particleCount: 12,
     duration: 2500
