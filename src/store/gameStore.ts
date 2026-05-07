@@ -149,6 +149,8 @@ interface GameState {
   definitions: DefinitionsConfig | null;
   /** 当前房间 ID */
   matchId: string;
+  /** 加入房间页提示 */
+  joinRoomNotice: string;
   /** StateSync 等待队列：暂存接收到的状态，等待动画完成后再应用 */
   stateSyncQueue: StateSync[];
   /** 当前回合同步日志条目 (已播放完毕，显示在debug log中) */
@@ -175,6 +177,8 @@ interface GameState {
   setFaction: (faction: string) => void;
   /** 设置房间 ID */
   setMatchId: (id: string) => void;
+  /** 设置加入房间页提示 */
+  setJoinRoomNotice: (notice: string) => void;
 
   /** 设置场景 */
   setScene: (scene: Scene) => void;
@@ -260,6 +264,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   mapConfig: null,
   definitions: null,
   matchId: '',
+  joinRoomNotice: '',
   displayName: '',
   stateSyncQueue: [],
   faction: '',
@@ -280,6 +285,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setFaction: (faction) => set({ faction }),
 
   setMatchId: (id) => set({ matchId: id }),
+  setJoinRoomNotice: (notice) => set({ joinRoomNotice: notice }),
 
   setScene: (scene) => set({ currentScene: scene }),
 
@@ -378,6 +384,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       displayName: '',
       faction: '',
       matchId: '',
+      joinRoomNotice: '',
       players: [],
       currentPlayerId: '',
       round: 0,
@@ -406,6 +413,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       globalState: 'match_init',
       turnState: '',
       matchId: '',
+      joinRoomNotice: state.joinRoomNotice,
       players: [],
       currentPlayerId: '',
       round: 0,

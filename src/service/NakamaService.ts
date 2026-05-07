@@ -678,6 +678,19 @@ export class NakamaService {
 
   private handleGameOver(data: protocol.GameOver) {
     const store = useGameStore.getState();
+    const isWaitingRoomTermination =
+      store.currentScene === Scene.Lobby &&
+      !data.winner_id &&
+      (!data.stats || data.stats.length === 0);
+
+    if (isWaitingRoomTermination) {
+      store.setJoinRoomNotice('房主已解散房间');
+      store.resetMatchState();
+      store.setScene(Scene.JoinRoom);
+      console.log('[Nakama] 房间已解散');
+      return;
+    }
+
     store.setGameOver(data);
 
     if (store.currentScene === Scene.Board || (store.currentScene === Scene.MiniGameSubmitRank && store.miniGameResultPending)) {
@@ -693,6 +706,23 @@ export class NakamaService {
   }
 
   private handleActionRejected(data: protocol.ActionRejected) {
+    if (data.op_code === opcodes.OpKickPlayer && data.error_code === 2003) {
+      const store = useGameStore.getState();
+      store.setJoinRoomNotice('你已被房主移出房间');
+      void this.leaveRoom()
+        .catch((error) => {
+          console.warn('[Nakama] 被移出后离开房间失败', error);
+        })
+        .finally(() => {
+          const latestStore = useGameStore.getState();
+          latestStore.setJoinRoomNotice('你已被房主移出房间');
+          latestStore.resetMatchState();
+          latestStore.setScene(Scene.JoinRoom);
+        });
+      console.warn('[Nakama] 已被房主移出房间', data);
+      return;
+    }
+
     if (data.op_code === opcodes.OpRollDice && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('board:dice-roll-rejected'));
     }
@@ -964,6 +994,14 @@ export class NakamaService {
       faction,
       display_name: displayName,
     });
+  }
+
+  /**
+   * 9c. 房主移出等待房间玩家
+   */
+  async sendKickPlayer(targetId: string): Promise<void> {
+    console.log('[Nakama] 发送移出玩家请求', { targetId });
+    await this.sendOpCode(opcodes.OpKickPlayer, { target_id: targetId } satisfies protocol.KickPlayer);
   }
 
   /**

@@ -51,14 +51,17 @@ export const OpUseSkill = 102;
 /** 决策选择响应 */
 export const OpUserChoice = 103;
 
-/** 小游戏数据提交 - 客户端提交 game_data，服务端计算排名 */
-export const OpMiniGameDataSubmit = 107;
+/** 房主移出等待房间玩家 */
+export const OpKickPlayer = 104;
 
 /** 房主开始游戏请求 */
 export const OpStartGame = 105;
 
 /** 轮结束就绪信号 - 客户端渲染完毕后发送 */
 export const OpRoundReady = 106;
+
+/** 小游戏数据提交 - 客户端提交 game_data，服务端计算排名 */
+export const OpMiniGameDataSubmit = 107;
 
 /** 等待房间玩家设置更新 */
 export const OpUpdateLobbyPlayer = 108;
@@ -82,9 +85,10 @@ export function getOpCodeName(opCode: number): string {
     [OpUseItem]: 'use_item',
     [OpUseSkill]: 'use_skill',
     [OpUserChoice]: 'user_choice',
-    [OpMiniGameDataSubmit]: 'mini_game_data_submit',
+    [OpKickPlayer]: 'kick_player',
     [OpStartGame]: 'start_game',
     [OpRoundReady]: 'round_ready',
+    [OpMiniGameDataSubmit]: 'mini_game_data_submit',
     [OpUpdateLobbyPlayer]: 'update_lobby_player',
   };
   return names[opCode] || 'unknown';

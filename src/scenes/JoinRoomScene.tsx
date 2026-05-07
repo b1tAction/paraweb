@@ -32,6 +32,7 @@ function getLobbyName(room: RoomListItem): string {
 }
 
 export const JoinRoomScene: React.FC = () => {
+  const joinRoomNotice = useGameStore((state) => state.joinRoomNotice);
   const [rooms, setRooms] = useState<RoomListItem[]>([]);
   const [query, setQuery] = useState('');
   const [selectedMatchId, setSelectedMatchId] = useState('');
@@ -77,6 +78,7 @@ export const JoinRoomScene: React.FC = () => {
   }, []);
 
   const handleSearch = () => {
+    useGameStore.getState().setJoinRoomNotice('');
     const exact = rooms.find((room) => room.match_id === query.trim());
     if (exact?.match_id) {
       setSelectedMatchId(exact.match_id);
@@ -99,6 +101,7 @@ export const JoinRoomScene: React.FC = () => {
 
     try {
       setError('');
+      useGameStore.getState().setJoinRoomNotice('');
       setIsJoining(true);
       await gameService.joinRoom(selectedMatchId);
       useGameStore.getState().setScene(Scene.Lobby);
@@ -175,6 +178,7 @@ export const JoinRoomScene: React.FC = () => {
           {isJoining ? 'JOINING...' : 'JOIN'}
         </button>
 
+        {joinRoomNotice && <p style={styles.notice}>{joinRoomNotice}</p>}
         {error && <p style={styles.error}>{error}</p>}
       </section>
     </main>
@@ -310,6 +314,15 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'inherit',
     fontSize: '17px',
     imageRendering: 'pixelated',
+  },
+  notice: {
+    margin: 0,
+    padding: '10px 12px',
+    color: '#ecffe1',
+    background: 'rgba(44, 88, 54, 0.66)',
+    border: '1px solid rgba(174, 235, 158, 0.35)',
+    borderRadius: '8px',
+    fontSize: '13px',
   },
   error: {
     margin: 0,
