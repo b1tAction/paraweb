@@ -1,4 +1,4 @@
-import * as Phaser from 'phaser';
+import type * as Phaser from 'phaser';
 import type { Player } from '../types/protocol';
 import {
   BOSS_BEAST_ASSETS,
@@ -47,8 +47,8 @@ export type CharacterRenderProfile = {
   defaultFlipX?: boolean;
   nameOffsetY?: number;
   effectOffsetY?: number;
-  animations: Record<CharacterCoreAnimationState, CharacterSheetConfig>
-    & Partial<Record<Exclude<CharacterAnimationState, CharacterCoreAnimationState>, CharacterSheetConfig>>;
+  animations: Record<CharacterCoreAnimationState, CharacterSheetConfig> &
+    Partial<Record<Exclude<CharacterAnimationState, CharacterCoreAnimationState>, CharacterSheetConfig>>;
   avatarState?: CharacterAnimationState;
   avatarFrame?: number;
 };
@@ -65,21 +65,17 @@ export type CharacterPhaserRenderer = {
   preload(scene: Phaser.Scene, profile: CharacterRenderProfile): void;
   ensureAnimations(scene: Phaser.Scene, profile: CharacterRenderProfile): void;
   createSprite(context: CharacterSpriteContext): Phaser.GameObjects.Sprite;
-  hasAnimation?(
-    scene: Phaser.Scene,
-    profile: CharacterRenderProfile,
-    state: CharacterAnimationState
-  ): boolean;
+  hasAnimation?(scene: Phaser.Scene, profile: CharacterRenderProfile, state: CharacterAnimationState): boolean;
   play(
     scene: Phaser.Scene,
     sprite: Phaser.GameObjects.Sprite,
     profile: CharacterRenderProfile,
-    state: CharacterAnimationState
+    state: CharacterAnimationState,
   ): void;
   getAvatarDataUrl?(
     scene: Phaser.Scene,
     sprite: Phaser.GameObjects.Sprite,
-    profile: CharacterRenderProfile
+    profile: CharacterRenderProfile,
   ): string | null;
 };
 
@@ -472,12 +468,11 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
   },
 };
 
-
 export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
   preload(scene, profile) {
     const loadedTextureKeys = new Set<string>();
-    (Object.entries(profile.animations) as [CharacterAnimationState, CharacterSheetConfig][])
-      .forEach(([state, animation]) => {
+    (Object.entries(profile.animations) as [CharacterAnimationState, CharacterSheetConfig][]).forEach(
+      ([state, animation]) => {
         const textureKey = getTextureKey(profile, state);
         if (loadedTextureKeys.has(textureKey) || scene.textures.exists(textureKey)) return;
         loadedTextureKeys.add(textureKey);
@@ -486,12 +481,13 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
           frameHeight: animation.frameHeight,
           spacing: animation.frameSpacing ?? 0,
         });
-      });
+      },
+    );
   },
 
   ensureAnimations(scene, profile) {
-    (Object.entries(profile.animations) as [CharacterAnimationState, CharacterSheetConfig][])
-      .forEach(([state, animation]) => {
+    (Object.entries(profile.animations) as [CharacterAnimationState, CharacterSheetConfig][]).forEach(
+      ([state, animation]) => {
         const animationKey = getAnimationKey(profile, state);
         const textureKey = getTextureKey(profile, state);
         if (!scene.textures.exists(textureKey) || scene.anims.exists(animationKey)) return;
@@ -505,7 +501,8 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
           frameRate: animation.frameRate,
           repeat: animation.repeat ?? -1,
         });
-      });
+      },
+    );
   },
 
   createSprite({ scene, profile, x, y }) {
@@ -539,9 +536,7 @@ export const DEFAULT_CHARACTER_RENDERER: CharacterPhaserRenderer = {
       return;
     }
 
-    console.warn(
-      `[characterRenderConfig] Missing animation key "${preferredKey}" for profile "${profile.id}".`
-    );
+    console.warn(`[characterRenderConfig] Missing animation key "${preferredKey}" for profile "${profile.id}".`);
   },
 
   getAvatarDataUrl(scene, _sprite, profile) {
@@ -585,11 +580,7 @@ export function getFallbackProfileIds(options?: CharacterRenderOptions) {
   return fallbackIds.filter((profileId) => profileId !== BOSS_BEAST_PROFILE_ID && Boolean(profiles[profileId]));
 }
 
-export function resolveCharacterProfile(
-  player: Player,
-  order: number,
-  options?: CharacterRenderOptions
-) {
+export function resolveCharacterProfile(player: Player, order: number, options?: CharacterRenderOptions) {
   const profiles = getCharacterProfiles(options);
   const fallbackProfileIds = getFallbackProfileIds(options);
   const factionToProfileId = options?.factionToProfileId ?? DEFAULT_FACTION_TO_PROFILE_ID;
@@ -631,25 +622,18 @@ export function getCharacterEffectOffsetY(profile: CharacterRenderProfile) {
   return profile.effectOffsetY ?? 0;
 }
 
-export function getCharacterProfileByFaction(
-  faction?: string | null,
-  options?: CharacterRenderOptions
-) {
+export function getCharacterProfileByFaction(faction?: string | null, options?: CharacterRenderOptions) {
   const profiles = getCharacterProfiles(options);
   const fallbackProfileIds = getFallbackProfileIds(options);
   const factionToProfileId = options?.factionToProfileId ?? DEFAULT_FACTION_TO_PROFILE_ID;
 
-  const profileId =
-    (faction ? factionToProfileId[faction] : undefined) ??
-    fallbackProfileIds[0];
+  const profileId = (faction ? factionToProfileId[faction] : undefined) ?? fallbackProfileIds[0];
 
   if (profileId && profiles[profileId]) {
     return profiles[profileId];
   }
 
-  const fallbackProfile = fallbackProfileIds
-    .map((candidateId) => profiles[candidateId])
-    .find(Boolean);
+  const fallbackProfile = fallbackProfileIds.map((candidateId) => profiles[candidateId]).find(Boolean);
 
   if (!fallbackProfile) {
     throw new Error('[characterRenderConfig] No character render profile is available.');
@@ -660,7 +644,7 @@ export function getCharacterProfileByFaction(
 
 export function getCharacterIdleSpriteMeta(
   faction?: string | null,
-  options?: CharacterRenderOptions
+  options?: CharacterRenderOptions,
 ): CharacterIdleSpriteMeta {
   const profile = getCharacterProfileByFaction(faction, options);
   const idle = profile.animations.idle;

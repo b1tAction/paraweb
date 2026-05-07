@@ -1,7 +1,7 @@
-import * as Phaser from 'phaser';
-import { AnimationOrchestrator } from '../animationOrchestrator';
-import { LAYER_POPUP_BG, LAYER_POPUP_TEXT } from '../renderLayers';
+import type * as Phaser from 'phaser';
+import type { AnimationOrchestrator } from '../animationOrchestrator';
 import { GAME_FONT_FAMILY } from '../boardConstants';
+import { LAYER_POPUP_BG, LAYER_POPUP_TEXT } from '../renderLayers';
 
 const EVENT_POPUP_FRAME_KEY = 'event-popup-frame';
 const PANEL_WIDTH = 600;
@@ -33,13 +33,15 @@ export function showCenterPopup(
   eventName: string,
   _textColor: string,
   iconEmoji?: string,
-  duration: number = 2500
+  duration: number = 2500,
 ): Promise<void> {
   // Close existing popup if any (also resolves any pending promise)
   closeCenterPopup(ctx);
 
   let resolveFunc!: () => void;
-  const popupPromise = new Promise<void>((resolve) => { resolveFunc = resolve; });
+  const popupPromise = new Promise<void>((resolve) => {
+    resolveFunc = resolve;
+  });
 
   const cam = ctx.scene.cameras.main;
   // Use stable screen pixel coordinates for center positioning.
@@ -61,10 +63,8 @@ export function showCenterPopup(
   const worldPanelHeight = panelHeight / (cam.zoom || 1);
 
   // Background panel at LAYER_POPUP_BG
-  const panel = ctx.orchestrator.createScreenPositionedObject(
-    screenCenterX, screenCenterY,
-    LAYER_POPUP_BG,
-    (wx, wy) => ctx.scene.add.image(wx, wy, EVENT_POPUP_FRAME_KEY) as Phaser.GameObjects.Image & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
+  const panel = ctx.orchestrator.createScreenPositionedObject(screenCenterX, screenCenterY, LAYER_POPUP_BG, (wx, wy) =>
+    ctx.scene.add.image(wx, wy, EVENT_POPUP_FRAME_KEY),
   );
   const targetScaleX = worldPanelWidth / panel.width;
   const targetScaleY = worldPanelHeight / panel.height;
@@ -73,10 +73,8 @@ export function showCenterPopup(
   panel.setScale(targetScaleX * 0.85, targetScaleY * 0.85);
 
   // Text at LAYER_POPUP_TEXT (always readable, above effects)
-  const text = ctx.orchestrator.createScreenPositionedObject(
-    screenCenterX, screenCenterY,
-    LAYER_POPUP_TEXT,
-    (wx, wy) => ctx.scene.add.text(wx, wy, displayText, {
+  const text = ctx.orchestrator.createScreenPositionedObject(screenCenterX, screenCenterY, LAYER_POPUP_TEXT, (wx, wy) =>
+    ctx.scene.add.text(wx, wy, displayText, {
       fontFamily: EVENT_POPUP_FONT_FAMILY || GAME_FONT_FAMILY,
       fontSize: `${textFontSize}px`,
       fontStyle: 'normal',
@@ -92,7 +90,7 @@ export function showCenterPopup(
         blur: 0,
         fill: true,
       },
-    }) as Phaser.GameObjects.Text & { setScrollFactor: (f: number) => any; setDepth: (d: number) => any }
+    }),
   );
   text.setOrigin(0.5, 0.5);
   text.setWordWrapWidth(wordWrapWidth, true);

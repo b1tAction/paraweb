@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Scene, useGameStore } from '../store/gameStore';
+import type React from 'react';
+import { useState } from 'react';
 import { gameService } from '../service/NakamaService';
+import { Scene, useGameStore } from '../store/gameStore';
 
 async function getErrorMessage(err: unknown): Promise<string> {
   if (err instanceof Error && err.message) return err.message;
@@ -63,7 +64,6 @@ export const CreateRoomScene: React.FC = () => {
             placeholder="输入房间名"
             maxLength={32}
             style={styles.input}
-            autoFocus
           />
         </label>
 

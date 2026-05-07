@@ -1,4 +1,4 @@
-import * as Phaser from 'phaser';
+import type * as Phaser from 'phaser';
 import { worldDepth } from './renderLayers';
 
 /**
@@ -18,12 +18,9 @@ export class AnimationOrchestrator {
    * Converts world coordinates to screen coordinates by subtracting camera scroll.
    * Sets scrollFactor(0) so the object stays fixed on screen.
    */
-  createScreenFixedObject<T extends Phaser.GameObjects.GameObject & { setScrollFactor: (f: number) => T; setDepth: (d: number) => T }>(
-    worldX: number,
-    worldY: number,
-    layer: number,
-    factory: (screenX: number, screenY: number) => T
-  ): T {
+  createScreenFixedObject<
+    T extends Phaser.GameObjects.GameObject & { setScrollFactor: (f: number) => T; setDepth: (d: number) => T },
+  >(worldX: number, worldY: number, layer: number, factory: (screenX: number, screenY: number) => T): T {
     const cam = this.scene.cameras.main;
     // Convert world coordinates to screen coordinates by subtracting camera scroll
     const screenX = worldX - cam.scrollX;
@@ -48,12 +45,9 @@ export class AnimationOrchestrator {
    * Rendering formula for scrollFactor(0): canvasPixel = world * zoom
    * Therefore: world = screenPixel / zoom
    */
-  createScreenPositionedObject<T extends Phaser.GameObjects.GameObject & { setScrollFactor: (f: number) => T; setDepth: (d: number) => T }>(
-    screenPixelX: number,
-    screenPixelY: number,
-    layer: number,
-    factory: (worldX: number, worldY: number) => T
-  ): T {
+  createScreenPositionedObject<
+    T extends Phaser.GameObjects.GameObject & { setScrollFactor: (f: number) => T; setDepth: (d: number) => T },
+  >(screenPixelX: number, screenPixelY: number, layer: number, factory: (worldX: number, worldY: number) => T): T {
     const cam = this.scene.cameras.main;
     const zoom = cam.zoom || 1;
     const worldX = (screenPixelX - cam.centerX) / zoom + cam.centerX;
