@@ -74,3 +74,16 @@ export const PLAYER_NAME_SCREEN_FONT_SIZE = 14;
 export const CELL_LABEL_SCREEN_FONT_SIZE = 12;
 export const PLAYER_NAME_TEXTURE_RESOLUTION = 2;
 export const LOGIC_CELL_MARKER_SCALE = 1.5;
+
+// Lost way animation timing constants (ms)
+export const LOST_WAY_DISSOLVE_START_DELAY = 300;     // delay before dissolve begins
+export const LOST_WAY_DISSOLVE_DURATION = 800;        // dissolve shader progress 0→1
+export const LOST_WAY_DIZZY_START_DELAY = 1100;       // dizzy (hurt+tint+stars) starts when dissolve completes
+export const LOST_WAY_DIZZY_DURATION = 1200;           // dizzy duration (stiffness lasts until animation fully ends)
+export const LOST_WAY_RECOVERY_START_DELAY = 1800;    // recovery shader progress 1→0 starts
+export const LOST_WAY_RECOVERY_DURATION = 500;        // recovery duration
+export const LOST_WAY_TOTAL_EFFECT_MS = 2300;         // total effect duration after popup
+
+// Dizzy animation timing constants (ms)
+export const DIZZY_TOTAL_EFFECT_MS = 1500;            // total dizzy effect duration
+export const DIZZY_TINT_COLOR = 0x9c27b0;             // purple tint for stunned look

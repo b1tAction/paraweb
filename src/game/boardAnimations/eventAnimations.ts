@@ -3,8 +3,10 @@ import type { Player } from '../../types/protocol';
 import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
 import type { AnimationOrchestrator } from '../animationOrchestrator';
 import type { CharacterRenderOptions } from '../characterRenderConfig';
-import { LAYER_FULLSCREEN_EFFECT, worldDepth, LAYER_EFFECT_BASE } from '../renderLayers';
-import { CHARACTER_HALF_HEIGHT } from '../boardConstants';
+import { resolveCharacterProfile, getCharacterRenderer, getAnimationKey } from '../characterRenderConfig';
+import { LAYER_FULLSCREEN_EFFECT, LAYER_SHADER_OVERLAY, LAYER_LOST_WAY_CHARACTER, worldDepth, LAYER_EFFECT_BASE } from '../renderLayers';
+import { CHARACTER_HALF_HEIGHT, LOST_WAY_DISSOLVE_START_DELAY, LOST_WAY_DISSOLVE_DURATION, LOST_WAY_DIZZY_START_DELAY, LOST_WAY_DIZZY_DURATION, LOST_WAY_RECOVERY_START_DELAY, LOST_WAY_RECOVERY_DURATION, LOST_WAY_TOTAL_EFFECT_MS, DIZZY_TINT_COLOR } from '../boardConstants';
+import { LOST_WAY_DISSOLVE_SHADER_NAME, LOST_WAY_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/lostWayDissolve';
 import { getEventEffectConfig, getEventTypeFromEntry } from '../eventAnimations';
 import { useGameStore } from '../../store/gameStore';
 import { showCenterPopup, type PopupContext } from './popup';
@@ -60,6 +62,8 @@ export async function playDrawEventAnimation(
     playSkullGazeBombAnimation(ctx, context);
   } else if (eventType === 'ghost_hit') {
     playGhostHitAnimation(ctx, context);
+  } else if (eventType === 'lost_way') {
+    playLostWayAnimation(ctx, context);
   }
 }
 
@@ -280,7 +284,144 @@ export function playLightningStrikeWorldAnimation(ctx: BoardAnimationContext, co
   // Camera flash
   ctx.scene.cameras.main.flash(300, 255, 255, 200);
 
-  // Camera shake (avoids modifying marker.x/y which would conflict
-  // with syncPlayers tween).
   ctx.scene.cameras.main.shake(640, 0.005);
+}
+
+/**
+ * Play the lost way effect: character runs in place while background
+ * dissolves/glitches to black via a WebGL shader overlay. When fully black,
+ * vortex spiral twist distortion activates and character switches to
+ * dizzy (hurt+僵直+purple tint), then background recovers, vortex fades,
+ * and character returns to idle.
+ * Only the affected character remains visible above the overlay.
+ */
+export function playLostWayAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const player = ctx.players.find((p) => p.player_id === entry.target);
+  const order = player ? ctx.players.indexOf(player) : 0;
+  const profile = player ? resolveCharacterProfile(player, order, ctx.characterRenderOptions) : null;
+  if (!profile) return;
+
+  const renderer = getCharacterRenderer(ctx.characterRenderOptions);
+  const cam = ctx.scene.cameras.main;
+  const canRun = profile.animations.move && renderer.hasAnimation?.(ctx.scene, profile, 'move');
+  const canHurt = profile.animations.hurt && renderer.hasAnimation?.(ctx.scene, profile, 'hurt');
+
+  // --- Create shader overlay covering entire viewport ---
+  const zoom = cam.zoom || 1;
+  const screenCenterX = cam.width / 2;
+  const screenCenterY = cam.height / 2;
+  const worldX = (screenCenterX - cam.centerX) / zoom + cam.centerX;
+  const worldY = (screenCenterY - cam.centerY) / zoom + cam.centerY;
+  const worldWidth = cam.width / zoom;
+  const worldHeight = cam.height / zoom;
+
+  const progressHolder = { value: 0 };
+  const vortexHolder = { value: 0 };
+  const shaderObj = ctx.scene.add.shader(
+    {
+      name: LOST_WAY_DISSOLVE_SHADER_NAME,
+      fragmentSource: LOST_WAY_DISSOLVE_FRAGMENT_SOURCE,
+      setupUniforms: (setUniform: (name: string, value: any) => void) => {
+        setUniform('uProgress', progressHolder.value);
+        setUniform('uTime', ctx.scene.time.now / 1000);
+        setUniform('uResolution', [cam.width, cam.height]);
+        setUniform('uVortex', vortexHolder.value);
+      },
+    },
+    worldX,
+    worldY,
+    worldWidth,
+    worldHeight
+  );
+  shaderObj.setOrigin(0.5, 0.5);
+  shaderObj.setScrollFactor(0);
+  shaderObj.setDepth(LAYER_SHADER_OVERLAY);
+
+  // --- Cleanup tracker for interruption safety ---
+  const originalDepth = marker.depth;
+
+  const cleanupTracker = ctx.scene.add.container(0, 0);
+  ctx.orchestrator.registerCleanupOnTimer(cleanupTracker, LOST_WAY_TOTAL_EFFECT_MS + 500);
+  ctx.orchestrator.registerCleanupOnTimer(shaderObj, LOST_WAY_TOTAL_EFFECT_MS + 500);
+
+  cleanupTracker.once('destroy', () => {
+    if (marker.active) {
+      marker.setDepth(originalDepth);
+      marker.clearTint();
+    }
+    if (marker.active) renderer.play(ctx.scene, marker, profile, 'idle');
+    ctx.tweens.killTweensOf(progressHolder);
+    ctx.tweens.killTweensOf(vortexHolder);
+    if (shaderObj.active) shaderObj.destroy();
+  });
+
+  // --- Raise character depth above shader overlay ---
+  marker.setDepth(LAYER_LOST_WAY_CHARACTER);
+
+  // --- Phase 1: Start running in place ---
+  if (canRun) {
+    renderer.play(ctx.scene, marker, profile, 'move');
+  }
+
+  // --- Phase 2: Background dissolve (shader progress 0 → 1) ---
+  ctx.scene.time.delayedCall(LOST_WAY_DISSOLVE_START_DELAY, () => {
+    ctx.tweens.add({
+      targets: progressHolder,
+      value: 1,
+      duration: LOST_WAY_DISSOLVE_DURATION,
+      ease: 'Sine.easeIn',
+    });
+    ctx.scene.cameras.main.shake(200, 0.003);
+  });
+
+  // --- Phase 3: Dizzy + vortex twist (hurt+僵直+tint+vortex spiral in void) ---
+  ctx.scene.time.delayedCall(LOST_WAY_DIZZY_START_DELAY, () => {
+    marker.setTint(DIZZY_TINT_COLOR);
+    if (canHurt) {
+      const hurtAnimEvent = `animationcomplete-${getAnimationKey(profile, 'hurt')}`;
+      marker.removeAllListeners(hurtAnimEvent);
+      renderer.play(ctx.scene, marker, profile, 'hurt');
+    } else if (canRun) {
+      renderer.play(ctx.scene, marker, profile, 'idle');
+    }
+
+    // Vortex spiral twist: tween 0 → 1
+    ctx.tweens.add({
+      targets: vortexHolder,
+      value: 1,
+      duration: LOST_WAY_DIZZY_DURATION,
+      ease: 'Quad.easeIn',
+    });
+  });
+
+  // --- Phase 5: Background recovery + vortex fades (character keeps dizzy until animation ends) ---
+  ctx.scene.time.delayedCall(LOST_WAY_RECOVERY_START_DELAY, () => {
+    // Vortex fade out: tween current → 0
+    ctx.tweens.add({
+      targets: vortexHolder,
+      value: 0,
+      duration: LOST_WAY_RECOVERY_DURATION,
+      ease: 'Sine.easeOut',
+    });
+
+    // Recovery: shader progress 1 → 0
+    ctx.tweens.add({
+      targets: progressHolder,
+      value: 0,
+      duration: LOST_WAY_RECOVERY_DURATION,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        // Stiffness (僵直) only clears when animation fully ends
+        marker.clearTint();
+        renderer.play(ctx.scene, marker, profile, 'idle');
+        marker.setDepth(originalDepth);
+        if (shaderObj.active) shaderObj.destroy();
+        if (cleanupTracker.active) cleanupTracker.destroy();
+      },
+    });
+  });
 }
