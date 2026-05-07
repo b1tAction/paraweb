@@ -42,17 +42,25 @@ export const CreateRoomScene: React.FC = () => {
   return (
     <main style={styles.page}>
       <section style={styles.panel}>
-        <div style={styles.cornerTitle}>LOBBY CONFIG</div>
+        <div style={styles.cornerTitle}>房间设置</div>
+        <button
+          type="button"
+          onClick={() => useGameStore.getState().setScene(Scene.JoinRoom)}
+          style={styles.backButton}
+        >
+          <span style={styles.backArrow}>{'<'}</span>
+          返回
+        </button>
 
         <label style={styles.label}>
-          LOBBY NAME
+          房间名
           <input
             value={lobbyName}
             onChange={(e) => setLobbyName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') void handleCreate();
             }}
-            placeholder="Input lobby name"
+            placeholder="输入房间名"
             maxLength={32}
             style={styles.input}
             autoFocus
@@ -60,7 +68,7 @@ export const CreateRoomScene: React.FC = () => {
         </label>
 
         <label style={styles.label}>
-          PLAYERS
+          最大玩家数
           <select value={maxPlayers} onChange={(e) => setMaxPlayers(Number(e.target.value))} style={styles.input}>
             <option value={2}>2</option>
             <option value={3}>3</option>
@@ -69,11 +77,8 @@ export const CreateRoomScene: React.FC = () => {
         </label>
 
         <div style={styles.actions}>
-          <button type="button" onClick={() => useGameStore.getState().setScene(Scene.JoinRoom)} style={styles.secondaryButton}>
-            BACK
-          </button>
           <button type="button" onClick={handleCreate} disabled={isCreating} style={styles.primaryButton}>
-            {isCreating ? 'CREATING...' : 'CREATE'}
+            {isCreating ? '创建中...' : '创建'}
           </button>
         </div>
 
@@ -98,11 +103,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff7d6',
   },
   panel: {
+    position: 'relative',
     width: 'min(520px, calc(100vw - 56px))',
     display: 'flex',
     flexDirection: 'column',
     gap: '16px',
-    padding: '58px 24px 24px',
+    padding: '78px 24px 24px',
     background: 'rgba(18, 30, 31, 0.74)',
     border: '1px solid rgba(255, 233, 172, 0.38)',
     borderRadius: '8px',
@@ -111,11 +117,33 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cornerTitle: {
     position: 'fixed',
-    left: '28px',
-    top: '24px',
+    left: '50%',
+    top: '28px',
+    transform: 'translateX(-50%)',
     color: '#fff0b8',
     fontSize: '24px',
     textShadow: '0 3px 0 rgba(0,0,0,0.42)',
+  },
+  backButton: {
+    position: 'absolute',
+    left: '24px',
+    top: '24px',
+    minHeight: '28px',
+    padding: '0 9px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    color: '#fff7d6',
+    background: 'rgba(0, 0, 0, 0.24)',
+    border: '1px solid rgba(255, 247, 214, 0.28)',
+    borderRadius: '20px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '12px',
+  },
+  backArrow: {
+    display: 'inline-block',
+    transform: 'translateY(-1px)',
   },
   label: {
     display: 'flex',
@@ -137,30 +165,20 @@ const styles: Record<string, React.CSSProperties> = {
     outline: 'none',
   },
   actions: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1.4fr',
-    gap: '12px',
+    display: 'flex',
+    justifyContent: 'center',
   },
   primaryButton: {
-    minHeight: '46px',
-    color: '#352c20',
-    backgroundImage: 'url("/assets/button/button_up.png")',
-    backgroundSize: '100% 100%',
-    backgroundColor: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    fontSize: '16px',
-    imageRendering: 'pixelated',
-  },
-  secondaryButton: {
-    minHeight: '46px',
-    color: '#fff7d6',
-    background: 'rgba(255, 247, 214, 0.1)',
-    border: '1px solid rgba(255, 247, 214, 0.35)',
+    justifySelf: 'center',
+    minHeight: '48px',
+    padding: '0 36px',
+    color: '#20322a',
+    background: 'rgba(255, 255, 255, 0.62)',
+    border: '1px solid rgba(255, 255, 255, 0.72)',
     borderRadius: '8px',
     cursor: 'pointer',
     fontFamily: 'inherit',
+    fontSize: '17px',
   },
   error: {
     margin: 0,

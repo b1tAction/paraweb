@@ -45,6 +45,7 @@ export const LobbyScene: React.FC = () => {
   const [isLeaving, setIsLeaving] = useState(false);
   const [kickingPlayerId, setKickingPlayerId] = useState('');
   const [isUpdatingFaction, setIsUpdatingFaction] = useState(false);
+  const [isBeginPressed, setIsBeginPressed] = useState(false);
   const [notice, setNotice] = useState('');
 
   const myWaitingPlayer = waitingSync?.players.find((player) => player.user_id === myPlayerId);
@@ -84,11 +85,11 @@ export const LobbyScene: React.FC = () => {
     min_players,
     max_players,
     can_start,
-    message,
   } = waitingSync;
 
   const isHost = myPlayerId === host_user_id;
   const displayMatchId = match_id || matchId;
+  const isBeginDisabled = !can_start || isStarting || isLeaving;
 
   const handleSelectFaction = async (faction: string) => {
     try {
@@ -115,6 +116,7 @@ export const LobbyScene: React.FC = () => {
       const errorMessage = err instanceof Error ? err.message : '开始游戏失败';
       setNotice(errorMessage);
     } finally {
+      setIsBeginPressed(false);
       setIsStarting(false);
     }
   };
@@ -136,14 +138,13 @@ export const LobbyScene: React.FC = () => {
     }
   };
 
-  const handleKickPlayer = async (targetId: string, targetName: string) => {
+  const handleKickPlayer = async (targetId: string) => {
     if (!isHost || !targetId || targetId === myPlayerId || kickingPlayerId) return;
 
     try {
       setNotice('');
       setKickingPlayerId(targetId);
       await gameService.sendKickPlayer(targetId);
-      setNotice(`已移出 ${targetName}`);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : '移出玩家失败';
       setNotice(errorMessage);
@@ -154,19 +155,19 @@ export const LobbyScene: React.FC = () => {
 
   return (
     <main style={styles.page}>
-      <div style={styles.cornerTitle}>LOBBY</div>
+      <div style={styles.cornerTitle}>等待大厅</div>
 
       <section style={styles.roomHeader}>
         <button
           type="button"
-          title="复制房间号"
+          title="复制房间 ID"
           onClick={() => displayMatchId && navigator.clipboard.writeText(displayMatchId)}
           style={styles.roomId}
         >
-          ROOM: {displayMatchId || '-'}
+          房间 ID: {displayMatchId || '-'}
         </button>
         <div style={styles.roomMeta}>
-          {player_count} / {max_players}
+          {player_count} / {max_players} 人
           {player_count < min_players ? ` - NEED ${min_players}` : ''}
         </div>
       </section>
@@ -244,7 +245,7 @@ export const LobbyScene: React.FC = () => {
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
-                              void handleKickPlayer(player.user_id, player.display);
+                              void handleKickPlayer(player.user_id);
                             }}
                             disabled={Boolean(kickingPlayerId) || isStarting || isLeaving}
                             style={{
@@ -266,16 +267,30 @@ export const LobbyScene: React.FC = () => {
       </section>
 
       <section style={styles.footerPanel}>
-        <div style={styles.message}>{notice || message}</div>
+        {notice && <div style={styles.message}>{notice}</div>}
         {isHost ? (
           <div style={styles.hostActions}>
             <button
               type="button"
               onClick={handleBegin}
-              disabled={!can_start || isStarting || isLeaving}
-              style={{ ...styles.beginButton, ...(!can_start || isStarting || isLeaving ? styles.beginButtonDisabled : undefined) }}
+              disabled={isBeginDisabled}
+              style={{
+                ...styles.beginButton,
+                ...(isBeginPressed && !isBeginDisabled ? styles.beginButtonPressed : undefined),
+                ...(isBeginDisabled ? styles.beginButtonDisabled : undefined),
+              }}
+              onPointerDown={() => setIsBeginPressed(true)}
+              onPointerUp={() => setIsBeginPressed(false)}
+              onPointerLeave={() => setIsBeginPressed(false)}
+              onPointerCancel={() => setIsBeginPressed(false)}
+              onKeyDown={(event) => {
+                if (event.key === ' ' || event.key === 'Enter') {
+                  setIsBeginPressed(true);
+                }
+              }}
+              onKeyUp={() => setIsBeginPressed(false)}
             >
-              {isStarting ? 'STARTING...' : 'BEGIN'}
+              {isStarting ? '启动中...' : '开始游戏'}
             </button>
             <button
               type="button"
@@ -288,14 +303,14 @@ export const LobbyScene: React.FC = () => {
           </div>
         ) : (
           <div style={styles.guestActions}>
-            <div style={styles.waitingText}>WAITING FOR HOST</div>
+            <div style={styles.waitingText}>等待房主开始游戏...</div>
             <button
               type="button"
               onClick={handleLeaveRoom}
               disabled={isLeaving}
               style={{ ...styles.leaveButton, ...(isLeaving ? styles.leaveButtonDisabled : undefined) }}
             >
-              {isLeaving ? '退出中...' : '退出房间'}
+              {isLeaving ? '离开中...' : '离开房间'}
             </button>
           </div>
         )}
@@ -320,11 +335,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cornerTitle: {
     position: 'fixed',
-    left: '28px',
-    top: '24px',
+    left: '72px',
+    top: '68px',
     zIndex: 3,
     color: '#fff0b8',
-    fontSize: '24px',
+    fontSize: '36px',
     textShadow: '0 3px 0 rgba(0,0,0,0.42)',
   },
   leaveButton: {
@@ -356,7 +371,7 @@ const styles: Record<string, React.CSSProperties> = {
   roomHeader: {
     position: 'absolute',
     left: '50%',
-    top: '24px',
+    top: '48px',
     transform: 'translateX(-50%)',
     width: 'min(560px, calc(100vw - 56px))',
     display: 'flex',
@@ -510,7 +525,7 @@ const styles: Record<string, React.CSSProperties> = {
   footerPanel: {
     position: 'absolute',
     left: '50%',
-    top: 'clamp(112px, 18vh, 184px)',
+    top: 'clamp(96px, 16vh, 168px)',
     transform: 'translateX(-50%)',
     width: 'min(520px, calc(100vw - 56px))',
     display: 'flex',
@@ -527,16 +542,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   beginButton: {
     minWidth: '170px',
-    minHeight: '48px',
+    minHeight: '56px',
     color: '#352c20',
     backgroundImage: 'url("/assets/button/button_up.png")',
     backgroundSize: '100% 100%',
+    backgroundRepeat: 'no-repeat',
     backgroundColor: 'transparent',
     border: 'none',
     cursor: 'pointer',
     fontFamily: 'inherit',
     fontSize: '17px',
     imageRendering: 'pixelated',
+    boxShadow: 'none',
+  },
+  beginButtonPressed: {
+    backgroundImage: 'url("/assets/button/button_press.png")',
+    transform: 'translateY(2px)',
   },
   beginButtonDisabled: {
     filter: 'grayscale(0.75)',
@@ -545,28 +566,26 @@ const styles: Record<string, React.CSSProperties> = {
   },
   hostActions: {
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '10px',
-    flexWrap: 'wrap',
   },
   guestActions: {
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '10px',
-    flexWrap: 'wrap',
   },
   waitingText: {
-    minHeight: '40px',
-    padding: '9px 14px',
+    marginTop: '4px',
+    padding: '7px 24px',
     color: '#f8e9bb',
-    background: 'rgba(15, 24, 28, 0.38)',
+    background: 'rgba(15, 24, 28, 0.32)',
     borderRadius: '8px',
-    fontSize: '13px',
+    fontSize: '14px',
     boxShadow: '0 8px 18px rgba(0, 0, 0, 0.18)',
-    display: 'flex',
-    alignItems: 'center',
   },
 };
 
