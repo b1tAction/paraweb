@@ -1,6 +1,6 @@
-import type { LogEntry, Player, DefinitionsConfig } from '../types/protocol';
-import { getEventEffectConfig } from './eventAnimations';
+import type { DefinitionsConfig, LogEntry, Player } from '../types/protocol';
 import { isBossPlayer } from './bossVisualConfig';
+import { getEventEffectConfig } from './eventAnimations';
 
 export const DICE_ROLL_MIN_MS = 1200;
 export const DICE_RESULT_DISPLAY_MS = 1200;
@@ -52,7 +52,7 @@ const SKILL_TRANSLATIONS: Record<string, string> = {
   qinglong: '青龙',
   xuanwu: '玄武',
   zhuque: '朱雀',
-  baihu: '白虎'
+  baihu: '白虎',
 };
 
 function translateDice(type?: string) {
@@ -74,7 +74,7 @@ export type EffectDescriptor = {
   iconEmoji?: string;
 };
 
-export function getMetadataNumber(metadata: Record<string, any> | undefined, key: string) {
+export function getMetadataNumber(metadata: Record<string, unknown> | undefined, key: string) {
   const value = metadata?.[key];
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
@@ -84,11 +84,11 @@ export function getMetadataNumber(metadata: Record<string, any> | undefined, key
   return null;
 }
 
-export function getMetadataString(metadata: Record<string, any> | undefined, key: string) {
+export function getMetadataString(metadata: Record<string, unknown> | undefined, key: string) {
   const value = metadata?.[key];
   return typeof value === 'string' ? value : '';
 }
-export function getMetadataBoolean(metadata: Record<string, any> | undefined, key: string) {
+export function getMetadataBoolean(metadata: Record<string, unknown> | undefined, key: string) {
   const value = metadata?.[key];
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;
@@ -100,10 +100,9 @@ export function getMetadataBoolean(metadata: Record<string, any> | undefined, ke
   return false;
 }
 
-
-export function getMetadataNumberArray(metadata: Record<string, any> | undefined, key: string) {
+export function getMetadataNumberArray(metadata: Record<string, unknown> | undefined, key: string) {
   const value = metadata?.[key];
-  if (!Array.isArray(value)) return[];
+  if (!Array.isArray(value)) return [];
 
   return value
     .map((item) => {
@@ -131,13 +130,12 @@ export function clampPlayerStat(value: number) {
   return Math.max(0, Math.min(PLAYER_STAT_MAX, value));
 }
 
-
 function clampBossStat(value: number) {
   return Math.max(0, value);
 }
 
 function normalizeHp(player: Player) {
-  const maxHp = player.max_hp || PLAYER_STAT_MAX; 
+  const maxHp = player.max_hp || PLAYER_STAT_MAX;
   return isBossPlayer(player) ? clampBossStat(player.hp) : Math.max(0, Math.min(maxHp, player.hp));
 }
 
@@ -210,7 +208,7 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
     }
     case 'add_buff': {
       if (!buffType || next.buffs.some((buff) => buff.type === buffType)) break;
-      next.buffs =[
+      next.buffs = [
         ...next.buffs,
         {
           type: buffType,
@@ -245,7 +243,7 @@ export function getLatestDiceRollResult(entries: LogEntry[]): DiceRollResult | n
     return {
       key: `${entry.timestamp}:${entry.target}:${steps}`,
       playerId: entry.target,
-      diceType: getMetadataString(entry.metadata, 'dice_type') || 'wood', 
+      diceType: getMetadataString(entry.metadata, 'dice_type') || 'wood',
       steps,
     };
   }
@@ -268,7 +266,7 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     case 'fell_down':
       return { label: `HP ${signed(num('hp_change'))}`, color: 0xef5350, textColor: '#ffebee' };
     case 'death':
-      return { label: '死亡', color: 0xb71c1c, textColor: '#ffebee' }; 
+      return { label: '死亡', color: 0xb71c1c, textColor: '#ffebee' };
     case 'heal':
       return { label: `HP +${Math.abs(num('hp_change'))}`, color: 0x66bb6a, textColor: '#e8f5e9' };
     case 'modify_lp':
@@ -280,7 +278,12 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     case 'draw_event': {
       const eventType = str('event_type');
       const effect = getEventEffectConfig(eventType);
-      return { label: eventName(eventType), color: effect.color, textColor: effect.textColor, iconEmoji: effect.iconEmoji };
+      return {
+        label: eventName(eventType),
+        color: effect.color,
+        textColor: effect.textColor,
+        iconEmoji: effect.iconEmoji,
+      };
     }
     case 'draw_item': {
       const itemType = str('item_type');
@@ -312,7 +315,7 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     case 'boss_attack': {
       const attackType = str('attack_type');
       return {
-        label: attackType ? `Boss ${attackType}` : 'Boss 攻击', 
+        label: attackType ? `Boss ${attackType}` : 'Boss 攻击',
         color: 0xd32f2f,
         textColor: '#ffebee',
       };
@@ -320,7 +323,7 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     case 'boss_skill': {
       const skillType = str('skill_type');
       return {
-        label: skillType ? `Boss技能 ${skillType}` : 'Boss 技能', 
+        label: skillType ? `Boss技能 ${skillType}` : 'Boss 技能',
         color: 0xc2185b,
         textColor: '#fce4ec',
       };
@@ -342,7 +345,11 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
   }
 }
 
-export function describeSettlementChange(player: Player, entry?: LogEntry | null, definitions?: DefinitionsConfig | null): EffectDescriptor | null {
+export function describeSettlementChange(
+  player: Player,
+  entry?: LogEntry | null,
+  definitions?: DefinitionsConfig | null,
+): EffectDescriptor | null {
   if (!entry || entry.target !== player.player_id) return null;
 
   const num = (key: string) => getMetadataNumber(entry.metadata, key) ?? 0;
@@ -397,7 +404,7 @@ export function describeSettlementChange(player: Player, entry?: LogEntry | null
 
 export function formatChangeReason(entry: LogEntry, definitions?: DefinitionsConfig | null) {
   const source = entry.source || entry.action_type || '系统';
-  
+
   // 常见游戏格类型和系统级标识符
   const labels: Record<string, string> = {
     Buff_Expiry: 'Buff 到期',
@@ -415,7 +422,7 @@ export function formatChangeReason(entry: LogEntry, definitions?: DefinitionsCon
   };
 
   if (labels[source]) return labels[source];
-  
+
   // 补充翻译，防止源为 "damage", "fell_down" 时显示原始英文
   if (ACTION_TYPE_TRANSLATIONS[source]) return ACTION_TYPE_TRANSLATIONS[source];
 

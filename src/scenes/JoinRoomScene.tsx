@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseRoomLabel } from '../api/nakama';
-import { Scene, useGameStore } from '../store/gameStore';
 import { gameService } from '../service/NakamaService';
+import { Scene, useGameStore } from '../store/gameStore';
 
 type RoomListItem = {
   match_id?: string;
@@ -59,7 +60,7 @@ export const JoinRoomScene: React.FC = () => {
 
   const selectedRoom = rooms.find((room) => room.match_id === selectedMatchId);
 
-  const refreshRooms = async () => {
+  const refreshRooms = useCallback(async () => {
     try {
       setError('');
       setIsLoading(true);
@@ -75,11 +76,11 @@ export const JoinRoomScene: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedMatchId]);
 
   useEffect(() => {
     void refreshRooms();
-  }, []);
+  }, [refreshRooms]);
 
   const handleSearch = () => {
     useGameStore.getState().setJoinRoomNotice('');
@@ -169,7 +170,6 @@ export const JoinRoomScene: React.FC = () => {
                 maxLength={20}
                 disabled={isSavingName}
                 style={styles.nameInput}
-                autoFocus
               />
               <button type="button" onClick={handleSaveDisplayName} disabled={isSavingName} style={styles.nameButton}>
                 {isSavingName ? '保存中' : '确认'}
@@ -205,52 +205,54 @@ export const JoinRoomScene: React.FC = () => {
             </button>
           </div>
 
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSearch();
-          }}
-          placeholder="搜索房间名或房间 ID"
-          style={styles.searchInput}
-        />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSearch();
+            }}
+            placeholder="搜索房间名或房间 ID"
+            style={styles.searchInput}
+          />
 
-        <div style={styles.roomList}>
-          {visibleRooms.length === 0 && (
-            <div style={styles.emptyState}>{isLoading ? '搜索中...' : '暂无可用房间，刷新试试'}</div>
+          <div style={styles.roomList}>
+            {visibleRooms.length === 0 && (
+              <div style={styles.emptyState}>{isLoading ? '搜索中...' : '暂无可用房间，刷新试试'}</div>
+            )}
+
+            {visibleRooms.map((room) => {
+              const label = parseRoomLabel(room.label);
+              const isSelected = selectedMatchId === room.match_id;
+              const playerCount = room.size ?? 0;
+              const maxPlayers = label?.max_players || 4;
+              return (
+                <button
+                  key={room.match_id}
+                  type="button"
+                  onClick={() => room.match_id && setSelectedMatchId(room.match_id)}
+                  style={{ ...styles.roomItem, ...(isSelected ? styles.roomItemSelected : undefined) }}
+                >
+                  <span style={styles.roomName}>{getLobbyName(room)}</span>
+                  <span style={styles.roomMeta}>
+                    {playerCount} / {maxPlayers}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedMatchId && !selectedRoom && (
+            <div style={styles.directRoom}>
+              房间 ID: <span style={styles.directRoomId}>{selectedMatchId}</span>
+            </div>
           )}
 
-          {visibleRooms.map((room) => {
-            const label = parseRoomLabel(room.label);
-            const isSelected = selectedMatchId === room.match_id;
-            const playerCount = room.size ?? 0;
-            const maxPlayers = label?.max_players || 4;
-            return (
-              <button
-                key={room.match_id}
-                type="button"
-                onClick={() => room.match_id && setSelectedMatchId(room.match_id)}
-                style={{ ...styles.roomItem, ...(isSelected ? styles.roomItemSelected : undefined) }}
-              >
-                <span style={styles.roomName}>{getLobbyName(room)}</span>
-                <span style={styles.roomMeta}>{playerCount} / {maxPlayers}</span>
-              </button>
-            );
-          })}
-        </div>
+          <button type="button" onClick={handleJoin} disabled={isJoining || !selectedMatchId} style={styles.joinButton}>
+            {isJoining ? '加入中...' : '加入房间'}
+          </button>
 
-        {selectedMatchId && !selectedRoom && (
-          <div style={styles.directRoom}>
-            房间 ID: <span style={styles.directRoomId}>{selectedMatchId}</span>
-          </div>
-        )}
-
-        <button type="button" onClick={handleJoin} disabled={isJoining || !selectedMatchId} style={styles.joinButton}>
-          {isJoining ? '加入中...' : '加入房间'}
-        </button>
-
-        {joinRoomNotice && <p style={styles.notice}>{joinRoomNotice}</p>}
-        {error && <p style={styles.error}>{error}</p>}
+          {joinRoomNotice && <p style={styles.notice}>{joinRoomNotice}</p>}
+          {error && <p style={styles.error}>{error}</p>}
         </section>
       </div>
     </main>

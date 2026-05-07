@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
-import { styles } from './MiniGameStyles';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
+import { styles } from './MiniGameStyles';
 
 // 可以在这里方便地修改速算小游戏的总题目数量
 export const TOTAL_QUESTIONS = 3;
@@ -11,21 +12,23 @@ function xmur3(str: string) {
   let h = 1779033703 ^ str.length;
   for (let i = 0; i < str.length; i++) {
     h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
-    h = h << 13 | h >>> 19;
+    h = (h << 13) | (h >>> 19);
   }
-  return function () {
+  return () => {
     h = Math.imul(h ^ (h >>> 16), 2246822507);
     h = Math.imul(h ^ (h >>> 13), 3266489909);
-    return (h ^= h >>> 16) >>> 0;
+    h ^= h >>> 16;
+    return h >>> 0;
   };
 }
 
 function mulberry32(a: number) {
-  return function () {
-    var t = a += 0x6D2B79F5;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  return () => {
+    a += 0x6d2b79f5;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
@@ -44,12 +47,14 @@ function generateQuestions(seed: string, questionCount: number): Question[] {
 
   for (let i = 0; i < questionCount; i++) {
     const op = ops[Math.floor(rand() * ops.length)];
-    let num1 = 0, num2 = 0, answer = 0;
+    let num1 = 0,
+      num2 = 0,
+      answer = 0;
 
     if (op === '+') {
       // Addition: sum up to 50
       answer = Math.floor(rand() * 41) + 10; // 10 to 50
-      num1 = Math.floor(rand() * (answer - 5)) + 2; 
+      num1 = Math.floor(rand() * (answer - 5)) + 2;
       num2 = answer - num1;
     } else if (op === '-') {
       // Subtraction: max 50
@@ -58,7 +63,7 @@ function generateQuestions(seed: string, questionCount: number): Question[] {
       answer = num1 - num2;
     } else if (op === '×') {
       // Multiplication: factors up to 10, product up to 50 (to keep it heart-calculatable)
-      const pairs: [number, number][] =[];
+      const pairs: [number, number][] = [];
       for (let a = 2; a <= 10; a++) {
         for (let b = 2; a * b <= 50; b++) {
           pairs.push([a, b]);
@@ -83,7 +88,7 @@ export interface MathCalcMiniGameProps {
   submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
-  onSubmit: (gameData: Record<string, any>) => void;
+  onSubmit: (gameData: Record<string, unknown>) => void;
 }
 
 export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
@@ -99,15 +104,15 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
   const [countdown, setCountdown] = useState(3);
 
   const [questions, setQuestions] = useState<Question[]>([]);
-  const[currentQIndex, setCurrentQIndex] = useState(0);
+  const [currentQIndex, setCurrentQIndex] = useState(0);
   const [inputValue, setInputValue] = useState<string>('');
   const [correctCount, setCorrectCount] = useState(0);
-  const[finalTimeMs, setFinalTimeMs] = useState<number>(0);
+  const [finalTimeMs, setFinalTimeMs] = useState<number>(0);
 
   const startTimeRef = useRef<number>(0);
 
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
-  const[activeKey, setActiveKey] = useState<string | null>(null);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
 
   useEffect(() => {
     const seed = `${matchId || 'fallback'}_${round}`;
@@ -128,42 +133,45 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
     }
   }, [countdown, phase, isParticipant]);
 
-  const handleKeyPress = (key: string) => {
-    if (phase !== 'playing' || !isParticipant) return;
+  const handleKeyPress = useCallback(
+    (key: string) => {
+      if (phase !== 'playing' || !isParticipant) return;
 
-    if (key >= '0' && key <= '9') {
-      setInputValue(prev => (prev.length < 3 ? prev + key : prev));
-    } else if (key === 'Delete' || key === 'Backspace') {
-      setInputValue(prev => prev.slice(0, -1));
-    } else if (key === 'Submit' || key === 'Enter') {
-      if (inputValue === '') return;
+      if (key >= '0' && key <= '9') {
+        setInputValue((prev) => (prev.length < 3 ? prev + key : prev));
+      } else if (key === 'Delete' || key === 'Backspace') {
+        setInputValue((prev) => prev.slice(0, -1));
+      } else if (key === 'Submit' || key === 'Enter') {
+        if (inputValue === '') return;
 
-      const isCorrect = parseInt(inputValue, 10) === questions[currentQIndex].answer;
-      let nextCorrect = correctCount;
-      if (isCorrect) {
-        nextCorrect = correctCount + 1;
-        setCorrectCount(nextCorrect);
-      }
+        const isCorrect = parseInt(inputValue, 10) === questions[currentQIndex].answer;
+        let nextCorrect = correctCount;
+        if (isCorrect) {
+          nextCorrect = correctCount + 1;
+          setCorrectCount(nextCorrect);
+        }
 
-      setInputValue('');
+        setInputValue('');
 
-      // 使用 TOTAL_QUESTIONS 替代原本硬编码的 9
-      if (currentQIndex < TOTAL_QUESTIONS - 1) {
-        setCurrentQIndex(prev => prev + 1);
-      } else {
-        const endTime = Date.now();
-        const duration = endTime - startTimeRef.current;
-        // 使用 TOTAL_QUESTIONS 替代原本硬编码的 10.0
-        const accuracy = nextCorrect / TOTAL_QUESTIONS;
+        // 使用 TOTAL_QUESTIONS 替代原本硬编码的 9
+        if (currentQIndex < TOTAL_QUESTIONS - 1) {
+          setCurrentQIndex((prev) => prev + 1);
+        } else {
+          const endTime = Date.now();
+          const duration = endTime - startTimeRef.current;
+          // 使用 TOTAL_QUESTIONS 替代原本硬编码的 10.0
+          const accuracy = nextCorrect / TOTAL_QUESTIONS;
 
-        setFinalTimeMs(duration);
-        setPhase('finished');
-        if (!submitted && !isSubmitting) {
-          onSubmit({ accuracy, time_ms: duration });
+          setFinalTimeMs(duration);
+          setPhase('finished');
+          if (!submitted && !isSubmitting) {
+            onSubmit({ accuracy, time_ms: duration });
+          }
         }
       }
-    }
-  };
+    },
+    [correctCount, currentQIndex, inputValue, isParticipant, isSubmitting, onSubmit, phase, questions, submitted],
+  );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -178,14 +186,14 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  },[phase, inputValue, currentQIndex, correctCount, questions, handleKeyPress]);
+  }, [handleKeyPress]);
 
   const renderKeypad = () => {
-    const keys =['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', 'Submit'];
+    const keys = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', 'Submit'];
 
     return (
       <div style={styles.keypadGrid}>
-        {keys.map(key => {
+        {keys.map((key) => {
           const isAction = key === 'Submit';
           const isZero = key === '0';
 
@@ -201,14 +209,25 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
 
           return (
             <button
+              type="button"
               key={key}
               style={btnStyle}
               onMouseEnter={() => setHoveredKey(key)}
-              onMouseLeave={() => { setHoveredKey(null); setActiveKey(null); }}
+              onMouseLeave={() => {
+                setHoveredKey(null);
+                setActiveKey(null);
+              }}
               onMouseDown={() => setActiveKey(key)}
-              onMouseUp={() => { setActiveKey(null); handleKeyPress(key); }}
+              onMouseUp={() => {
+                setActiveKey(null);
+                handleKeyPress(key);
+              }}
               onTouchStart={() => setActiveKey(key)}
-              onTouchEnd={(e) => { e.preventDefault(); setActiveKey(null); handleKeyPress(key); }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                setActiveKey(null);
+                handleKeyPress(key);
+              }}
             >
               {key === 'Submit' ? '确认' : key}
             </button>
@@ -229,9 +248,9 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
 
   if (phase === 'finished') {
     const { miniGameStart, miniGameResult, myPlayerId, players } = useGameStore.getState();
-    const participants = miniGameStart?.players ||[];
+    const participants = miniGameStart?.players || [];
 
-    const allPlayersData = players.map(p => ({
+    const allPlayersData = players.map((p) => ({
       displayName: p.display_name || p.player_id,
       userId: p.player_id,
     }));
@@ -241,17 +260,17 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
         <h3 style={styles.resultTitle}>计算完成!</h3>
 
         <div style={styles.miniRankingList}>
-          {participants.map(pId => {
+          {participants.map((pId) => {
             const isMe = pId === myPlayerId;
-            const playerInfo = players.find(p => p.player_id === pId);
-            const name = getDisambiguatedDisplayName(
-              playerInfo?.display_name || pId,
-              pId,
-              allPlayersData
-            );
+            const playerInfo = players.find((p) => p.player_id === pId);
+            const name = getDisambiguatedDisplayName(playerInfo?.display_name || pId, pId, allPlayersData);
 
-            const resultEntry = miniGameResult?.rankings.find(r => r.player_id === pId);
+            const resultEntry = miniGameResult?.rankings.find((r) => r.player_id === pId);
             const isFinished = !!resultEntry;
+            const resultAccuracy =
+              typeof resultEntry?.game_data?.accuracy === 'number' ? resultEntry.game_data.accuracy : null;
+            const resultTimeMs =
+              typeof resultEntry?.game_data?.time_ms === 'number' ? resultEntry.game_data.time_ms : null;
 
             return (
               <div key={pId} style={styles.miniRankingItem}>
@@ -266,7 +285,8 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
                   </span>
                 ) : isFinished ? (
                   <span style={styles.statusFinished}>
-                    {(resultEntry.game_data?.accuracy * 100).toFixed(0)}% | {(resultEntry.game_data?.time_ms / 1000).toFixed(1)}s
+                    {resultAccuracy === null ? '?' : (resultAccuracy * 100).toFixed(0)}% |{' '}
+                    {resultTimeMs === null ? '?' : (resultTimeMs / 1000).toFixed(1)}s
                   </span>
                 ) : (
                   <span style={styles.statusPlaying}>正在答题中...</span>
@@ -277,7 +297,7 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
         </div>
 
         <p style={{ ...styles.gameDataDetail, fontSize: '14px', textAlign: 'center' }}>
-          {isSubmitting ? '正在同步成绩...' : (submitted ? '等待其他玩家答题...' : '提交中...')}
+          {isSubmitting ? '正在同步成绩...' : submitted ? '等待其他玩家答题...' : '提交中...'}
         </p>
         {submitError && <p style={{ color: 'red', fontSize: '12px' }}>{submitError}</p>}
       </div>
@@ -290,22 +310,19 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
     <div style={styles.mathGameContainer}>
       <div style={styles.questionHeader}>
         {/* 使用 TOTAL_QUESTIONS 替换硬编码的 10 */}
-        <span>题号: {currentQIndex + 1} / {TOTAL_QUESTIONS}</span>
+        <span>
+          题号: {currentQIndex + 1} / {TOTAL_QUESTIONS}
+        </span>
         <span style={{ color: '#28a745' }}>数算挑战</span>
       </div>
 
-      <div style={styles.questionDisplay}>
-        {currentQ?.text}
-      </div>
+      <div style={styles.questionDisplay}>{currentQ?.text}</div>
 
       <div style={styles.inputArea}>
         <div style={styles.inputDisplay}>
           {inputValue || <span style={{ color: '#aaa', fontWeight: 'normal' }}>?</span>}
         </div>
-        <button
-          style={styles.inlineDelBtn}
-          onClick={() => handleKeyPress('Delete')}
-        >
+        <button type="button" style={styles.inlineDelBtn} onClick={() => handleKeyPress('Delete')}>
           退格
         </button>
       </div>

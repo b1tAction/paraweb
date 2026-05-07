@@ -4,23 +4,23 @@
  * 管理 11 个场景状态和游戏数据
  */
 
+import type { Match, Session, Socket } from '@heroiclabs/nakama-js';
 import { create } from 'zustand';
-import type { Session, Socket, Match } from '@heroiclabs/nakama-js';
+import { normalizePlayerStats } from '../game/logEntryPlayback';
 import type {
-  Player,
-  Decision,
   Available,
-  StateSync,
-  WaitingSync,
-  MiniGameStart,
-  MiniGameResult,
+  Decision,
+  DefinitionsConfig,
   GameOver,
   LogEntry,
-  StartGameAck,
   MapConfig,
-  DefinitionsConfig,
+  MiniGameResult,
+  MiniGameStart,
+  Player,
+  StartGameAck,
+  StateSync,
+  WaitingSync,
 } from '../types/protocol';
-import { normalizePlayerStats } from '../game/logEntryPlayback';
 
 // Merge new player data into existing order: preserve current order, update data, append new players at end
 function mergePlayersPreservingOrder(currentPlayers: Player[], newPlayers: Player[]): Player[] {
@@ -28,8 +28,7 @@ function mergePlayersPreservingOrder(currentPlayers: Player[], newPlayers: Playe
   const newPlayerMap = new Map(newPlayers.map((p) => [p.player_id, p]));
 
   // Existing players in their current order, updated with new data
-  const merged = currentPlayers
-    .map((p) => newPlayerMap.get(p.player_id) ?? p);
+  const merged = currentPlayers.map((p) => newPlayerMap.get(p.player_id) ?? p);
 
   // Append players that joined after the initial order was established
   for (const p of newPlayers) {
@@ -81,13 +80,20 @@ export type GlobalState =
 
 /** 回合状态 (Layer 2) - 支持 snake_case 和 PascalCase 两种格式 */
 export type TurnState =
-  | 'turn_upkeep' | 'TurnUpkeep'
-  | 'main_action' | 'MainAction'
-  | 'turn_moving' | 'TurnMoving'
-  | 'turn_landed' | 'TurnLanded'
-  | 'turn_event' | 'TurnEvent'
-  | 'turn_boss_battle' | 'TurnBossBattle'
-  | 'turn_end' | 'TurnEnd'
+  | 'turn_upkeep'
+  | 'TurnUpkeep'
+  | 'main_action'
+  | 'MainAction'
+  | 'turn_moving'
+  | 'TurnMoving'
+  | 'turn_landed'
+  | 'TurnLanded'
+  | 'turn_event'
+  | 'TurnEvent'
+  | 'turn_boss_battle'
+  | 'TurnBossBattle'
+  | 'turn_end'
+  | 'TurnEnd'
   | '';
 
 // ========== Zustand Store ==========
@@ -289,8 +295,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setScene: (scene) => set({ currentScene: scene }),
 
-  updateGameState: (global, turn) =>
-    set({ globalState: global, turnState: turn }),
+  updateGameState: (global, turn) => set({ globalState: global, turnState: turn }),
 
   setDecisionRequest: (decision) => set({ decisionRequest: decision }),
 
@@ -303,7 +308,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       // faction changes in the lobby are reflected immediately.
       const updatedPlayers = currentPlayers.map((player) => {
         const waitingPlayer = waiting.players.find((wp) => wp.user_id === player.player_id);
-        if (waitingPlayer && waitingPlayer.faction && waitingPlayer.faction !== player.faction) {
+        if (waitingPlayer?.faction && waitingPlayer.faction !== player.faction) {
           return { ...player, faction: waitingPlayer.faction };
         }
         return player;
@@ -322,11 +327,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   setGameOver: (gameOver) => set({ gameOver }),
 
   addPendingEntries: (entries) => set((state) => ({ pendingEntries: [...state.pendingEntries, ...entries] })),
-  playNextEntry: () => set((state) => {
-    if (state.pendingEntries.length === 0) return state;
-    const [first, ...rest] = state.pendingEntries;
-    return { pendingEntries: rest, playedEntries: [...state.playedEntries, first] };
-  }),
+  playNextEntry: () =>
+    set((state) => {
+      if (state.pendingEntries.length === 0) return state;
+      const [first, ...rest] = state.pendingEntries;
+      return { pendingEntries: rest, playedEntries: [...state.playedEntries, first] };
+    }),
   clearAllEntries: () => set({ playedEntries: [], pendingEntries: [] }),
   setStartGameAck: (ack) => set({ startGameAck: ack }),
 
@@ -337,35 +343,35 @@ export const useGameStore = create<GameState>((set, get) => ({
   setPendingScene: (scene) => set({ pendingScene: scene }),
 
   enqueueStateSync: (stateSync) => set((state) => ({ stateSyncQueue: [...state.stateSyncQueue, stateSync] })),
-  
-  applyNextStateSync: () => set((state) => {
-    if (state.stateSyncQueue.length === 0) return state;
-    
-    // 取出最早的一个 StateSync
-    const [nextSync, ...restQueue] = state.stateSyncQueue;
-    
-    // 我们将其应用到当前状态，并将相关 entries 转入 pendingEntries 开始动画播放
-    const newPendingEntries = nextSync.entries && nextSync.entries.length > 0 
-      ? [...state.pendingEntries, ...nextSync.entries] 
-      : state.pendingEntries;
 
-    // Preserve existing player order when syncing, append new players at end
-    const nextPlayersRaw = nextSync.players?.map(normalizePlayerStats);
-    const mergedPlayers = nextPlayersRaw
-      ? mergePlayersPreservingOrder(state.players, nextPlayersRaw)
-      : state.players;
+  applyNextStateSync: () =>
+    set((state) => {
+      if (state.stateSyncQueue.length === 0) return state;
 
-    return {
-      stateSyncQueue: restQueue,
-      globalState: nextSync.global_state as GlobalState,
-      turnState: nextSync.turn_state as TurnState,
-      players: mergedPlayers,
-      currentPlayerId: nextSync.current_player_id,
-      round: nextSync.round ?? state.round,
-      turn: nextSync.turn ?? state.turn,
-      pendingEntries: newPendingEntries
-    };
-  }),
+      // 取出最早的一个 StateSync
+      const [nextSync, ...restQueue] = state.stateSyncQueue;
+
+      // 我们将其应用到当前状态，并将相关 entries 转入 pendingEntries 开始动画播放
+      const newPendingEntries =
+        nextSync.entries && nextSync.entries.length > 0
+          ? [...state.pendingEntries, ...nextSync.entries]
+          : state.pendingEntries;
+
+      // Preserve existing player order when syncing, append new players at end
+      const nextPlayersRaw = nextSync.players?.map(normalizePlayerStats);
+      const mergedPlayers = nextPlayersRaw ? mergePlayersPreservingOrder(state.players, nextPlayersRaw) : state.players;
+
+      return {
+        stateSyncQueue: restQueue,
+        globalState: nextSync.global_state as GlobalState,
+        turnState: nextSync.turn_state as TurnState,
+        players: mergedPlayers,
+        currentPlayerId: nextSync.current_player_id,
+        round: nextSync.round ?? state.round,
+        turn: nextSync.turn ?? state.turn,
+        pendingEntries: newPendingEntries,
+      };
+    }),
 
   setPlayers: (players) => set({ players: players.map(normalizePlayerStats) }),
 

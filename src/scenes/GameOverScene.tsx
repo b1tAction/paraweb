@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import type React from 'react';
+import { useMemo, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
+import { isBossPlayer } from '../game/bossVisualConfig';
 import { gameService } from '../service/NakamaService';
 import { useGameStore } from '../store/gameStore';
-import { isBossPlayer } from '../game/bossVisualConfig';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const factionMeta: Record<string, { label: string }> = {
@@ -19,28 +20,26 @@ const playerSlots = [
   { key: 'bottom', position: { left: '50%', top: '90%' } },
 ] as const;
 
-
 export const GameOverScene: React.FC = () => {
   const { gameOver, players, myPlayerId, resetMatchState } = useGameStore();
   const [isRestarting, setIsRestarting] = useState(false);
   const [isRestartPressed, setIsRestartPressed] = useState(false);
 
   const visiblePlayers = useMemo(() => players.filter((player) => !isBossPlayer(player)), [players]);
-  const playerMap = useMemo(() => new Map(visiblePlayers.map((player) => [player.player_id, player])), [visiblePlayers]);
+  const playerMap = useMemo(
+    () => new Map(visiblePlayers.map((player) => [player.player_id, player])),
+    [visiblePlayers],
+  );
 
   // Disambiguated display name map
   const disambiguatedNames = useMemo(() => {
-    const allPlayersData = visiblePlayers.map(p => ({
+    const allPlayersData = visiblePlayers.map((p) => ({
       displayName: p.display_name || p.player_id,
       userId: p.player_id,
     }));
     const map: Record<string, string> = {};
     for (const p of visiblePlayers) {
-      map[p.player_id] = getDisambiguatedDisplayName(
-        p.display_name || p.player_id,
-        p.player_id,
-        allPlayersData
-      );
+      map[p.player_id] = getDisambiguatedDisplayName(p.display_name || p.player_id, p.player_id, allPlayersData);
     }
     return map;
   }, [visiblePlayers]);
@@ -52,10 +51,7 @@ export const GameOverScene: React.FC = () => {
   const winner = useMemo(() => {
     if (!gameOver) return null;
 
-    return (
-      playerMap.get(gameOver.winner_id) ??
-      null
-    );
+    return playerMap.get(gameOver.winner_id) ?? null;
   }, [gameOver, playerMap]);
 
   const summaryRows = useMemo(() => {
@@ -69,15 +65,14 @@ export const GameOverScene: React.FC = () => {
         return b.items_used - a.items_used;
       })
       .map((stat) => {
-
         return {
           ...stat,
-          displayName: getPlayerName(stat.player_id),
+          displayName: disambiguatedNames[stat.player_id] || stat.player_id,
           isWinner: stat.player_id === gameOver.winner_id,
           isMe: stat.player_id === myPlayerId,
         };
       });
-  }, [gameOver, myPlayerId, playerMap]);
+  }, [disambiguatedNames, gameOver, myPlayerId, playerMap]);
 
   if (!gameOver) {
     return <div style={styles.loading}>加载中...</div>;
@@ -99,7 +94,7 @@ export const GameOverScene: React.FC = () => {
   };
 
   const winnerFactionKey = winner?.faction?.trim() || '';
-  const winnerFaction = winnerFactionKey ? factionMeta[winnerFactionKey] ?? null : null;
+  const winnerFaction = winnerFactionKey ? (factionMeta[winnerFactionKey] ?? null) : null;
   const winnerDisplayName = getPlayerName(winner?.player_id || gameOver.winner_id);
   const winnerTagLabel = winnerFaction?.label || winner?.faction?.trim() || '-';
   const showWinnerFigure = Boolean(winner);
@@ -153,12 +148,7 @@ export const GameOverScene: React.FC = () => {
               }}
             >
               <div style={styles.figureViewport} aria-hidden="true">
-                <PhaserCharacterPreview
-                  faction={player.faction}
-                  width={224}
-                  height={224}
-                  style={styles.figureCanvas}
-                />
+                <PhaserCharacterPreview faction={player.faction} width={224} height={224} style={styles.figureCanvas} />
               </div>
               <div
                 style={{

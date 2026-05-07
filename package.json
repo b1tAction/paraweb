@@ -6,6 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run lint:web && npm run lint:go",
+    "lint:web": "biome ci .",
+    "lint:go": "golangci-lint run",
+    "format": "npm run format:web && npm run format:go",
+    "format:web": "biome check --write .",
+    "format:go": "golangci-lint fmt",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -16,6 +23,7 @@
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.14",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.0",

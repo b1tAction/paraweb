@@ -4,18 +4,19 @@
  * 根据当前场景路由到不同的组件
  */
 
-import React, { useEffect, useState } from 'react';
-import { useGameStore, Scene } from './store/gameStore';
-import { gameService } from './service/NakamaService';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import {
-  HomeScene,
+  BoardScene,
   CreateRoomScene,
+  GameOverScene,
+  HomeScene,
   JoinRoomScene,
   LobbyScene,
-  BoardScene,
   MiniGameSubmitRankScene,
-  GameOverScene,
 } from './scenes';
+import { gameService } from './service/NakamaService';
+import { Scene, useGameStore } from './store/gameStore';
 
 /**
  * 场景路由配置
@@ -79,7 +80,6 @@ const App: React.FC = () => {
   const [isRestoring, setIsRestoring] = useState(true);
   // 应用启动时尝试恢复 session。
   useEffect(() => {
-
     const tryRestore = async () => {
       try {
         const restored = await gameService.restoreSession();
@@ -109,11 +109,9 @@ const App: React.FC = () => {
   }
 
   const isMiniGameOverlay = currentScene === Scene.MiniGameSubmitRank;
-  const SceneComponent = isMiniGameOverlay ? BoardScene : (sceneComponents[currentScene] || HomeScene);
+  const SceneComponent = isMiniGameOverlay ? BoardScene : sceneComponents[currentScene] || HomeScene;
   const isHomeScene =
-    currentScene === Scene.Home ||
-    currentScene === Scene.CreateRoom ||
-    currentScene === Scene.JoinRoom;
+    currentScene === Scene.Home || currentScene === Scene.CreateRoom || currentScene === Scene.JoinRoom;
 
   return (
     <div style={styles.app}>

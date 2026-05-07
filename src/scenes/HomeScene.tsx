@@ -2,9 +2,10 @@
  * StartScene - first step before room browsing.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Scene, useGameStore } from '../store/gameStore';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { gameService } from '../service/NakamaService';
+import { Scene, useGameStore } from '../store/gameStore';
 
 async function getErrorMessage(err: unknown): Promise<string> {
   if (err instanceof Error && err.message) return err.message;
@@ -52,8 +53,9 @@ export const StartScene: React.FC = () => {
         useCustomServerOptions ? serverSSL : current.useSSL,
       );
       setError('');
-    } catch (err: any) {
-      setError(`服务器配置无效：${err?.message || '未知错误'}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '未知错误';
+      setError(`服务器配置无效：${message}`);
     }
   };
 
@@ -105,7 +107,6 @@ export const StartScene: React.FC = () => {
             placeholder="输入昵称"
             style={styles.input}
             maxLength={20}
-            autoFocus
           />
         </label>
 
@@ -132,11 +133,7 @@ export const StartScene: React.FC = () => {
           {isStarting ? '连接中...' : '开始游戏'}
         </button>
 
-        <button
-          type="button"
-          onClick={() => setShowServerConfig((visible) => !visible)}
-          style={styles.linkButton}
-        >
+        <button type="button" onClick={() => setShowServerConfig((visible) => !visible)} style={styles.linkButton}>
           SERVER
         </button>
 
@@ -173,11 +170,7 @@ export const StartScene: React.FC = () => {
                   />
                 </label>
                 <label style={styles.checkLabel}>
-                  <input
-                    type="checkbox"
-                    checked={serverSSL}
-                    onChange={(e) => setServerSSL(e.target.checked)}
-                  />
+                  <input type="checkbox" checked={serverSSL} onChange={(e) => setServerSSL(e.target.checked)} />
                   SSL
                 </label>
               </>

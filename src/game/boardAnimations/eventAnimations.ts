@@ -1,16 +1,72 @@
-import * as Phaser from 'phaser';
-import type { Player } from '../../types/protocol';
-import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
-import type { AnimationOrchestrator } from '../animationOrchestrator';
-import type { CharacterRenderOptions } from '../characterRenderConfig';
-import { resolveCharacterProfile, getCharacterEffectOffsetY, getCharacterRenderer, getAnimationKey } from '../characterRenderConfig';
-import { LAYER_FULLSCREEN_EFFECT, LAYER_SHADER_OVERLAY, LAYER_LOST_WAY_CHARACTER, worldDepth, LAYER_EFFECT_BASE } from '../renderLayers';
-import { CHARACTER_HALF_HEIGHT, LOST_WAY_DISSOLVE_START_DELAY, LOST_WAY_DISSOLVE_DURATION, LOST_WAY_DIZZY_START_DELAY, LOST_WAY_DIZZY_DURATION, LOST_WAY_RECOVERY_START_DELAY, LOST_WAY_RECOVERY_DURATION, LOST_WAY_TOTAL_EFFECT_MS, DIZZY_TINT_COLOR, HIDDEN_BUFF_DISSOLVE_START_DELAY, HIDDEN_BUFF_DISSOLVE_DURATION, HIDDEN_BUFF_RECOVERY_START_DELAY, HIDDEN_BUFF_RECOVERY_DURATION, HIDDEN_BUFF_TOTAL_EFFECT_MS, RELIC_TEXTURE_KEY, RELIC_BOMB_TEXTURE_KEY, RELIC_BOMB_ANIMATION_KEY, RELIC_CHEST_APPEAR_DELAY, RELIC_CHEST_APPEAR_DURATION, RELIC_BOMB_START_DELAY, RELIC_WEAPON_FLY_DELAY, RELIC_WEAPON_FLY_DURATION, RELIC_WEAPON_DISAPPEAR_DELAY, RELIC_WEAPON_DISAPPEAR_DURATION, RELIC_TOTAL_EFFECT_MS, RELIC_CHEST_OFFSET_X, RELIC_CHEST_START_OFFSET_Y, RELIC_CHEST_LAND_OFFSET_Y, RELIC_BOMB_SCALE, RELIC_WEAPON_LANDING_OFFSETS, RELIC_WEAPON_LAND_Y_OFFSET, RELIC_WEAPON_PEAK_HEIGHT_MIN, RELIC_WEAPON_PEAK_HEIGHT_MAX, WEAPON_CATEGORIES, WEAPON_ICON_KEYS, RELIC_WEAPON_COUNT, DIVINE_BLESS_WINGS_TEXTURE_KEY, DIVINE_BLESS_WINGS_SCALE, DIVINE_BLESS_WINGS_OFFSET_Y, DIVINE_BLESS_WINGS_APPEAR_DURATION, DIVINE_BLESS_WINGS_HOLD_DURATION, DIVINE_BLESS_WINGS_DISAPPEAR_DURATION } from '../boardConstants';
-import { LOST_WAY_DISSOLVE_SHADER_NAME, LOST_WAY_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/lostWayDissolve';
-import { HIDDEN_BUFF_DISSOLVE_SHADER_NAME, HIDDEN_BUFF_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/hiddenBuffDissolve';
-import { getEventEffectConfig, getEventTypeFromEntry } from '../eventAnimations';
+import type * as Phaser from 'phaser';
 import { useGameStore } from '../../store/gameStore';
-import { showCenterPopup, type PopupContext } from './popup';
+import type { Player } from '../../types/protocol';
+import type { AnimationOrchestrator } from '../animationOrchestrator';
+import {
+  CHARACTER_HALF_HEIGHT,
+  DIVINE_BLESS_WINGS_APPEAR_DURATION,
+  DIVINE_BLESS_WINGS_DISAPPEAR_DURATION,
+  DIVINE_BLESS_WINGS_HOLD_DURATION,
+  DIVINE_BLESS_WINGS_OFFSET_Y,
+  DIVINE_BLESS_WINGS_SCALE,
+  DIVINE_BLESS_WINGS_TEXTURE_KEY,
+  DIZZY_TINT_COLOR,
+  HIDDEN_BUFF_DISSOLVE_DURATION,
+  HIDDEN_BUFF_DISSOLVE_START_DELAY,
+  HIDDEN_BUFF_RECOVERY_DURATION,
+  HIDDEN_BUFF_RECOVERY_START_DELAY,
+  HIDDEN_BUFF_TOTAL_EFFECT_MS,
+  LOST_WAY_DISSOLVE_DURATION,
+  LOST_WAY_DISSOLVE_START_DELAY,
+  LOST_WAY_DIZZY_DURATION,
+  LOST_WAY_DIZZY_START_DELAY,
+  LOST_WAY_RECOVERY_DURATION,
+  LOST_WAY_RECOVERY_START_DELAY,
+  LOST_WAY_TOTAL_EFFECT_MS,
+  RELIC_BOMB_ANIMATION_KEY,
+  RELIC_BOMB_SCALE,
+  RELIC_BOMB_START_DELAY,
+  RELIC_BOMB_TEXTURE_KEY,
+  RELIC_CHEST_APPEAR_DELAY,
+  RELIC_CHEST_APPEAR_DURATION,
+  RELIC_CHEST_LAND_OFFSET_Y,
+  RELIC_CHEST_OFFSET_X,
+  RELIC_CHEST_START_OFFSET_Y,
+  RELIC_TEXTURE_KEY,
+  RELIC_TOTAL_EFFECT_MS,
+  RELIC_WEAPON_COUNT,
+  RELIC_WEAPON_DISAPPEAR_DELAY,
+  RELIC_WEAPON_DISAPPEAR_DURATION,
+  RELIC_WEAPON_FLY_DELAY,
+  RELIC_WEAPON_FLY_DURATION,
+  RELIC_WEAPON_LAND_Y_OFFSET,
+  RELIC_WEAPON_LANDING_OFFSETS,
+  RELIC_WEAPON_PEAK_HEIGHT_MAX,
+  RELIC_WEAPON_PEAK_HEIGHT_MIN,
+  WEAPON_CATEGORIES,
+  WEAPON_ICON_KEYS,
+} from '../boardConstants';
+import type { CharacterRenderOptions } from '../characterRenderConfig';
+import {
+  getAnimationKey,
+  getCharacterEffectOffsetY,
+  getCharacterRenderer,
+  resolveCharacterProfile,
+} from '../characterRenderConfig';
+import { getEventEffectConfig, getEventTypeFromEntry } from '../eventAnimations';
+import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
+import {
+  LAYER_EFFECT_BASE,
+  LAYER_FULLSCREEN_EFFECT,
+  LAYER_LOST_WAY_CHARACTER,
+  LAYER_SHADER_OVERLAY,
+  worldDepth,
+} from '../renderLayers';
+import { HIDDEN_BUFF_DISSOLVE_FRAGMENT_SOURCE, HIDDEN_BUFF_DISSOLVE_SHADER_NAME } from '../shaders/hiddenBuffDissolve';
+import { LOST_WAY_DISSOLVE_FRAGMENT_SOURCE, LOST_WAY_DISSOLVE_SHADER_NAME } from '../shaders/lostWayDissolve';
+import { type PopupContext, showCenterPopup } from './popup';
+
+type ShaderUniformValue = number | readonly number[];
 
 const EFFECT_START_GAP_MS = 200;
 
@@ -32,7 +88,7 @@ export type BoardAnimationContext = {
 export async function playDrawEventAnimation(
   ctx: BoardAnimationContext,
   popupCtx: PopupContext,
-  context: LogEntryAnimationContext
+  context: LogEntryAnimationContext,
 ): Promise<void> {
   const { entry } = context;
   const eventType = getEventTypeFromEntry(entry);
@@ -91,7 +147,7 @@ export function playDivineBlessAnimation(ctx: BoardAnimationContext, context: Lo
   const wingsSprite = ctx.scene.add.image(
     marker.x,
     marker.y + effectOffsetY + DIVINE_BLESS_WINGS_OFFSET_Y,
-    DIVINE_BLESS_WINGS_TEXTURE_KEY
+    DIVINE_BLESS_WINGS_TEXTURE_KEY,
   );
   wingsSprite.setOrigin(0.5, 0.5);
   wingsSprite.setDepth(marker.depth - 1);
@@ -100,7 +156,7 @@ export function playDivineBlessAnimation(ctx: BoardAnimationContext, context: Lo
 
   ctx.orchestrator.registerCleanupOnTimer(
     wingsSprite,
-    DIVINE_BLESS_WINGS_APPEAR_DURATION + DIVINE_BLESS_WINGS_HOLD_DURATION + DIVINE_BLESS_WINGS_DISAPPEAR_DURATION + 300
+    DIVINE_BLESS_WINGS_APPEAR_DURATION + DIVINE_BLESS_WINGS_HOLD_DURATION + DIVINE_BLESS_WINGS_DISAPPEAR_DURATION + 300,
   );
 
   ctx.tweens.add({
@@ -122,10 +178,10 @@ export function playDivineBlessAnimation(ctx: BoardAnimationContext, context: Lo
           ease: 'Sine.easeIn',
           onComplete: () => {
             if (wingsSprite.active) wingsSprite.destroy();
-          }
+          },
         });
       });
-    }
+    },
   });
 }
 
@@ -174,7 +230,7 @@ export function playSkullGazeBombAnimation(ctx: BoardAnimationContext, context: 
       ease: 'Sine.easeOut',
       onComplete: () => {
         skullSprite.destroy();
-      }
+      },
     });
   });
 
@@ -210,7 +266,7 @@ export function playBubbleAnimation(ctx: BoardAnimationContext, context: LogEntr
     ease: 'Sine.easeOut',
     onComplete: () => {
       bubbleSprite.destroy();
-    }
+    },
   });
 }
 
@@ -241,7 +297,7 @@ export function playGhostHitAnimation(ctx: BoardAnimationContext, context: LogEn
       ease: 'Sine.easeOut',
       onComplete: () => {
         ghostSprite.destroy();
-      }
+      },
     });
   });
 
@@ -376,7 +432,7 @@ export function playMosquitoAnimation(ctx: BoardAnimationContext, context: LogEn
       ease: 'Sine.easeOut',
       onComplete: () => {
         mosquitoSprite.destroy();
-      }
+      },
     });
   });
 
@@ -421,7 +477,7 @@ export function playLostWayAnimation(ctx: BoardAnimationContext, context: LogEnt
     {
       name: LOST_WAY_DISSOLVE_SHADER_NAME,
       fragmentSource: LOST_WAY_DISSOLVE_FRAGMENT_SOURCE,
-      setupUniforms: (setUniform: (name: string, value: any) => void) => {
+      setupUniforms: (setUniform: (name: string, value: ShaderUniformValue) => void) => {
         setUniform('uProgress', progressHolder.value);
         setUniform('uTime', ctx.scene.time.now / 1000);
         setUniform('uResolution', [cam.width, cam.height]);
@@ -431,7 +487,7 @@ export function playLostWayAnimation(ctx: BoardAnimationContext, context: LogEnt
     worldX,
     worldY,
     worldWidth,
-    worldHeight
+    worldHeight,
   );
   shaderObj.setOrigin(0.5, 0.5);
   shaderObj.setScrollFactor(0);
@@ -546,7 +602,7 @@ export function playHiddenBuffAnimation(ctx: BoardAnimationContext, context: Log
   if (!profile) return;
 
   const renderer = getCharacterRenderer(ctx.characterRenderOptions);
-  const HIDDEN_BUFF_TINT_COLOR = 0x1a237e;  // deep indigo tint for dimensional shift feel
+  const HIDDEN_BUFF_TINT_COLOR = 0x1a237e; // deep indigo tint for dimensional shift feel
 
   // --- Create full-screen shader overlay (same approach as lost_way) ---
   const cam = ctx.scene.cameras.main;
@@ -571,7 +627,7 @@ export function playHiddenBuffAnimation(ctx: BoardAnimationContext, context: Log
     {
       name: HIDDEN_BUFF_DISSOLVE_SHADER_NAME,
       fragmentSource: HIDDEN_BUFF_DISSOLVE_FRAGMENT_SOURCE,
-      setupUniforms: (setUniform: (name: string, value: any) => void) => {
+      setupUniforms: (setUniform: (name: string, value: ShaderUniformValue) => void) => {
         setUniform('uProgress', progressHolder.value);
         setUniform('uTime', ctx.scene.time.now / 1000);
         setUniform('uResolution', [cam.width, cam.height]);
@@ -582,7 +638,7 @@ export function playHiddenBuffAnimation(ctx: BoardAnimationContext, context: Log
     worldX,
     worldY,
     worldWidth,
-    worldHeight
+    worldHeight,
   );
   shaderObj.setOrigin(0.5, 0.5);
   shaderObj.setScrollFactor(0);
@@ -769,7 +825,8 @@ export function playRelicAnimation(ctx: BoardAnimationContext, context: LogEntry
       if (!textureKey) return;
 
       const landingX = chestTargetX + RELIC_WEAPON_LANDING_OFFSETS[i];
-      const peakHeight = RELIC_WEAPON_PEAK_HEIGHT_MIN + Math.random() * (RELIC_WEAPON_PEAK_HEIGHT_MAX - RELIC_WEAPON_PEAK_HEIGHT_MIN);
+      const peakHeight =
+        RELIC_WEAPON_PEAK_HEIGHT_MIN + Math.random() * (RELIC_WEAPON_PEAK_HEIGHT_MAX - RELIC_WEAPON_PEAK_HEIGHT_MIN);
       const peakY = chestTargetY - peakHeight;
 
       const weaponSprite = ctx.scene.add.image(chestTargetX, chestTargetY, textureKey);

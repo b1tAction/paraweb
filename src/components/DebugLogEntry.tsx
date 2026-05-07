@@ -6,11 +6,11 @@
  * Only displays entries with type === 'action'.
  */
 
-import React from 'react';
+import type React from 'react';
 import type { LogEntry, Player } from '../types/protocol';
 
 // Metadata helpers (consistent with BoardScene.tsx)
-function getMetaNum(meta: Record<string, any> | undefined, key: string): number | null {
+function getMetaNum(meta: Record<string, unknown> | undefined, key: string): number | null {
   const value = meta?.[key];
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
@@ -20,12 +20,12 @@ function getMetaNum(meta: Record<string, any> | undefined, key: string): number 
   return null;
 }
 
-function getMetaStr(meta: Record<string, any> | undefined, key: string): string {
+function getMetaStr(meta: Record<string, unknown> | undefined, key: string): string {
   const value = meta?.[key];
   return typeof value === 'string' ? value : '';
 }
 
-function getMetaBool(meta: Record<string, any> | undefined, key: string): boolean {
+function getMetaBool(meta: Record<string, unknown> | undefined, key: string): boolean {
   const value = meta?.[key];
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') return value === 'true';

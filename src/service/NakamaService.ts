@@ -5,10 +5,10 @@
  * 实现消息监听、路由和场景切换逻辑
  */
 
-import { Client, Session, Socket, Match, MatchData } from '@heroiclabs/nakama-js';
-import { useGameStore, Scene } from '../store/gameStore';
+import { Client, type Match, type MatchData, Session, type Socket } from '@heroiclabs/nakama-js';
 import * as opcodes from '../api/opcodes';
-import * as protocol from '../types/protocol';
+import { Scene, useGameStore } from '../store/gameStore';
+import type * as protocol from '../types/protocol';
 
 /**
  * NakamaService 类
@@ -23,8 +23,9 @@ export class NakamaService {
   private useSSL: boolean = false;
 
   private readonly DEFAULT_HOST: string = this.resolveDefaultHost();
-  private readonly DEFAULT_PORT: string = (import.meta as any).env?.VITE_NAKAMA_PORT || '7350';
-  private readonly DEFAULT_USE_SSL: boolean = String((import.meta as any).env?.VITE_NAKAMA_SSL || 'false').toLowerCase() === 'true';
+  private readonly DEFAULT_PORT: string = import.meta.env.VITE_NAKAMA_PORT || '7350';
+  private readonly DEFAULT_USE_SSL: boolean =
+    String(import.meta.env.VITE_NAKAMA_SSL || 'false').toLowerCase() === 'true';
 
   // Device ID prefix for device-UUID-based authentication
   private readonly DEVICE_ID_PREFIX = 'paradiced_';
@@ -44,7 +45,7 @@ export class NakamaService {
   }
 
   private resolveDefaultHost(): string {
-    const configuredHost = (import.meta as any).env?.VITE_NAKAMA_HOST?.trim();
+    const configuredHost = import.meta.env.VITE_NAKAMA_HOST?.trim();
     if (configuredHost) {
       return configuredHost;
     }
@@ -113,7 +114,7 @@ export class NakamaService {
     bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
     bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
 
-    const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
@@ -159,21 +160,15 @@ export class NakamaService {
     const merged: Record<string, string> = { ...(metadata || {}) };
 
     const candidateDisplayName =
-      merged.display_name?.trim() ||
-      store.displayName?.trim() ||
-      store.session?.username?.trim() ||
-      '';
+      merged.display_name?.trim() || store.displayName?.trim() || store.session?.username?.trim() || '';
 
     if (candidateDisplayName) {
       merged.display_name = candidateDisplayName;
     }
 
-    const candidateFaction =
-      merged.faction?.trim() ||
-      store.faction?.trim() ||
-      'qing_long';  // Default fallback matching backend parseFactionFromMetadata behavior
+    const candidateFaction = merged.faction?.trim() || store.faction?.trim() || 'qing_long'; // Default fallback matching backend parseFactionFromMetadata behavior
 
-    merged.faction = candidateFaction;  // Always set; never send empty faction
+    merged.faction = candidateFaction; // Always set; never send empty faction
 
     return Object.keys(merged).length > 0 ? merged : undefined;
   }
@@ -202,8 +197,8 @@ export class NakamaService {
     // authenticateDevice: create=true auto-creates account if not exists
     const session = await this.client.authenticateDevice(
       deviceId,
-      true,      // create = true, auto-register if not exists
-      deviceId   // initial username = deviceId (will be overridden with display_name)
+      true, // create = true, auto-register if not exists
+      deviceId, // initial username = deviceId (will be overridden with display_name)
     );
 
     console.log('[Nakama] 认证成功', {
@@ -299,8 +294,8 @@ export class NakamaService {
     // authenticateDevice: create=true auto-creates account if not exists
     const session = await this.client.authenticateDevice(
       deviceId,
-      true,      // create = true, auto-register if not exists
-      username   // username as display name
+      true, // create = true, auto-register if not exists
+      username, // username as display name
     );
 
     console.log('[Nakama] 认证成功', {
@@ -343,7 +338,7 @@ export class NakamaService {
       dummyEmail,
       password,
       isRegister, // true = 注册，false = 登录
-      username    // username 用作显示名称
+      username, // username 用作显示名称
     );
 
     console.log('[Nakama] 认证成功', {
@@ -405,7 +400,7 @@ export class NakamaService {
           localStorage.setItem(this.STORAGE_KEY_TOKEN, session.token);
           localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
           console.log('[Nakama] Session 刷新成功');
-        } catch (refreshError: any) {
+        } catch {
           console.log('[Nakama] Session 刷新失败，需要重新登录');
           localStorage.removeItem(this.STORAGE_KEY_TOKEN);
           localStorage.removeItem(this.STORAGE_KEY_REFRESH_TOKEN);
@@ -433,9 +428,8 @@ export class NakamaService {
       this.setupListeners(socket);
 
       return true;
-
-    } catch (error: any) {
-      console.error('[Nakama] Session 恢复失败', error.message);
+    } catch (error: unknown) {
+      console.error('[Nakama] Session 恢复失败', error instanceof Error ? error.message : error);
       localStorage.removeItem(this.STORAGE_KEY_TOKEN);
       localStorage.removeItem(this.STORAGE_KEY_REFRESH_TOKEN);
       return false;
@@ -474,7 +468,7 @@ export class NakamaService {
     const session = await this.client.authenticateDevice(
       deviceId,
       true, // create = true, 如果用户不存在则创建
-      displayName // username 用作显示名称
+      displayName, // username 用作显示名称
     );
 
     console.log('[Nakama] 认证成功', {
@@ -505,9 +499,7 @@ export class NakamaService {
     // nakama-js: 使用 onmatchdata 回调属性 (对比 Go 的 MatchDataHandler)
     socket.onmatchdata = (matchData: MatchData) => {
       // 解码数据 (Uint8Array -> JSON)
-      const data = matchData.data
-        ? JSON.parse(new TextDecoder().decode(matchData.data))
-        : {};
+      const data = matchData.data ? JSON.parse(new TextDecoder().decode(matchData.data)) : {};
 
       console.log(`[Nakama] 收到 OpCode: ${matchData.op_code} (${opcodes.getOpCodeName(matchData.op_code)})`, data);
 
@@ -679,9 +671,7 @@ export class NakamaService {
   private handleGameOver(data: protocol.GameOver) {
     const store = useGameStore.getState();
     const isWaitingRoomTermination =
-      store.currentScene === Scene.Lobby &&
-      !data.winner_id &&
-      (!data.stats || data.stats.length === 0);
+      store.currentScene === Scene.Lobby && !data.winner_id && (!data.stats || data.stats.length === 0);
 
     if (isWaitingRoomTermination) {
       store.setJoinRoomNotice('房主已解散房间');
@@ -693,7 +683,10 @@ export class NakamaService {
 
     store.setGameOver(data);
 
-    if (store.currentScene === Scene.Board || (store.currentScene === Scene.MiniGameSubmitRank && store.miniGameResultPending)) {
+    if (
+      store.currentScene === Scene.Board ||
+      (store.currentScene === Scene.MiniGameSubmitRank && store.miniGameResultPending)
+    ) {
       store.setPendingScene(Scene.GameOver);
     } else {
       store.setPendingScene(null);
@@ -756,7 +749,7 @@ export class NakamaService {
   /**
    * 4. 场景路由 (对齐 Go CLI)
    */
-  private routeSceneByState(globalState: string) {
+  routeSceneByState(globalState: string) {
     const store = useGameStore.getState();
     const normalized = globalState.trim();
 
@@ -826,7 +819,7 @@ export class NakamaService {
    * @param opCode 操作码
    * @param payload 数据负载
    */
-  async sendOpCode(opCode: number, payload: any = {}): Promise<void> {
+  async sendOpCode(opCode: number, payload: unknown = {}): Promise<void> {
     const { socket, match } = useGameStore.getState();
 
     if (!socket || !match) {
@@ -859,15 +852,15 @@ export class NakamaService {
     // First try with query filter; if that returns nothing, fall back to
     // unfiltered listing (some Nakama versions/configs may not support
     // label query on authoritative matches).
-    let result;
+    let result: Awaited<ReturnType<Client['listMatches']>>;
     try {
       result = await this.client.listMatches(
         session,
-        20,    // limit
-        true,  // authoritative
-        '',    // label (unused for authoritative matches)
-        0,     // min size: include empty matches
-        4,     // max size
+        20, // limit
+        true, // authoritative
+        '', // label (unused for authoritative matches)
+        0, // min size: include empty matches
+        4, // max size
         '+label.status:waiting +label.game:paradiced', // query filter
       );
     } catch {
@@ -875,11 +868,11 @@ export class NakamaService {
       console.log('[Nakama] Label query failed, falling back to unfiltered listing');
       result = await this.client.listMatches(
         session,
-        20,    // limit
-        true,  // authoritative
-        '',    // label
-        0,     // min size
-        4,     // max size
+        20, // limit
+        true, // authoritative
+        '', // label
+        0, // min size
+        4, // max size
       );
     }
 
@@ -896,6 +889,10 @@ export class NakamaService {
 
     if (!session) {
       throw new Error('[Nakama] 没有有效的 session');
+    }
+
+    if (!socket) {
+      throw new Error('[Nakama] 没有有效的 socket');
     }
 
     console.log('[Nakama] 创建房间', { lobbyName, maxPlayers });
@@ -924,7 +921,7 @@ export class NakamaService {
     // nakama-js: joinMatch 返回 Promise<Match>
     // 关键：携带 display_name metadata，避免服务端 waiting_sync 回退到 user_id
     const joinMetadata = this.buildJoinMetadata();
-    const match = await socket!.joinMatch(matchId, undefined, joinMetadata);
+    const match = await socket.joinMatch(matchId, undefined, joinMetadata);
 
     useGameStore.getState().setMatch(match);
     useGameStore.getState().setMatchId(match.match_id || matchId);
@@ -1047,7 +1044,7 @@ export class NakamaService {
   /**
    * 14. 提交小游戏数据 (服务端计算排名)
    */
-  async sendMiniGameDataSubmit(gameType: string, gameData: Record<string, any>): Promise<void> {
+  async sendMiniGameDataSubmit(gameType: string, gameData: Record<string, unknown>): Promise<void> {
     console.log('[Nakama] 提交小游戏数据', { gameType, gameData });
     await this.sendOpCode(opcodes.OpMiniGameDataSubmit, {
       game_type: gameType,

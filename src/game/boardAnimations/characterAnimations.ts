@@ -1,28 +1,36 @@
-import * as Phaser from 'phaser';
+import type * as Phaser from 'phaser';
+import { useGameStore } from '../../store/gameStore';
 import type { LogEntry, Player } from '../../types/protocol';
-import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
+import {
+  GAME_FONT_FAMILY,
+  LP_ADD_ANIMATION_KEY,
+  LP_ADD_TEXTURE_KEY,
+  LP_MINUS_ANIMATION_KEY,
+  LP_MINUS_TEXTURE_KEY,
+  RESPAWN_ANIMATION_KEY,
+  RESPAWN_TEXTURE_KEY,
+} from '../boardConstants';
+import { isBossPlayer } from '../bossVisualConfig';
 import type { CharacterRenderOptions, CharacterRenderProfile } from '../characterRenderConfig';
 import {
-  getCharacterRenderer,
+  getAnimationKey,
   getCharacterEffectOffsetY,
   getCharacterOffsetY,
-  getAnimationKey,
+  getCharacterRenderer,
   resolveCharacterProfile,
 } from '../characterRenderConfig';
-import { isBossPlayer } from '../bossVisualConfig';
-import { getMetadataNumber, describeLogEntryEffect } from '../logEntryPlayback';
-import { useGameStore } from '../../store/gameStore';
-import { LAYER_EFFECT_BASE, LAYER_EFFECT_TEXT_BASE, worldDepth, LAYER_CHARACTER_BASE } from '../renderLayers';
-import { GAME_FONT_FAMILY, RESPAWN_TEXTURE_KEY, RESPAWN_ANIMATION_KEY, LP_ADD_TEXTURE_KEY, LP_ADD_ANIMATION_KEY, LP_MINUS_TEXTURE_KEY, LP_MINUS_ANIMATION_KEY } from '../boardConstants';
+import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
+import { describeLogEntryEffect, getMetadataNumber } from '../logEntryPlayback';
+import { LAYER_CHARACTER_BASE, LAYER_EFFECT_BASE, LAYER_EFFECT_TEXT_BASE, worldDepth } from '../renderLayers';
+import { isBossReflectDamage, playBossProfileAnimation, playBossReflectAnimation } from './bossAnimations';
 import type { BoardAnimationContext } from './eventAnimations';
-import { playBossProfileAnimation, isBossReflectDamage, playBossReflectAnimation } from './bossAnimations';
 
 // --- Helper functions ---
 
 function resolveCharacterProfileForPlayer(
   player: Player,
   players: Player[],
-  characterRenderOptions?: CharacterRenderOptions
+  characterRenderOptions?: CharacterRenderOptions,
 ): CharacterRenderProfile {
   const order = players.indexOf(player);
   return resolveCharacterProfile(player, order, characterRenderOptions);
@@ -31,7 +39,7 @@ function resolveCharacterProfileForPlayer(
 function resolveCharacterProfileFromMarker(
   playerId: string,
   players: Player[],
-  characterRenderOptions?: CharacterRenderOptions
+  characterRenderOptions?: CharacterRenderOptions,
 ): CharacterRenderProfile {
   const player = players.find((p) => p.player_id === playerId);
   if (!player) return resolveCharacterProfileForPlayer(players[0], players, characterRenderOptions);
@@ -41,7 +49,7 @@ function resolveCharacterProfileFromMarker(
 function getPlayerIdForMarker(
   marker: Phaser.GameObjects.Sprite,
   players: Player[],
-  playerMarkers: Map<string, Phaser.GameObjects.Sprite>
+  playerMarkers: Map<string, Phaser.GameObjects.Sprite>,
 ): string | undefined {
   return players.find((player) => playerMarkers.get(player.player_id) === marker)?.player_id;
 }
@@ -49,7 +57,7 @@ function getPlayerIdForMarker(
 function getMarkerEffectPoint(
   marker: Phaser.GameObjects.Sprite,
   ctx: BoardAnimationContext,
-  playerId?: string
+  playerId?: string,
 ): { x: number; y: number } {
   const resolvedPlayerId = playerId ?? getPlayerIdForMarker(marker, ctx.players, ctx.playerMarkers);
   const profile = resolvedPlayerId
@@ -64,14 +72,7 @@ function getMarkerEffectPoint(
 export function shouldSuppressSettlementEffect(entry: LogEntry, settlementPlayer?: Player | null): boolean {
   if (!settlementPlayer || entry.target !== settlementPlayer.player_id) return false;
 
-  return [
-    'damage',
-    'heal',
-    'fell_down',
-    'modify_lp',
-    'add_buff',
-    'remove_buff',
-  ].includes(entry.action_type);
+  return ['damage', 'heal', 'fell_down', 'modify_lp', 'add_buff', 'remove_buff'].includes(entry.action_type);
 }
 
 // --- Character animation functions ---
@@ -81,7 +82,7 @@ export function playBuffChangeAnimation(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
   followPlayerId?: string | null,
-  settlementPlayer?: Player | null
+  settlementPlayer?: Player | null,
 ): void {
   const { entry } = context;
   if (shouldSuppressSettlementEffect(entry, settlementPlayer)) return;
@@ -147,7 +148,7 @@ export function playGenericLogEntryEffect(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
   followPlayerId?: string | null,
-  settlementPlayer?: Player | null
+  settlementPlayer?: Player | null,
 ): void {
   const { entry } = context;
 
@@ -211,7 +212,7 @@ export function playDamageAnimation(
   context: LogEntryAnimationContext,
   activeMoveAnimations: Set<string>,
   followPlayerId?: string | null,
-  settlementPlayer?: Player | null
+  settlementPlayer?: Player | null,
 ): void {
   const { entry } = context;
   if (isBossReflectDamage(entry)) {
@@ -244,7 +245,7 @@ export function playDeathAnimation(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
   followPlayerId?: string | null,
-  settlementPlayer?: Player | null
+  settlementPlayer?: Player | null,
 ): void {
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
@@ -260,8 +261,14 @@ export function playDeathAnimation(
     targetPlayer &&
     isBossPlayer(targetPlayer) &&
     playBossProfileAnimation(
-      ctx.scene, marker, targetPlayer.player_id, 'defeated',
-      ctx.players, ctx.playerMarkers, ctx.characterRenderOptions, false
+      ctx.scene,
+      marker,
+      targetPlayer.player_id,
+      'defeated',
+      ctx.players,
+      ctx.playerMarkers,
+      ctx.characterRenderOptions,
+      false,
     )
   ) {
     playGenericLogEntryEffect(ctx, context, followPlayerId, settlementPlayer);
@@ -282,7 +289,7 @@ export function playRespawnAnimation(
   context: LogEntryAnimationContext,
   followPlayerId?: string | null,
   settlementPlayer?: Player | null,
-  refreshCellMarkerStates?: () => void
+  refreshCellMarkerStates?: () => void,
 ): void {
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
@@ -353,7 +360,7 @@ export function playHealAnimation(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
   followPlayerId?: string | null,
-  settlementPlayer?: Player | null
+  settlementPlayer?: Player | null,
 ): void {
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
@@ -403,7 +410,7 @@ export function playModifyLpAnimation(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
   followPlayerId?: string | null,
-  settlementPlayer?: Player | null
+  settlementPlayer?: Player | null,
 ): void {
   const { entry } = context;
   const lpChange = getMetadataNumber(entry.metadata, 'lp_change') ?? 0;
@@ -425,7 +432,7 @@ export function playLpAddEffect(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
   followPlayerId?: string | null,
-  settlementPlayer?: Player | null
+  settlementPlayer?: Player | null,
 ): void {
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
@@ -475,7 +482,7 @@ export function playLpMinusEffect(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
   followPlayerId?: string | null,
-  settlementPlayer?: Player | null
+  settlementPlayer?: Player | null,
 ): void {
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
