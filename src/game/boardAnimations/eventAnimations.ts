@@ -62,6 +62,8 @@ export async function playDrawEventAnimation(
     playSkullGazeBombAnimation(ctx, context);
   } else if (eventType === 'ghost_hit') {
     playGhostHitAnimation(ctx, context);
+  } else if (eventType === 'mosquito') {
+    playMosquitoAnimation(ctx, context);
   } else if (eventType === 'lost_way') {
     playLostWayAnimation(ctx, context);
   }
@@ -285,6 +287,40 @@ export function playLightningStrikeWorldAnimation(ctx: BoardAnimationContext, co
   ctx.scene.cameras.main.flash(300, 255, 255, 200);
 
   ctx.scene.cameras.main.shake(640, 0.005);
+}
+
+/**
+ * Play the mosquito attack effect: mosquito appears offset to the left
+ * of the player and attacks, then fades out.
+ */
+export function playMosquitoAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  // Position mosquito offset to the left of the player
+  const mosquitoX = marker.x - 30;
+  const bodyCenterY = marker.y;
+
+  const mosquitoSprite = ctx.scene.add.sprite(mosquitoX, bodyCenterY, 'mosquito-effect');
+  mosquitoSprite.setScale(1.0);
+  mosquitoSprite.setOrigin(0.5, 0.5);
+  mosquitoSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  mosquitoSprite.play('mosquito_anim');
+
+  mosquitoSprite.on('animationcomplete', () => {
+    ctx.tweens.add({
+      targets: mosquitoSprite,
+      alpha: { from: 1, to: 0 },
+      duration: 200,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        mosquitoSprite.destroy();
+      }
+    });
+  });
+
+  ctx.scene.cameras.main.shake(200, 0.003);
 }
 
 /**

@@ -191,6 +191,11 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
     return 2900;
   }
 
+  // Mosquito draw_event should chain to damage with fast transition (popup must finish first).
+  if (currentActionType === 'draw_event' && currentEventType === 'mosquito' && nextActionType === 'damage') {
+    return 2900;
+  }
+
   // Lost way draw_event has a longer animation (dissolve + recovery phases).
   if (currentActionType === 'draw_event' && currentEventType === 'lost_way') {
     return LOST_WAY_ANIMATION_DELAY_MS;

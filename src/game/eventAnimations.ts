@@ -14,6 +14,7 @@ export type EventAnimationType =
   | 'wind_gust'     // orange wind gust effect
   | 'neutral_pulse' // white neutral pulse effect
   | 'bubble_float'  // blue bubble float effect
+  | 'mosquito_attack' // mosquito sprite attack effect
   | 'lost_way_dissolve' // dark dissolve/glitch overlay effect
   | 'dizzy_stars'; // hurt+僵直+spinning stars dizzy effect
 
@@ -93,8 +94,8 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
   'mosquito': {
     color: 0xef5350,
     textColor: '#ffebee',
-    animationType: 'damage_flash',
-    iconEmoji: '🐛',
+    animationType: 'mosquito_attack',
+    iconEmoji: '🦟',
     particleCount: 3,
     duration: 2500
   },
