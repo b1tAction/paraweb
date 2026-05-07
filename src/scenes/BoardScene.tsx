@@ -469,6 +469,18 @@ export const BoardScene: React.FC = () => {
     diceRollView.status === 'rolling' ||
     diceRollView.status === 'result' ||
     isBlockingDiceUpgradeAnimation;
+  const selectedItemStillAvailable = Boolean(
+    itemTargetSelection &&
+      actionView?.items.some((item) => item.id === itemTargetSelection.id)
+  );
+  const canKeepSkillTargetSelection = Boolean(
+    skillTargetSelection &&
+      isMainAction &&
+      isMyTurn &&
+      availableActions?.can_use_skill &&
+      !decisionRequest &&
+      !hasPendingAnimations
+  );
   const activeAnimationContext = useMemo(
     () => createLogEntryAnimationContext(playedEntries, pendingEntries),
     [playedEntries, pendingEntries]
@@ -486,6 +498,36 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === settlementPlayerId) ||
       null
     : null;
+
+  useEffect(() => {
+    if (
+      itemTargetSelection &&
+      (
+        !isMainAction ||
+        !isMyTurn ||
+        !availableActions ||
+        Boolean(decisionRequest) ||
+        hasPendingAnimations ||
+        !selectedItemStillAvailable
+      )
+    ) {
+      setItemTargetSelection(null);
+    }
+
+    if (skillTargetSelection && !canKeepSkillTargetSelection) {
+      setSkillTargetSelection(false);
+    }
+  }, [
+    availableActions,
+    decisionRequest,
+    hasPendingAnimations,
+    isMainAction,
+    isMyTurn,
+    itemTargetSelection,
+    selectedItemStillAvailable,
+    skillTargetSelection,
+    canKeepSkillTargetSelection,
+  ]);
 
   useEffect(() => {
     const entry = activeAnimationContext?.entry;
@@ -1786,7 +1828,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '320px',
     padding: '42px 34px 28px',
     backgroundImage: 'url("/assets/frame/frame_choose.png")',
-    backgroundSize: '700px auto',
+    backgroundSize: '600px auto',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
     pointerEvents: 'auto',
