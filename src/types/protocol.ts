@@ -464,6 +464,14 @@ export interface UserChoice {
 }
 
 /**
+ * KickPlayer - 房主移出等待房间玩家
+ */
+export interface KickPlayer {
+  /** 被移出玩家的用户 ID */
+  target_id: string;
+}
+
+/**
  * MiniGameDataSubmit - 小游戏数据提交
  * 客户端提交 game_data，服务端根据 game_type 计算排名
  */

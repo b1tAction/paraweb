@@ -43,6 +43,7 @@ export const LobbyScene: React.FC = () => {
   const hasTouchedFactionRef = useRef(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [kickingPlayerId, setKickingPlayerId] = useState('');
   const [isUpdatingFaction, setIsUpdatingFaction] = useState(false);
   const [notice, setNotice] = useState('');
 
@@ -135,6 +136,22 @@ export const LobbyScene: React.FC = () => {
     }
   };
 
+  const handleKickPlayer = async (targetId: string, targetName: string) => {
+    if (!isHost || !targetId || targetId === myPlayerId || kickingPlayerId) return;
+
+    try {
+      setNotice('');
+      setKickingPlayerId(targetId);
+      await gameService.sendKickPlayer(targetId);
+      setNotice(`已移出 ${targetName}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : '移出玩家失败';
+      setNotice(errorMessage);
+    } finally {
+      setKickingPlayerId('');
+    }
+  };
+
   return (
     <main style={styles.page}>
       <div style={styles.cornerTitle}>LOBBY</div>
@@ -204,10 +221,40 @@ export const LobbyScene: React.FC = () => {
                 <div style={styles.occupants}>
                   {occupants.length > 0
                     ? occupants.map((player) => (
-                      <span key={player.user_id} style={player.user_id === myPlayerId ? styles.meName : undefined}>
-                        {player.display}
-                        {player.user_id === host_user_id ? ' 房主' : ''}
-                        {player.user_id === myPlayerId ? ' 我' : ''}
+                      <span
+                        key={player.user_id}
+                        style={{
+                          ...styles.occupantName,
+                          ...(player.user_id === myPlayerId ? styles.meName : undefined),
+                        }}
+                      >
+                        <span style={styles.occupantLabel}>
+                          {player.display}
+                          {player.user_id === host_user_id ? ' 房主' : ''}
+                          {player.user_id === myPlayerId ? ' 我' : ''}
+                        </span>
+                        {isHost && player.user_id !== myPlayerId && player.user_id !== host_user_id && (
+                          <button
+                            type="button"
+                            title={`移出 ${player.display}`}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                            }}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void handleKickPlayer(player.user_id, player.display);
+                            }}
+                            disabled={Boolean(kickingPlayerId) || isStarting || isLeaving}
+                            style={{
+                              ...styles.kickButton,
+                              ...(kickingPlayerId || isStarting || isLeaving ? styles.kickButtonDisabled : undefined),
+                            }}
+                          >
+                            {kickingPlayerId === player.user_id ? '...' : '移出'}
+                          </button>
+                        )}
                       </span>
                     ))
                   : <span style={styles.emptyName}>EMPTY</span>}
@@ -421,6 +468,38 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 'clamp(10px, 0.95vw, 12px)',
     lineHeight: 1.2,
     overflow: 'hidden',
+  },
+  occupantName: {
+    maxWidth: '100%',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    overflow: 'hidden',
+  },
+  occupantLabel: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  kickButton: {
+    flex: '0 0 auto',
+    minWidth: '34px',
+    minHeight: '18px',
+    padding: '2px 5px',
+    color: '#ffe0d9',
+    background: 'rgba(97, 30, 22, 0.72)',
+    border: '1px solid rgba(255, 184, 172, 0.45)',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '10px',
+    lineHeight: 1,
+  },
+  kickButtonDisabled: {
+    opacity: 0.64,
+    cursor: 'not-allowed',
   },
   meName: {
     color: '#baf7a6',
