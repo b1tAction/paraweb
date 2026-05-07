@@ -2,14 +2,6 @@
  * index.css - 全局样式
  */
 
-@font-face {
-  font-family: "Zpix";
-  src: url("/assets/font/zpix.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 * {
   margin: 0;
   padding: 0;
@@ -260,7 +252,6 @@ button:disabled {
 .paradice-reverse-clock-flight__icon {
   width: 128px;
   height: 128px;
-  background-image: url("/assets/effects/reverseclock.png");
   background-repeat: no-repeat;
   background-size: auto 128px;
   image-rendering: pixelated;

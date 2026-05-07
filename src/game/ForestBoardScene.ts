@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import type { MapCellConfig, MapConfig, Player } from '../types/protocol';
+import { assetUrl } from '../utils/assets';
 import { AnimationOrchestrator } from './animationOrchestrator';
 import {
   playBossAttackAnimation,
@@ -127,22 +128,22 @@ const TILESET_IMAGES: TilesetImageConfig[] = [
   {
     tiledNames: ['grass'],
     key: 'tiles-grass',
-    url: '/assets/tilesets/forest/surface/Grass.png',
+    url: assetUrl('assets/tilesets/forest/surface/Grass.png'),
   },
   {
     tiledNames: ['Grass 2 layer'],
     key: 'tiles-grass-2-layer',
-    url: '/assets/tilesets/forest/surface/Grass 2 layer.png',
+    url: assetUrl('assets/tilesets/forest/surface/Grass 2 layer.png'),
   },
   {
     tiledNames: ['pine tree', 'assets/forest/trees/pixellab-one-tree--a-tall--green-pine-t-1776597824607.png'],
     key: 'tiles-pine-tree',
-    url: '/assets/tilesets/forest/trees/pixellab-one-tree--a-tall--green-pine-t-1776597824607.png',
+    url: assetUrl('assets/tilesets/forest/trees/pixellab-one-tree--a-tall--green-pine-t-1776597824607.png'),
   },
   {
     tiledNames: ['Plants'],
     key: 'tiles-plants',
-    url: '/assets/tilesets/forest/trees/Plants.png',
+    url: assetUrl('assets/tilesets/forest/trees/Plants.png'),
   },
 ];
 
@@ -262,15 +263,15 @@ export class ForestBoardScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.tilemapTiledJSON('mainmap', '/assets/maps/MainMap.json');
+    this.load.tilemapTiledJSON('mainmap', assetUrl('assets/maps/MainMap.json'));
 
     for (const tileset of TILESET_IMAGES) {
       this.load.image(tileset.key, tileset.url);
     }
-    this.load.image('logic-cell-off', '/assets/tilesets/block/off.png');
-    this.load.image('logic-cell-on', '/assets/tilesets/block/on.png');
-    this.load.image(SHRINE_TEXTURE_KEY, '/assets/shrine/shrine.png');
-    this.load.spritesheet(WARP_DOOR_TEXTURE_KEY, '/assets/effects/warp-door.png', {
+    this.load.image('logic-cell-off', assetUrl('assets/tilesets/block/off.png'));
+    this.load.image('logic-cell-on', assetUrl('assets/tilesets/block/on.png'));
+    this.load.image(SHRINE_TEXTURE_KEY, assetUrl('assets/shrine/shrine.png'));
+    this.load.spritesheet(WARP_DOOR_TEXTURE_KEY, assetUrl('assets/effects/warp-door.png'), {
       frameWidth: 64,
       frameHeight: 64,
     });
@@ -279,82 +280,82 @@ export class ForestBoardScene extends Phaser.Scene {
       const frameName = String(i).padStart(5, '0');
       this.load.image(
         `${WATER_TELEPORT_TEXTURE_KEY}-${frameName}`,
-        `/assets/effects/Water1/Png/water1_${frameName}.png`,
+        assetUrl(`assets/effects/Water1/Png/water1_${frameName}.png`),
       );
     }
 
     // Load lightning bolt effect sprite sheet for thunder event
-    this.load.spritesheet('lightning-bolt', '/assets/effects/Lightning-bolt.png', {
+    this.load.spritesheet('lightning-bolt', assetUrl('assets/effects/Lightning-bolt.png'), {
       frameWidth: 72,
       frameHeight: 72,
     });
 
     // Load boss skill thunder flash sprite sheet (boss position flash)
-    this.load.spritesheet('skill-thunder1', '/assets/boss/skill-thunder1.png', {
+    this.load.spritesheet('skill-thunder1', assetUrl('assets/boss/skill-thunder1.png'), {
       frameWidth: 72,
       frameHeight: 72,
     });
 
     // Load boss skill thunder strike sprite sheet (per-player strike)
-    this.load.spritesheet('skill-thunder2', '/assets/boss/skill-thunder2.png', {
+    this.load.spritesheet('skill-thunder2', assetUrl('assets/boss/skill-thunder2.png'), {
       frameWidth: 72,
       frameHeight: 72,
     });
 
     // Load heal effect sprite sheet for heal action
-    this.load.spritesheet('heal-effect', '/assets/effects/heal.png', {
+    this.load.spritesheet('heal-effect', assetUrl('assets/effects/heal.png'), {
       frameWidth: 128,
       frameHeight: 128,
     });
 
     // Load herb effect sprite sheet for herb event
-    this.load.spritesheet('herb-effect', '/assets/effects/herb.png', {
+    this.load.spritesheet('herb-effect', assetUrl('assets/effects/herb.png'), {
       frameWidth: 72,
       frameHeight: 72,
     });
 
     // Load wind gust effect sprite sheet for wind_gust event
-    this.load.spritesheet('wind-gust-effect', '/assets/effects/wind-gust.png', {
+    this.load.spritesheet('wind-gust-effect', assetUrl('assets/effects/wind-gust.png'), {
       frameWidth: 72,
       frameHeight: 72,
     });
 
     // Load bubble effect sprite sheet for lucky_bubble event
-    this.load.spritesheet('bubble-effect', '/assets/effects/bubble.png', {
+    this.load.spritesheet('bubble-effect', assetUrl('assets/effects/bubble.png'), {
       frameWidth: 128,
       frameHeight: 128,
     });
 
     // Load skull gaze sprite sheet (15 frames, 64x64 each)
-    this.load.spritesheet('skull-gaze-effect', '/assets/effects/gaze.png', {
+    this.load.spritesheet('skull-gaze-effect', assetUrl('assets/effects/gaze.png'), {
       frameWidth: 64,
       frameHeight: 64,
     });
 
     // Load bomb effect sprite sheet for skull_gaze event explosion
-    this.load.spritesheet('bomb-effect', '/assets/effects/bomb-effect.png', {
+    this.load.spritesheet('bomb-effect', assetUrl('assets/effects/bomb-effect.png'), {
       frameWidth: 96,
       frameHeight: 96,
     });
 
     // Load ghost effect sprite sheet for ghost_hit event
-    this.load.spritesheet('ghost-effect', '/assets/effects/ghost.png', {
+    this.load.spritesheet('ghost-effect', assetUrl('assets/effects/ghost.png'), {
       frameWidth: 150,
       frameHeight: 150,
     });
 
     // Load mosquito effect sprite sheet for mosquito event
-    this.load.spritesheet('mosquito-effect', '/assets/effects/mosquito.png', {
+    this.load.spritesheet('mosquito-effect', assetUrl('assets/effects/mosquito.png'), {
       frameWidth: 150,
       frameHeight: 150,
     });
 
     // Load relic chest image for relic event
-    this.load.image(RELIC_TEXTURE_KEY, '/assets/effects/relic.png');
-    this.load.image(DIVINE_BLESS_WINGS_TEXTURE_KEY, '/assets/effects/wings.png');
+    this.load.image(RELIC_TEXTURE_KEY, assetUrl('assets/effects/relic.png'));
+    this.load.image(DIVINE_BLESS_WINGS_TEXTURE_KEY, assetUrl('assets/effects/wings.png'));
 
     // Load relic bomb sprite sheet for relic event explosion
-    this.load.spritesheet(RELIC_BOMB_TEXTURE_KEY, '/assets/effects/relic-bomb.png', {
+    this.load.spritesheet(RELIC_BOMB_TEXTURE_KEY, assetUrl('assets/effects/relic-bomb.png'), {
       frameWidth: RELIC_BOMB_FRAME_WIDTH,
       frameHeight: RELIC_BOMB_FRAME_HEIGHT,
     });
@@ -362,54 +363,54 @@ export class ForestBoardScene extends Phaser.Scene {
     // Load weapon icon images for relic event fly-out animation
     WEAPON_CATEGORIES.forEach((category) => {
       WEAPON_ICON_KEYS[category].forEach((iconName) => {
-        this.load.image(`weapon-${category}-${iconName}`, `/assets/weapons/${category}/${iconName}.png`);
+        this.load.image(`weapon-${category}-${iconName}`, assetUrl(`assets/weapons/${category}/${iconName}.png`));
       });
     });
 
-    this.load.image('event-popup-frame', '/assets/frame/event_frame.png');
+    this.load.image('event-popup-frame', assetUrl('assets/frame/event_frame.png'));
 
-    this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
+    this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, assetUrl('assets/effects/Black-hole.png'), {
       frameWidth: 72,
       frameHeight: 72,
     });
 
-    this.load.spritesheet(BLACKHOLE_ANI_TEXTURE_KEY, '/assets/effects/Black-hole-ani.png', {
+    this.load.spritesheet(BLACKHOLE_ANI_TEXTURE_KEY, assetUrl('assets/effects/Black-hole-ani.png'), {
       frameWidth: 64,
       frameHeight: 64,
     });
 
-    this.load.spritesheet(RESPAWN_TEXTURE_KEY, '/assets/effects/respawn.png', {
+    this.load.spritesheet(RESPAWN_TEXTURE_KEY, assetUrl('assets/effects/respawn.png'), {
       frameWidth: RESPAWN_FRAME_WIDTH,
       frameHeight: RESPAWN_FRAME_HEIGHT,
     });
 
-    this.load.spritesheet(LP_ADD_TEXTURE_KEY, '/assets/effects/lpadd.png', {
+    this.load.spritesheet(LP_ADD_TEXTURE_KEY, assetUrl('assets/effects/lpadd.png'), {
       frameWidth: LP_ADD_FRAME_WIDTH,
       frameHeight: LP_ADD_FRAME_HEIGHT,
     });
 
-    this.load.spritesheet(LP_MINUS_TEXTURE_KEY, '/assets/effects/lpminus.png', {
+    this.load.spritesheet(LP_MINUS_TEXTURE_KEY, assetUrl('assets/effects/lpminus.png'), {
       frameWidth: LP_MINUS_FRAME_WIDTH,
       frameHeight: LP_MINUS_FRAME_HEIGHT,
     });
 
     // Load projectile sprite sheets for boss damage crit animations
-    this.load.spritesheet('witch-green-charge', '/assets/figures/witch_green/Charge.png', {
+    this.load.spritesheet('witch-green-charge', assetUrl('assets/figures/witch_green/Charge.png'), {
       frameWidth: 96,
       frameHeight: 64,
       spacing: 0,
     });
-    this.load.spritesheet('witch-red-spear', '/assets/figures/witch_red/Spear.png', {
+    this.load.spritesheet('witch-red-spear', assetUrl('assets/figures/witch_red/Spear.png'), {
       frameWidth: 96,
       frameHeight: 96,
       spacing: 32,
     });
-    this.load.spritesheet('wizard-black-magic-sphere', '/assets/figures/wizard_black/Magic_sphere.png', {
+    this.load.spritesheet('wizard-black-magic-sphere', assetUrl('assets/figures/wizard_black/Magic_sphere.png'), {
       frameWidth: 96,
       frameHeight: 96,
       spacing: 32,
     });
-    this.load.spritesheet('wizard-blue-fireball', '/assets/figures/wizard_blue/Fireball.png', {
+    this.load.spritesheet('wizard-blue-fireball', assetUrl('assets/figures/wizard_blue/Fireball.png'), {
       frameWidth: 96,
       frameHeight: 96,
       spacing: 32,
