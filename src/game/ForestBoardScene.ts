@@ -301,6 +301,12 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: 150
     });
 
+    // Load mosquito effect sprite sheet for mosquito event
+    this.load.spritesheet('mosquito-effect', '/assets/effects/mosquito.png', {
+      frameWidth: 150,
+      frameHeight: 150
+    });
+
     this.load.image('event-popup-frame', '/assets/frame/event_frame.png');
 
     this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, '/assets/effects/Black-hole.png', {
@@ -470,6 +476,14 @@ export class ForestBoardScene extends Phaser.Scene {
       key: 'ghost_hit_anim',
       frames: this.anims.generateFrameNumbers('ghost-effect', { start: 0, end: 7 }),
       frameRate: 20,
+      repeat: 0
+    });
+
+    // Create mosquito animation for mosquito event (8 frames)
+    this.anims.create({
+      key: 'mosquito_anim',
+      frames: this.anims.generateFrameNumbers('mosquito-effect', { start: 0, end: 7 }),
+      frameRate: 12,
       repeat: 0
     });
 

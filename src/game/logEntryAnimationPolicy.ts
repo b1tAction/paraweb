@@ -189,6 +189,11 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
     return 2900;
   }
 
+  // Mosquito draw_event should chain to damage with fast transition (popup must finish first).
+  if (currentActionType === 'draw_event' && currentEventType === 'mosquito' && nextActionType === 'damage') {
+    return 2900;
+  }
+
   if (context.nextEntry) {
     const transitionKey = `${context.entry.action_type}->${context.nextEntry.action_type}`;
     const transitionDelay = ACTION_TRANSITION_DELAY_MS[transitionKey];
