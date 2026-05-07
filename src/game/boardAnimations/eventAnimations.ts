@@ -3,9 +3,9 @@ import type { Player } from '../../types/protocol';
 import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
 import type { AnimationOrchestrator } from '../animationOrchestrator';
 import type { CharacterRenderOptions } from '../characterRenderConfig';
-import { resolveCharacterProfile, getCharacterRenderer, getAnimationKey } from '../characterRenderConfig';
+import { resolveCharacterProfile, getCharacterEffectOffsetY, getCharacterRenderer, getAnimationKey } from '../characterRenderConfig';
 import { LAYER_FULLSCREEN_EFFECT, LAYER_SHADER_OVERLAY, LAYER_LOST_WAY_CHARACTER, worldDepth, LAYER_EFFECT_BASE } from '../renderLayers';
-import { CHARACTER_HALF_HEIGHT, LOST_WAY_DISSOLVE_START_DELAY, LOST_WAY_DISSOLVE_DURATION, LOST_WAY_DIZZY_START_DELAY, LOST_WAY_DIZZY_DURATION, LOST_WAY_RECOVERY_START_DELAY, LOST_WAY_RECOVERY_DURATION, LOST_WAY_TOTAL_EFFECT_MS, DIZZY_TINT_COLOR, HIDDEN_BUFF_DISSOLVE_START_DELAY, HIDDEN_BUFF_DISSOLVE_DURATION, HIDDEN_BUFF_RECOVERY_START_DELAY, HIDDEN_BUFF_RECOVERY_DURATION, HIDDEN_BUFF_TOTAL_EFFECT_MS, RELIC_TEXTURE_KEY, RELIC_BOMB_TEXTURE_KEY, RELIC_BOMB_ANIMATION_KEY, RELIC_CHEST_APPEAR_DELAY, RELIC_CHEST_APPEAR_DURATION, RELIC_BOMB_START_DELAY, RELIC_WEAPON_FLY_DELAY, RELIC_WEAPON_FLY_DURATION, RELIC_WEAPON_DISAPPEAR_DELAY, RELIC_WEAPON_DISAPPEAR_DURATION, RELIC_TOTAL_EFFECT_MS, RELIC_CHEST_OFFSET_X, RELIC_CHEST_START_OFFSET_Y, RELIC_CHEST_LAND_OFFSET_Y, RELIC_BOMB_SCALE, RELIC_WEAPON_LANDING_OFFSETS, RELIC_WEAPON_LAND_Y_OFFSET, RELIC_WEAPON_PEAK_HEIGHT_MIN, RELIC_WEAPON_PEAK_HEIGHT_MAX, WEAPON_CATEGORIES, WEAPON_ICON_KEYS, RELIC_WEAPON_COUNT } from '../boardConstants';
+import { CHARACTER_HALF_HEIGHT, LOST_WAY_DISSOLVE_START_DELAY, LOST_WAY_DISSOLVE_DURATION, LOST_WAY_DIZZY_START_DELAY, LOST_WAY_DIZZY_DURATION, LOST_WAY_RECOVERY_START_DELAY, LOST_WAY_RECOVERY_DURATION, LOST_WAY_TOTAL_EFFECT_MS, DIZZY_TINT_COLOR, HIDDEN_BUFF_DISSOLVE_START_DELAY, HIDDEN_BUFF_DISSOLVE_DURATION, HIDDEN_BUFF_RECOVERY_START_DELAY, HIDDEN_BUFF_RECOVERY_DURATION, HIDDEN_BUFF_TOTAL_EFFECT_MS, RELIC_TEXTURE_KEY, RELIC_BOMB_TEXTURE_KEY, RELIC_BOMB_ANIMATION_KEY, RELIC_CHEST_APPEAR_DELAY, RELIC_CHEST_APPEAR_DURATION, RELIC_BOMB_START_DELAY, RELIC_WEAPON_FLY_DELAY, RELIC_WEAPON_FLY_DURATION, RELIC_WEAPON_DISAPPEAR_DELAY, RELIC_WEAPON_DISAPPEAR_DURATION, RELIC_TOTAL_EFFECT_MS, RELIC_CHEST_OFFSET_X, RELIC_CHEST_START_OFFSET_Y, RELIC_CHEST_LAND_OFFSET_Y, RELIC_BOMB_SCALE, RELIC_WEAPON_LANDING_OFFSETS, RELIC_WEAPON_LAND_Y_OFFSET, RELIC_WEAPON_PEAK_HEIGHT_MIN, RELIC_WEAPON_PEAK_HEIGHT_MAX, WEAPON_CATEGORIES, WEAPON_ICON_KEYS, RELIC_WEAPON_COUNT, DIVINE_BLESS_WINGS_TEXTURE_KEY, DIVINE_BLESS_WINGS_SCALE, DIVINE_BLESS_WINGS_OFFSET_Y, DIVINE_BLESS_WINGS_APPEAR_DURATION, DIVINE_BLESS_WINGS_HOLD_DURATION, DIVINE_BLESS_WINGS_DISAPPEAR_DURATION } from '../boardConstants';
 import { LOST_WAY_DISSOLVE_SHADER_NAME, LOST_WAY_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/lostWayDissolve';
 import { HIDDEN_BUFF_DISSOLVE_SHADER_NAME, HIDDEN_BUFF_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/hiddenBuffDissolve';
 import { getEventEffectConfig, getEventTypeFromEntry } from '../eventAnimations';
@@ -69,9 +69,64 @@ export async function playDrawEventAnimation(
     playLostWayAnimation(ctx, context);
   } else if (eventType === 'hidden_buff') {
     playHiddenBuffAnimation(ctx, context);
+  } else if (eventType === 'divine_bless') {
+    playDivineBlessAnimation(ctx, context);
   } else if (eventType === 'relic') {
     playRelicAnimation(ctx, context);
   }
+}
+
+export function playDivineBlessAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  const player = ctx.players.find((p) => p.player_id === entry.target);
+  const order = player ? ctx.players.indexOf(player) : 0;
+  const profile = player ? resolveCharacterProfile(player, order, ctx.characterRenderOptions) : null;
+  const effectOffsetY = profile ? getCharacterEffectOffsetY(profile) : 0;
+  const startScale = DIVINE_BLESS_WINGS_SCALE * 0.72;
+  const endScale = DIVINE_BLESS_WINGS_SCALE * 1.08;
+
+  const wingsSprite = ctx.scene.add.image(
+    marker.x,
+    marker.y + effectOffsetY + DIVINE_BLESS_WINGS_OFFSET_Y,
+    DIVINE_BLESS_WINGS_TEXTURE_KEY
+  );
+  wingsSprite.setOrigin(0.5, 0.5);
+  wingsSprite.setDepth(marker.depth - 1);
+  wingsSprite.setScale(startScale);
+  wingsSprite.setAlpha(0);
+
+  ctx.orchestrator.registerCleanupOnTimer(
+    wingsSprite,
+    DIVINE_BLESS_WINGS_APPEAR_DURATION + DIVINE_BLESS_WINGS_HOLD_DURATION + DIVINE_BLESS_WINGS_DISAPPEAR_DURATION + 300
+  );
+
+  ctx.tweens.add({
+    targets: wingsSprite,
+    alpha: { from: 0, to: 0.95 },
+    scaleX: { from: startScale, to: DIVINE_BLESS_WINGS_SCALE },
+    scaleY: { from: startScale, to: DIVINE_BLESS_WINGS_SCALE },
+    duration: DIVINE_BLESS_WINGS_APPEAR_DURATION,
+    ease: 'Back.easeOut',
+    onComplete: () => {
+      ctx.scene.time.delayedCall(DIVINE_BLESS_WINGS_HOLD_DURATION, () => {
+        if (!wingsSprite.active) return;
+        ctx.tweens.add({
+          targets: wingsSprite,
+          alpha: { from: wingsSprite.alpha, to: 0 },
+          scaleX: { from: DIVINE_BLESS_WINGS_SCALE, to: endScale },
+          scaleY: { from: DIVINE_BLESS_WINGS_SCALE, to: endScale },
+          duration: DIVINE_BLESS_WINGS_DISAPPEAR_DURATION,
+          ease: 'Sine.easeIn',
+          onComplete: () => {
+            if (wingsSprite.active) wingsSprite.destroy();
+          }
+        });
+      });
+    }
+  });
 }
 
 /**
