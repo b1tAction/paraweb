@@ -14,7 +14,9 @@ export type EventAnimationType =
   | 'wind_gust'     // orange wind gust effect
   | 'neutral_pulse' // white neutral pulse effect
   | 'bubble_float'  // blue bubble float effect
-  | 'mosquito_attack'; // mosquito sprite attack effect
+  | 'mosquito_attack' // mosquito sprite attack effect
+  | 'lost_way_dissolve' // dark dissolve/glitch overlay effect
+  | 'dizzy_stars'; // hurt+僵直+spinning stars dizzy effect
 
 export type EventEffectConfig = {
   color: number;
@@ -132,7 +134,7 @@ export const EVENT_TYPE_EFFECTS: Record<string, EventEffectConfig> = {
   'lost_way': {
     color: 0xbf360c,
     textColor: '#ffebee',
-    animationType: 'debuff_spin',
+    animationType: 'lost_way_dissolve',
     iconEmoji: '🌀',
     particleCount: 8,
     duration: 2500
