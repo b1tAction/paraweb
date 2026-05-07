@@ -1,7 +1,8 @@
 import type { Player } from '../types/protocol';
+import { assetUrl } from '../utils/assets';
 
 export const BOSS_BEAST_PROFILE_ID = 'boss_beast';
-export const BOSS_BEAST_ASSET_BASE = '/assets/boss/beast';
+export const BOSS_BEAST_ASSET_BASE = assetUrl('assets/boss/beast');
 
 export const BOSS_BEAST_ASSETS = {
   portrait: {

@@ -32,6 +32,7 @@ import {
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
 import type { Available, Item, Player } from '../types/protocol';
+import { assetCssUrl, assetUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string; textColor?: string }> = {
@@ -59,12 +60,12 @@ const PLAYER_CARD_SIZE = {
   height: 32 * PLAYER_CARD_SCALE,
 };
 const PLAYER_CARD_IMAGES: Record<string, string> = {
-  qing_long: '/assets/ui/player_card_qinglong.png',
-  zhu_que: '/assets/ui/player_card_zhuque.png',
-  bai_hu: '/assets/ui/player_card_baihu.png',
-  xuan_wu: '/assets/ui/player_card_xuanwu.png',
+  qing_long: assetUrl('assets/ui/player_card_qinglong.png'),
+  zhu_que: assetUrl('assets/ui/player_card_zhuque.png'),
+  bai_hu: assetUrl('assets/ui/player_card_baihu.png'),
+  xuan_wu: assetUrl('assets/ui/player_card_xuanwu.png'),
 };
-const BOTTOM_BAR_ASSET_BASE = '/assets/bottom_bar';
+const BOTTOM_BAR_ASSET_BASE = assetUrl('assets/bottom_bar');
 const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   any_door: 'any_door.png',
   dice_upgrade: 'dice_upgrade.png',
@@ -79,7 +80,7 @@ function getFactionMeta(faction: string) {
 }
 
 function getBuffIconSrc(type: string) {
-  return `/assets/buff/${type}.png`;
+  return assetUrl(`assets/buff/${type}.png`);
 }
 
 function formatBuffDuration(duration: number) {
@@ -120,11 +121,11 @@ function getDiceAssetType(diceType: string) {
 }
 
 function getDiceRotateSrc(diceType: string) {
-  return `/assets/dice/${getDiceAssetType(diceType)}_rotate.png`;
+  return assetUrl(`assets/dice/${getDiceAssetType(diceType)}_rotate.png`);
 }
 
 function getDiceResultSrc(diceType: string, steps: number) {
-  return `/assets/dice/${getDiceAssetType(diceType)}_result_${steps}.png`;
+  return assetUrl(`assets/dice/${getDiceAssetType(diceType)}_result_${steps}.png`);
 }
 
 function getDiceResultNumberStyle(diceType: string): React.CSSProperties {
@@ -1123,7 +1124,10 @@ export const BoardScene: React.FC = () => {
             }
             aria-hidden="true"
           >
-            <div className="paradice-reverse-clock-flight__icon" />
+            <div
+              className="paradice-reverse-clock-flight__icon"
+              style={{ backgroundImage: assetCssUrl('assets/effects/reverseclock.png') }}
+            />
           </div>
         )}
 
@@ -1639,7 +1643,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '9px 19px 9px 22px',
-    backgroundImage: 'url("/assets/buff/frame.png")',
+    backgroundImage: assetCssUrl('assets/buff/frame.png'),
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center',
     filter: 'drop-shadow(0 5px 10px rgba(0, 0, 0, 0.36))',
@@ -1770,7 +1774,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '256px',
     height: '208px',
     transform: 'translate(-50%, -50%)',
-    backgroundImage: 'url("/assets/effects/sparkle.png")',
+    backgroundImage: assetCssUrl('assets/effects/sparkle.png'),
     backgroundRepeat: 'no-repeat',
     backgroundPosition: '0 0',
     backgroundSize: '1280px 208px',
@@ -1820,7 +1824,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 'min(560px, calc(100vw - 40px))',
     minHeight: '320px',
     padding: '42px 34px 28px',
-    backgroundImage: 'url("/assets/frame/frame_choose.png")',
+    backgroundImage: assetCssUrl('assets/frame/frame_choose.png'),
     backgroundSize: '700px auto',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',

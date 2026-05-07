@@ -4,6 +4,7 @@ import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { isBossPlayer } from '../game/bossVisualConfig';
 import { gameService } from '../service/NakamaService';
 import { useGameStore } from '../store/gameStore';
+import { assetCssUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const factionMeta: Record<string, { label: string }> = {
@@ -241,7 +242,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100vw',
     height: '100vh',
     overflow: 'hidden',
-    backgroundImage: 'url("/assets/waiting.png")',
+    backgroundImage: assetCssUrl('assets/waiting.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
@@ -260,7 +261,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     color: '#fff8d7',
-    backgroundImage: 'url("/assets/waiting.png")',
+    backgroundImage: assetCssUrl('assets/waiting.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',
@@ -454,7 +455,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px 36px',
     color: '#3c3833',
     backgroundColor: 'transparent',
-    backgroundImage: 'url("/assets/button/button_up.png")',
+    backgroundImage: assetCssUrl('assets/button/button_up.png'),
     backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     border: 'none',
@@ -465,7 +466,7 @@ const styles: Record<string, React.CSSProperties> = {
     imageRendering: 'pixelated',
   },
   restartButtonPressed: {
-    backgroundImage: 'url("/assets/button/button_press.png")',
+    backgroundImage: assetCssUrl('assets/button/button_press.png'),
     transform: 'translateY(2px)',
   },
   restartButtonDisabled: {

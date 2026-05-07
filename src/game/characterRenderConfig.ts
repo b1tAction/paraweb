@@ -1,5 +1,6 @@
 import type * as Phaser from 'phaser';
 import type { Player } from '../types/protocol';
+import { assetUrl } from '../utils/assets';
 import {
   BOSS_BEAST_ASSETS,
   BOSS_BEAST_EFFECT_OFFSET_Y,
@@ -186,7 +187,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
     avatarFrame: 0,
     animations: {
       idle: {
-        textureUrl: '/assets/figures/witch_red/Idle_2.png',
+        textureUrl: assetUrl('assets/figures/witch_red/Idle_2.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -195,7 +196,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: -1,
       },
       move: {
-        textureUrl: '/assets/figures/witch_red/Run.png',
+        textureUrl: assetUrl('assets/figures/witch_red/Run.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -204,7 +205,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: -1,
       },
       attack_1: {
-        textureUrl: '/assets/figures/witch_red/Attack_1.png',
+        textureUrl: assetUrl('assets/figures/witch_red/Attack_1.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -213,7 +214,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       attack_2: {
-        textureUrl: '/assets/figures/witch_red/Attack_2.png',
+        textureUrl: assetUrl('assets/figures/witch_red/Attack_2.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -222,7 +223,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       attack_crit: {
-        textureUrl: '/assets/figures/witch_red/Special.png',
+        textureUrl: assetUrl('assets/figures/witch_red/Special.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -231,7 +232,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       hurt: {
-        textureUrl: '/assets/figures/witch_red/Hurt.png',
+        textureUrl: assetUrl('assets/figures/witch_red/Hurt.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -240,7 +241,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       dead: {
-        textureUrl: '/assets/figures/witch_red/Dead.png',
+        textureUrl: assetUrl('assets/figures/witch_red/Dead.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -258,7 +259,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
     avatarFrame: 0,
     animations: {
       idle: {
-        textureUrl: '/assets/figures/witch_green/Idle_2.png',
+        textureUrl: assetUrl('assets/figures/witch_green/Idle_2.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -267,7 +268,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: -1,
       },
       move: {
-        textureUrl: '/assets/figures/witch_green/Run.png',
+        textureUrl: assetUrl('assets/figures/witch_green/Run.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -276,7 +277,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: -1,
       },
       attack_1: {
-        textureUrl: '/assets/figures/witch_green/Attack_1.png',
+        textureUrl: assetUrl('assets/figures/witch_green/Attack_1.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -285,7 +286,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       attack_2: {
-        textureUrl: '/assets/figures/witch_green/Attack_2.png',
+        textureUrl: assetUrl('assets/figures/witch_green/Attack_2.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -294,7 +295,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       attack_crit: {
-        textureUrl: '/assets/figures/witch_green/Special.png',
+        textureUrl: assetUrl('assets/figures/witch_green/Special.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -303,7 +304,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       hurt: {
-        textureUrl: '/assets/figures/witch_green/Hurt.png',
+        textureUrl: assetUrl('assets/figures/witch_green/Hurt.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -312,7 +313,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       dead: {
-        textureUrl: '/assets/figures/witch_green/Dead.png',
+        textureUrl: assetUrl('assets/figures/witch_green/Dead.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -330,7 +331,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
     avatarFrame: 0,
     animations: {
       idle: {
-        textureUrl: '/assets/figures/wizard_blue/Idle.png',
+        textureUrl: assetUrl('assets/figures/wizard_blue/Idle.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -339,7 +340,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: -1,
       },
       move: {
-        textureUrl: '/assets/figures/wizard_blue/Run.png',
+        textureUrl: assetUrl('assets/figures/wizard_blue/Run.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -348,7 +349,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: -1,
       },
       attack_1: {
-        textureUrl: '/assets/figures/wizard_blue/Attack_1.png',
+        textureUrl: assetUrl('assets/figures/wizard_blue/Attack_1.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -357,7 +358,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       attack_2: {
-        textureUrl: '/assets/figures/wizard_blue/Attack_2.png',
+        textureUrl: assetUrl('assets/figures/wizard_blue/Attack_2.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -366,7 +367,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       attack_crit: {
-        textureUrl: '/assets/figures/wizard_blue/Fireball.png',
+        textureUrl: assetUrl('assets/figures/wizard_blue/Fireball.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -375,7 +376,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       hurt: {
-        textureUrl: '/assets/figures/wizard_blue/Hurt.png',
+        textureUrl: assetUrl('assets/figures/wizard_blue/Hurt.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -384,7 +385,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       dead: {
-        textureUrl: '/assets/figures/wizard_blue/Dead.png',
+        textureUrl: assetUrl('assets/figures/wizard_blue/Dead.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -402,7 +403,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
     avatarFrame: 0,
     animations: {
       idle: {
-        textureUrl: '/assets/figures/wizard_black/Idle.png',
+        textureUrl: assetUrl('assets/figures/wizard_black/Idle.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -411,7 +412,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: -1,
       },
       move: {
-        textureUrl: '/assets/figures/wizard_black/Run.png',
+        textureUrl: assetUrl('assets/figures/wizard_black/Run.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -420,7 +421,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: -1,
       },
       attack_1: {
-        textureUrl: '/assets/figures/wizard_black/Attack_1.png',
+        textureUrl: assetUrl('assets/figures/wizard_black/Attack_1.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -429,7 +430,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       attack_2: {
-        textureUrl: '/assets/figures/wizard_black/Attack_2.png',
+        textureUrl: assetUrl('assets/figures/wizard_black/Attack_2.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -438,7 +439,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       attack_crit: {
-        textureUrl: '/assets/figures/wizard_black/Magic_sphere.png',
+        textureUrl: assetUrl('assets/figures/wizard_black/Magic_sphere.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -447,7 +448,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       hurt: {
-        textureUrl: '/assets/figures/wizard_black/Hurt.png',
+        textureUrl: assetUrl('assets/figures/wizard_black/Hurt.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,
@@ -456,7 +457,7 @@ export const DEFAULT_CHARACTER_PROFILES: Record<string, CharacterRenderProfile> 
         repeat: 0,
       },
       dead: {
-        textureUrl: '/assets/figures/wizard_black/Dead.png',
+        textureUrl: assetUrl('assets/figures/wizard_black/Dead.png'),
         frameWidth: 96,
         frameHeight: 96,
         frameSpacing: 32,

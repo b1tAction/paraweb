@@ -6,6 +6,7 @@ import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
+import { assetCssUrl, assetUrl } from '../utils/assets';
 
 async function getErrorMessage(err: unknown): Promise<string> {
   if (err instanceof Error && err.message) return err.message;
@@ -21,10 +22,7 @@ export const StartScene: React.FC = () => {
   const { session, displayName } = useGameStore();
   const [nickname, setNickname] = useState('');
   const hasHydratedNicknameRef = useRef(false);
-  const [serverHost, setServerHost] = useState('');
-  const [serverPort, setServerPort] = useState('');
-  const [serverSSL, setServerSSL] = useState(false);
-  const [useCustomServerOptions, setUseCustomServerOptions] = useState(false);
+  const [serverEndpoint, setServerEndpoint] = useState('');
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isStartPressed, setIsStartPressed] = useState(false);
@@ -32,9 +30,7 @@ export const StartScene: React.FC = () => {
 
   useEffect(() => {
     const cfg = gameService.getServerConfig();
-    setServerHost(cfg.host);
-    setServerPort(cfg.port);
-    setServerSSL(cfg.useSSL);
+    setServerEndpoint(cfg.endpoint);
   }, []);
 
   useEffect(() => {
@@ -46,12 +42,8 @@ export const StartScene: React.FC = () => {
 
   const handleSaveServerConfig = () => {
     try {
-      const current = gameService.getServerConfig();
-      gameService.setServerConfig(
-        serverHost,
-        useCustomServerOptions ? serverPort : current.port,
-        useCustomServerOptions ? serverSSL : current.useSSL,
-      );
+      gameService.setServerConfig(serverEndpoint);
+      setServerEndpoint(gameService.getServerConfig().endpoint);
       setError('');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '未知错误';
@@ -85,7 +77,7 @@ export const StartScene: React.FC = () => {
   return (
     <main style={styles.page}>
       <img
-        src="/assets/logo.png"
+        src={assetUrl('assets/logo.png')}
         alt="ParaDiced"
         style={styles.logo}
         onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -140,41 +132,21 @@ export const StartScene: React.FC = () => {
         {showServerConfig && (
           <div style={styles.serverPanel}>
             <label style={styles.label}>
-              HOST
+              SERVER ADDRESS
               <input
                 type="text"
-                value={serverHost}
-                onChange={(e) => setServerHost(e.target.value)}
-                placeholder="127.0.0.1"
+                value={serverEndpoint}
+                onChange={(e) => setServerEndpoint(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveServerConfig();
+                }}
+                placeholder="https://bitaction.cn"
                 style={styles.input}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </label>
-            <label style={styles.checkLabel}>
-              <input
-                type="checkbox"
-                checked={useCustomServerOptions}
-                onChange={(e) => setUseCustomServerOptions(e.target.checked)}
-              />
-              Custom port / SSL
-            </label>
-            {useCustomServerOptions && (
-              <>
-                <label style={styles.label}>
-                  PORT
-                  <input
-                    type="text"
-                    value={serverPort}
-                    onChange={(e) => setServerPort(e.target.value)}
-                    placeholder="7350"
-                    style={styles.input}
-                  />
-                </label>
-                <label style={styles.checkLabel}>
-                  <input type="checkbox" checked={serverSSL} onChange={(e) => setServerSSL(e.target.checked)} />
-                  SSL
-                </label>
-              </>
-            )}
             <button type="button" onClick={handleSaveServerConfig} style={styles.secondaryButton}>
               SAVE
             </button>
@@ -197,7 +169,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: '28px',
     padding: '24px',
-    backgroundImage: 'url("/assets/cover.png")',
+    backgroundImage: assetCssUrl('assets/cover.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',
@@ -250,7 +222,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 0,
     padding: 0,
     color: '#352c20',
-    backgroundImage: 'url("/assets/button/button_up.png")',
+    backgroundImage: assetCssUrl('assets/button/button_up.png'),
     backgroundSize: '100% 100%',
     backgroundColor: 'transparent',
     border: 'none',
@@ -261,7 +233,7 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: 'none',
   },
   primaryButtonPressed: {
-    backgroundImage: 'url("/assets/button/button_press.png")',
+    backgroundImage: assetCssUrl('assets/button/button_press.png'),
     transform: 'translateY(2px)',
   },
   primaryButtonDisabled: {
@@ -292,13 +264,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: '10px',
     paddingTop: '4px',
-  },
-  checkLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    color: '#ead8a3',
-    fontSize: '12px',
   },
   error: {
     margin: 0,

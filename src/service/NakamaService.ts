@@ -9,6 +9,13 @@ import { Client, type Match, type MatchData, Session, type Socket } from '@heroi
 import * as opcodes from '../api/opcodes';
 import { Scene, useGameStore } from '../store/gameStore';
 import type * as protocol from '../types/protocol';
+import {
+  getNakamaHttpApiBaseUrl,
+  getNakamaSdkPort,
+  getNakamaWebSocketUrl,
+  type NakamaEndpoint,
+  parseNakamaEndpoint,
+} from '../utils/nakamaEndpoint';
 
 /**
  * NakamaService 类
@@ -16,16 +23,11 @@ import type * as protocol from '../types/protocol';
  * 单例模式，通过 gameService 导出实例
  */
 export class NakamaService {
+  private endpoint: NakamaEndpoint;
   private client: Client;
   private serverKey: string = 'defaultkey';
-  private host: string = '';
-  private port: string = '';
-  private useSSL: boolean = false;
 
-  private readonly DEFAULT_HOST: string = this.resolveDefaultHost();
-  private readonly DEFAULT_PORT: string = import.meta.env.VITE_NAKAMA_PORT || '7350';
-  private readonly DEFAULT_USE_SSL: boolean =
-    String(import.meta.env.VITE_NAKAMA_SSL || 'false').toLowerCase() === 'true';
+  private readonly DEFAULT_ENDPOINT_INPUT: string = this.resolveDefaultEndpointInput();
 
   // Device ID prefix for device-UUID-based authentication
   private readonly DEVICE_ID_PREFIX = 'paradiced_';
@@ -34,42 +36,68 @@ export class NakamaService {
   private readonly STORAGE_KEY_REFRESH_TOKEN = 'paradiced_refresh_token';
   private readonly STORAGE_KEY_USERNAME = 'paradiced_username';
   private readonly STORAGE_KEY_DEVICE_UUID = 'paradiced_device_uuid';
-  private readonly STORAGE_KEY_NAKAMA_HOST = 'paradiced_nakama_host';
-  private readonly STORAGE_KEY_NAKAMA_PORT = 'paradiced_nakama_port';
-  private readonly STORAGE_KEY_NAKAMA_SSL = 'paradiced_nakama_ssl';
+  private readonly STORAGE_KEY_NAKAMA_ENDPOINT = 'paradiced_nakama_endpoint';
+  private readonly LEGACY_STORAGE_KEYS_NAKAMA = [
+    'paradiced_nakama_host',
+    'paradiced_nakama_port',
+    'paradiced_nakama_ssl',
+  ];
 
   constructor() {
-    this.loadServerConfig();
-    // 注意：nakama-js 构造函数参数顺序 (serverkey, host, port, useSSL)
-    this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
+    this.endpoint = this.loadServerConfig();
+    this.client = this.createClient();
   }
 
-  private resolveDefaultHost(): string {
-    const configuredHost = import.meta.env.VITE_NAKAMA_HOST?.trim();
-    if (configuredHost) {
-      return configuredHost;
+  private resolveDefaultEndpointInput(): string {
+    const configuredEndpoint = import.meta.env.VITE_NAKAMA_ENDPOINT?.trim();
+    if (configuredEndpoint) {
+      return configuredEndpoint;
     }
 
-    const browserHost = typeof window !== 'undefined' ? window.location?.hostname : '';
-    if (browserHost && browserHost !== 'localhost' && browserHost !== 'wails.localhost') {
-      return browserHost;
+    if (typeof window !== 'undefined') {
+      const browserHost = window.location?.hostname || '';
+      if (browserHost && browserHost !== 'localhost' && browserHost !== 'wails.localhost') {
+        const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+        const port = window.location.port ? `:${window.location.port}` : '';
+        return `${protocol}://${browserHost}${port}`;
+      }
     }
 
-    return '127.0.0.1';
+    return '127.0.0.1:17350';
   }
 
-  private loadServerConfig() {
-    const host = localStorage.getItem(this.STORAGE_KEY_NAKAMA_HOST)?.trim();
-    const port = localStorage.getItem(this.STORAGE_KEY_NAKAMA_PORT)?.trim();
-    const sslStr = localStorage.getItem(this.STORAGE_KEY_NAKAMA_SSL);
+  private loadServerConfig(): NakamaEndpoint {
+    this.removeLegacyServerConfig();
 
-    this.host = host || this.DEFAULT_HOST;
-    this.port = port || this.DEFAULT_PORT;
-    this.useSSL = sslStr == null ? this.DEFAULT_USE_SSL : sslStr === 'true';
+    const storedEndpoint = localStorage.getItem(this.STORAGE_KEY_NAKAMA_ENDPOINT)?.trim();
+    if (storedEndpoint) {
+      try {
+        return parseNakamaEndpoint(storedEndpoint);
+      } catch (error) {
+        console.warn('[Nakama] 保存的服务器地址无效，回退到默认地址', error);
+        localStorage.removeItem(this.STORAGE_KEY_NAKAMA_ENDPOINT);
+      }
+    }
+
+    return parseNakamaEndpoint(this.DEFAULT_ENDPOINT_INPUT);
+  }
+
+  private removeLegacyServerConfig() {
+    this.LEGACY_STORAGE_KEYS_NAKAMA.forEach((key) => {
+      localStorage.removeItem(key);
+    });
+  }
+
+  private createClient(): Client {
+    return new Client(this.serverKey, this.endpoint.host, getNakamaSdkPort(this.endpoint), this.endpoint.useSSL);
   }
 
   private rebuildClient() {
-    this.client = new Client(this.serverKey, this.host, this.port, this.useSSL);
+    this.client = this.createClient();
+  }
+
+  private createConfiguredSocket(): Socket {
+    return this.client.createSocket(this.endpoint.useSSL);
   }
 
   /**
@@ -118,35 +146,29 @@ export class NakamaService {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
-  getServerConfig(): { host: string; port: string; useSSL: boolean } {
-    return { host: this.host, port: this.port, useSSL: this.useSSL };
+  getServerConfig(): NakamaEndpoint & { sdkPort: string; httpApiBaseUrl: string; webSocketUrl: string } {
+    return {
+      ...this.endpoint,
+      sdkPort: getNakamaSdkPort(this.endpoint),
+      httpApiBaseUrl: getNakamaHttpApiBaseUrl(this.endpoint),
+      webSocketUrl: getNakamaWebSocketUrl(this.endpoint),
+    };
   }
 
-  setServerConfig(host: string, port: string, useSSL: boolean) {
-    const normalizedHost = host.trim();
-    const normalizedPort = port.trim();
+  setServerConfig(endpointInput: string) {
+    const nextEndpoint = parseNakamaEndpoint(endpointInput);
 
-    if (!normalizedHost) {
-      throw new Error('服务器地址不能为空');
-    }
-    if (!normalizedPort || !/^\d+$/.test(normalizedPort)) {
-      throw new Error('端口必须是数字');
-    }
-
-    this.host = normalizedHost;
-    this.port = normalizedPort;
-    this.useSSL = useSSL;
-
-    localStorage.setItem(this.STORAGE_KEY_NAKAMA_HOST, this.host);
-    localStorage.setItem(this.STORAGE_KEY_NAKAMA_PORT, this.port);
-    localStorage.setItem(this.STORAGE_KEY_NAKAMA_SSL, String(this.useSSL));
-
+    this.endpoint = nextEndpoint;
+    localStorage.setItem(this.STORAGE_KEY_NAKAMA_ENDPOINT, nextEndpoint.endpoint);
+    this.removeLegacyServerConfig();
     this.rebuildClient();
 
     console.log('[Nakama] 服务器配置已更新', {
-      host: this.host,
-      port: this.port,
-      useSSL: this.useSSL,
+      endpoint: this.endpoint.endpoint,
+      host: this.endpoint.host,
+      port: this.endpoint.port,
+      path: this.endpoint.path,
+      useSSL: this.endpoint.useSSL,
     });
   }
 
@@ -230,7 +252,7 @@ export class NakamaService {
     localStorage.setItem(this.STORAGE_KEY_USERNAME, displayName);
 
     // Create and connect socket
-    const socket = this.client.createSocket();
+    const socket = this.createConfiguredSocket();
     await socket.connect(session, false);
 
     console.log('[Nakama] WebSocket 连接已建立');
@@ -309,7 +331,7 @@ export class NakamaService {
     localStorage.setItem(this.STORAGE_KEY_USERNAME, username);
 
     // Create and connect socket
-    const socket = this.client.createSocket();
+    const socket = this.createConfiguredSocket();
     await socket.connect(session, false);
 
     console.log('[Nakama] WebSocket 连接已建立');
@@ -351,7 +373,7 @@ export class NakamaService {
     localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
 
     // 创建并连接 socket
-    const socket = this.client.createSocket();
+    const socket = this.createConfiguredSocket();
     await socket.connect(session, false);
 
     console.log('[Nakama] WebSocket 连接已建立');
@@ -414,7 +436,7 @@ export class NakamaService {
       });
 
       // 创建并连接 socket
-      const socket = this.client.createSocket();
+      const socket = this.createConfiguredSocket();
       await socket.connect(session, false);
 
       console.log('[Nakama] WebSocket 连接已建立');
@@ -477,7 +499,7 @@ export class NakamaService {
     });
 
     // nakama-js: createSocket() 返回 Socket
-    const socket = this.client.createSocket();
+    const socket = this.createConfiguredSocket();
 
     // nakama-js: connect 无需 context, createStatus = false
     await socket.connect(session, false);

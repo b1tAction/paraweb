@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
+import { assetCssUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const factionOptions = [
@@ -323,7 +324,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100vw',
     height: '100vh',
     overflow: 'hidden',
-    backgroundImage: 'url("/assets/waiting.png")',
+    backgroundImage: assetCssUrl('assets/waiting.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
@@ -545,7 +546,7 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: '170px',
     minHeight: '56px',
     color: '#352c20',
-    backgroundImage: 'url("/assets/button/button_up.png")',
+    backgroundImage: assetCssUrl('assets/button/button_up.png'),
     backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     backgroundColor: 'transparent',
@@ -557,7 +558,7 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: 'none',
   },
   beginButtonPressed: {
-    backgroundImage: 'url("/assets/button/button_press.png")',
+    backgroundImage: assetCssUrl('assets/button/button_press.png'),
     transform: 'translateY(2px)',
   },
   beginButtonDisabled: {
