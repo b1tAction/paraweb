@@ -52,8 +52,6 @@ const BUFF_EFFECTS: Record<string, string> = {
   hidden: '免疫伤害和事件',
 };
 
-const BLUE_BUFFS = new Set(['divine', 'rain', 'exorcism', 'fire']);
-const RED_BUFFS = new Set(['curse', 'lost', 'corrupt', 'poison']);
 const PLAYER_CARD_SCALE = 3;
 const PLAYER_CARD_SIZE = {
   width: 80 * PLAYER_CARD_SCALE,
@@ -79,11 +77,8 @@ function getFactionMeta(faction: string) {
   return FACTION_META[faction] ?? { label: faction || '未知', color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
 }
 
-function getBuffColor(type: string) {
-  if (BLUE_BUFFS.has(type)) return '#1994d2';
-  if (RED_BUFFS.has(type)) return '#d32f2f';
-  if (type === 'hidden') return '#8b8071ca';
-  return '#9e9e9e';
+function getBuffIconSrc(type: string) {
+  return `/assets/buff/${type}.png`;
 }
 
 function formatBuffDuration(duration: number) {
@@ -1040,13 +1035,12 @@ export const BoardScene: React.FC = () => {
                   </div>
                   <div style={styles.pixelBuffRow} aria-label="Buff">
                     {player.buffs?.slice(0, 10).map((buff, index) => (
-                      <span
+                      <img
                         key={`${buff.type}-${index}`}
                         title={`${buff.name || buff.type}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
-                        style={{
-                          ...styles.pixelBuffDot,
-                          backgroundColor: getBuffColor(buff.type),
-                        }}
+                        src={getBuffIconSrc(buff.type)}
+                        alt={buff.name || buff.type}
+                        style={styles.pixelBuffDot}
                       />
                     ))}
                   </div>
@@ -1087,13 +1081,12 @@ export const BoardScene: React.FC = () => {
                 <div style={styles.buffDots} aria-label="Boss Buff">
                   {bossPlayer.buffs.length > 0
                     ? bossPlayer.buffs.map((buff, index) => (
-                        <span
+                        <img
                           key={`${buff.type}-${index}`}
                           title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
-                          style={{
-                            ...styles.buffDot,
-                            backgroundColor: getBuffColor(buff.type),
-                          }}
+                          src={getBuffIconSrc(buff.type)}
+                          alt={buff.name || buff.type}
+                          style={styles.buffDot}
                         />
                       ))
                     : null}
@@ -1113,7 +1106,7 @@ export const BoardScene: React.FC = () => {
               >
                 <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
                 <img
-                  src={`/assets/buff/${buff.type}.png`}
+                  src={getBuffIconSrc(buff.type)}
                   alt={buff.name}
                   style={styles.selfBuffIcon}
                 />
@@ -1132,7 +1125,7 @@ export const BoardScene: React.FC = () => {
               >
                 <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
                 <img
-                  src={`/assets/buff/${buff.type}.png`}
+                  src={getBuffIconSrc(buff.type)}
                   alt={buff.name}
                   style={styles.selfBuffIcon}
                 />
