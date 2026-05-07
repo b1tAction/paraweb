@@ -12,8 +12,16 @@ import {
 import { isBossPlayer } from '../bossVisualConfig';
 import { getMetadataString, getMetadataNumber, getMetadataBoolean } from '../logEntryPlayback';
 import { LAYER_EFFECT_BASE, LAYER_EFFECT_TEXT_BASE, worldDepth } from '../renderLayers';
-import { GAME_FONT_FAMILY, CHARACTER_HALF_HEIGHT } from '../boardConstants';
+import { GAME_FONT_FAMILY, CHARACTER_HALF_HEIGHT, PROJECTILE_CHARGE_ANIMATION_KEY, PROJECTILE_SPEAR_ANIMATION_KEY, PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY, PROJECTILE_FIREBALL_ANIMATION_KEY, PROJECTILE_FLY_DURATION_MS } from '../boardConstants';
 import type { BoardAnimationContext } from './eventAnimations';
+
+// Map profile id to projectile animation key for boss damage crit
+const PROFILE_ID_TO_PROJECTILE_ANIM: Record<string, string> = {
+  green: PROJECTILE_CHARGE_ANIMATION_KEY,
+  red: PROJECTILE_SPEAR_ANIMATION_KEY,
+  white: PROJECTILE_FIREBALL_ANIMATION_KEY,
+  black: PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY,
+};
 
 // --- Helper functions ---
 
@@ -112,6 +120,30 @@ export function playBossProfileAnimation(
 }
 
 // --- Boss animation functions ---
+
+function playProjectileFly(
+  ctx: BoardAnimationContext,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  animKey: string
+): void {
+  const projectile = ctx.scene.add.sprite(fromX, fromY, animKey);
+  projectile.setOrigin(0.5, 0.5);
+  projectile.setDepth(worldDepth(LAYER_EFFECT_BASE, fromY) + 50);
+  projectile.setScale(1.5);
+  projectile.play(animKey);
+
+  ctx.tweens.add({
+    targets: projectile,
+    x: toX,
+    y: toY,
+    duration: PROJECTILE_FLY_DURATION_MS,
+    ease: 'Quad.easeIn',
+    onComplete: () => projectile.destroy(),
+  });
+}
 
 export function playBossPulse(
   ctx: BoardAnimationContext,
@@ -260,6 +292,51 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
 
   const sourceMarker = ctx.playerMarkers.get(entry.source);
   if (sourceMarker && sourceMarker !== bossMarker) {
+    // Play player attack animation
+    const sourcePlayer = ctx.players.find((p) => p.player_id === entry.source);
+    const sourceProfile = sourcePlayer
+      ? resolveCharacterProfileForPlayer(sourcePlayer, ctx.players, ctx.characterRenderOptions)
+      : null;
+    const sourceRenderer = getCharacterRenderer(ctx.characterRenderOptions);
+    const sourceProfileId = sourceProfile?.id;
+
+    // Face boss direction
+    sourceMarker.setFlipX(bossMarker.x < sourceMarker.x);
+
+    if (isCrit && sourceProfile) {
+      // Crit: play attack_crit pose then launch projectile
+      const attackState: CharacterAnimationState = 'attack_crit';
+      const attackAnimEvent = `animationcomplete-${getAnimationKey(sourceProfile, attackState)}`;
+
+      if (sourceProfile.animations[attackState] && sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)) {
+        sourceMarker.removeAllListeners(attackAnimEvent);
+        sourceRenderer.play(ctx.scene, sourceMarker, sourceProfile, attackState);
+        sourceMarker.once(attackAnimEvent, () => {
+          sourceRenderer.play(ctx.scene, sourceMarker, sourceProfile, 'idle');
+        });
+      }
+
+      // Launch projectile from source to boss
+      const projectileAnimKey = sourceProfileId ? PROFILE_ID_TO_PROJECTILE_ANIM[sourceProfileId] : undefined;
+      if (projectileAnimKey) {
+        const sourcePoint = getMarkerEffectPoint(sourceMarker, ctx, entry.source);
+        const bossPoint = getMarkerEffectPoint(bossMarker, ctx, bossPlayer.player_id);
+        playProjectileFly(ctx, sourcePoint.x, sourcePoint.y, bossPoint.x, bossPoint.y, projectileAnimKey);
+      }
+    } else if (sourceProfile) {
+      // Normal: random attack_1 or attack_2
+      const attackState: CharacterAnimationState = Math.random() < 0.5 ? 'attack_1' : 'attack_2';
+      const attackAnimEvent = `animationcomplete-${getAnimationKey(sourceProfile, attackState)}`;
+
+      if (sourceProfile.animations[attackState] && sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)) {
+        sourceMarker.removeAllListeners(attackAnimEvent);
+        sourceRenderer.play(ctx.scene, sourceMarker, sourceProfile, attackState);
+        sourceMarker.once(attackAnimEvent, () => {
+          sourceRenderer.play(ctx.scene, sourceMarker, sourceProfile, 'idle');
+        });
+      }
+    }
+
     playBossLineEffect(ctx, sourceMarker, bossMarker, color, isCrit ? 'CRIT' : 'HIT');
   }
 

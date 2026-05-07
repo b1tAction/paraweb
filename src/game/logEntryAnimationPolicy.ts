@@ -39,6 +39,7 @@ const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
   'fell_down->death': 180,
   'draw_event->death': 600,
   'death->respawn': 240,
+  'boss_attack->damage': 200,
 };
 
 export type LogEntryAnimationRule = {
@@ -106,7 +107,7 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
       const remainingHp = getMetadataNumber(entry.metadata, 'boss_remaining_hp');
       if (remainingHp !== null && remainingHp <= 0) return BOSS_DEFEATED_ANIMATION_DELAY_MS;
 
-      return getMetadataBoolean(entry.metadata, 'is_crit') ? 1200 : 900;
+      return getMetadataBoolean(entry.metadata, 'is_crit') ? 1500 : 1100;
     },
   },
   boss_attack: {
@@ -181,6 +182,11 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   // Thunder draw_event should not be skipped by immediate damage chaining.
   if (currentActionType === 'draw_event' && currentEventType === 'thunder' && nextActionType === 'damage') {
     return 2800 + EFFECT_START_GAP_MS + DRAW_EVENT_EFFECT_EXTRA_MS;
+  }
+
+  // Ghost_hit draw_event should chain to damage with overlap (popup must finish first).
+  if (currentActionType === 'draw_event' && currentEventType === 'ghost_hit' && nextActionType === 'damage') {
+    return 2900;
   }
 
   if (context.nextEntry) {

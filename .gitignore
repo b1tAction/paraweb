@@ -10,6 +10,7 @@ images
 *.zip
 *.tar
 *.rar
+*.7z
 *.tar.gz
 .DS_Store
 

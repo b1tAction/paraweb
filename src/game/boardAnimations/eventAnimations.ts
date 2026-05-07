@@ -58,6 +58,8 @@ export async function playDrawEventAnimation(
     playBubbleAnimation(ctx, context);
   } else if (eventType === 'skull_gaze') {
     playSkullGazeBombAnimation(ctx, context);
+  } else if (eventType === 'ghost_hit') {
+    playGhostHitAnimation(ctx, context);
   }
 }
 
@@ -144,6 +146,40 @@ export function playBubbleAnimation(ctx: BoardAnimationContext, context: LogEntr
       bubbleSprite.destroy();
     }
   });
+}
+
+/**
+ * Play the ghost hit effect: ghost appears offset from player and strikes quickly.
+ * Fast playback (20fps, 8 frames = 0.4s) to minimize delay before damage animation.
+ */
+export function playGhostHitAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  // Position ghost offset to the left of the player so it appears to strike toward them
+  const ghostX = marker.x - 80;
+  const bodyCenterY = marker.y;
+
+  const ghostSprite = ctx.scene.add.sprite(ghostX, bodyCenterY, 'ghost-effect');
+  ghostSprite.setScale(1.0);
+  ghostSprite.setOrigin(0.5, 0.5);
+  ghostSprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  ghostSprite.play('ghost_hit_anim');
+
+  ghostSprite.on('animationcomplete', () => {
+    ctx.tweens.add({
+      targets: ghostSprite,
+      alpha: { from: 1, to: 0 },
+      duration: 200,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        ghostSprite.destroy();
+      }
+    });
+  });
+
+  ctx.scene.cameras.main.shake(200, 0.003);
 }
 
 /**

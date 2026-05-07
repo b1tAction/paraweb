@@ -15,6 +15,28 @@ const factionOptions = [
   { value: 'xuan_wu', label: '玄武' },
 ] as const;
 
+const factionSlots: Record<string, {
+  position: React.CSSProperties;
+  panel: React.CSSProperties;
+}> = {
+  qing_long: {
+    position: { left: '37.5%', top: '70%' },
+    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' },
+  },
+  zhu_que: {
+    position: { left: '50%', top: '58%' },
+    panel: { left: '50%', top: '70%', transform: 'translateX(-50%)', textAlign: 'center' },
+  },
+  bai_hu: {
+    position: { left: '62.5%', top: '70%' },
+    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' },
+  },
+  xuan_wu: {
+    position: { left: '50%', top: '85%' },
+    panel: { left: '50%', top: '88%', transform: 'translateX(-50%)', textAlign: 'center' },
+  },
+};
+
 export const LobbyScene: React.FC = () => {
   const { waitingSync, myPlayerId, matchId, faction: storedFaction } = useGameStore();
   const [selectedFaction, setSelectedFaction] = useState(storedFaction || 'qing_long');
@@ -114,33 +136,66 @@ export const LobbyScene: React.FC = () => {
         </div>
       </section>
 
-      <section style={styles.factionGrid} aria-label="选择阵营">
+      <section style={styles.factionStage} aria-label="选择阵营">
         {factionOptions.map((option) => {
           const occupants = disambiguatedPlayers.filter((player) => player.faction === option.value);
           const isSelected = selectedFaction === option.value;
+          const slot = factionSlots[option.value];
+          const selectFaction = () => {
+            if (!isUpdatingFaction) {
+              void handleSelectFaction(option.value);
+            }
+          };
+          const handleFactionKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              selectFaction();
+            }
+          };
 
           return (
-            <button
+            <div
               key={option.value}
-              type="button"
-              onClick={() => void handleSelectFaction(option.value)}
-              disabled={isUpdatingFaction}
-              style={{ ...styles.factionCard, ...(isSelected ? styles.factionCardSelected : undefined) }}
+              style={{
+                ...styles.factionSlot,
+                ...slot.position,
+                ...(isSelected ? styles.factionSlotSelected : undefined),
+              }}
             >
-              <div style={styles.figureViewport} aria-hidden="true">
-                <PhaserCharacterPreview faction={option.value} width={220} height={220} style={styles.figureCanvas} />
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label={`选择${option.label}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={selectFaction}
+                onKeyDown={handleFactionKeyDown}
+                style={styles.figureViewport}
+              >
+                <PhaserCharacterPreview faction={option.value} width={256} height={256} style={styles.figureCanvas} />
               </div>
-              <div style={styles.factionName}>{option.label}</div>
-              <div style={styles.occupants}>
-                {occupants.length > 0
-                  ? occupants.map((player) => (
-                    <span key={player.user_id} style={player.user_id === myPlayerId ? styles.meName : undefined}>
-                      {player.display}
-                    </span>
-                  ))
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label={`选择${option.label}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={selectFaction}
+                onKeyDown={handleFactionKeyDown}
+                style={{ ...styles.factionPanel, ...slot.panel }}
+              >
+                <div style={styles.factionName}>{option.label}</div>
+                <div style={styles.occupants}>
+                  {occupants.length > 0
+                    ? occupants.map((player) => (
+                      <span key={player.user_id} style={player.user_id === myPlayerId ? styles.meName : undefined}>
+                        {player.display}
+                        {player.user_id === host_user_id ? ' 房主' : ''}
+                        {player.user_id === myPlayerId ? ' 我' : ''}
+                      </span>
+                    ))
                   : <span style={styles.emptyName}>EMPTY</span>}
+                </div>
               </div>
-            </button>
+            </div>
           );
         })}
       </section>
@@ -228,65 +283,87 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#f8e9bb',
     fontSize: '13px',
   },
-  factionGrid: {
+  factionStage: {
     position: 'absolute',
-    left: '50%',
-    top: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: 'min(960px, calc(100vw - 44px))',
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-    gap: '12px',
+    inset: 0,
+    pointerEvents: 'none',
   },
-  factionCard: {
-    minHeight: 'min(52vh, 360px)',
+  factionSlot: {
+    position: 'absolute',
+    transform: 'translate(-50%, -100%)',
+    width: 'clamp(168px, 14.6vw, 256px)',
+    aspectRatio: '1 / 1',
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    padding: '12px 10px 14px',
-    color: '#fff7d6',
-    background: 'rgba(23, 32, 31, 0.66)',
-    border: '1px solid rgba(255, 232, 166, 0.32)',
-    borderRadius: '8px',
-    cursor: 'pointer',
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    padding: 0,
+    color: 'inherit',
+    background: 'transparent',
+    border: 'none',
+    outline: 'none',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    boxShadow: 'none',
+    transition: 'none',
+    cursor: 'default',
     fontFamily: 'inherit',
-    boxShadow: '0 14px 26px rgba(0,0,0,0.28)',
-    backdropFilter: 'blur(2px)',
+    filter: 'drop-shadow(0 12px 12px rgba(0, 0, 0, 0.45))',
+    pointerEvents: 'none',
   },
-  factionCardSelected: {
-    background: 'rgba(78, 126, 82, 0.72)',
-    borderColor: 'rgba(186, 247, 166, 0.82)',
-    boxShadow: '0 0 0 2px rgba(186, 247, 166, 0.24), 0 18px 30px rgba(0,0,0,0.34)',
+  factionSlotSelected: {
+    filter: 'drop-shadow(0 0 10px rgba(186, 247, 166, 0.85)) drop-shadow(0 12px 12px rgba(0, 0, 0, 0.45))',
   },
   figureViewport: {
     width: '100%',
-    aspectRatio: '1 / 1',
-    maxHeight: '220px',
+    height: '100%',
     overflow: 'hidden',
     imageRendering: 'pixelated',
-    filter: 'drop-shadow(0 10px 10px rgba(0,0,0,0.35))',
+    cursor: 'pointer',
+    outline: 'none',
+    pointerEvents: 'auto',
   },
   figureCanvas: {
     width: '100%',
     height: '100%',
   },
+  factionPanel: {
+    position: 'absolute',
+    minWidth: 'clamp(116px, 10vw, 168px)',
+    maxWidth: 'min(230px, 24vw)',
+    padding: '7px 9px',
+    color: '#fdf5d0',
+    background: 'rgba(29, 35, 35, 0.72)',
+    border: '1px solid rgba(255, 232, 166, 0.4)',
+    borderRadius: '8px',
+    boxShadow: '0 9px 18px rgba(0, 0, 0, 0.28)',
+    backdropFilter: 'blur(2px)',
+    cursor: 'pointer',
+    outline: 'none',
+    pointerEvents: 'auto',
+  },
   factionName: {
-    marginTop: '4px',
+    margin: 0,
     color: '#ffeeb0',
-    fontSize: 'clamp(13px, 1.5vw, 18px)',
-    textShadow: '0 2px 0 rgba(0,0,0,0.4)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: 'clamp(12px, 1.15vw, 15px)',
+    fontWeight: 900,
+    lineHeight: 1.3,
+    textShadow: '0 2px 4px rgba(0, 0, 0, 0.65)',
   },
   occupants: {
     width: '100%',
-    minHeight: '48px',
-    marginTop: '10px',
+    minHeight: '16px',
+    marginTop: '5px',
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '5px',
-    color: '#fff7d6',
-    fontSize: 'clamp(11px, 1.1vw, 14px)',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: '4px',
+    color: '#e9d393',
+    fontSize: 'clamp(10px, 0.95vw, 12px)',
+    lineHeight: 1.2,
     overflow: 'hidden',
   },
   meName: {
@@ -298,7 +375,7 @@ const styles: Record<string, React.CSSProperties> = {
   footerPanel: {
     position: 'absolute',
     left: '50%',
-    bottom: '28px',
+    top: 'clamp(112px, 18vh, 184px)',
     transform: 'translateX(-50%)',
     width: 'min(520px, calc(100vw - 56px))',
     display: 'flex',
