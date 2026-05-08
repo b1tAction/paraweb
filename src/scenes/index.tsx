@@ -4,6 +4,7 @@
 
 export { BoardScene } from './BoardScene';
 export { CreateRoomScene } from './CreateRoomScene';
+export { FactionSelectScene } from './FactionSelectScene';
 export { GameOverScene } from './GameOverScene';
 export { HomeScene } from './HomeScene';
 export { JoinRoomScene } from './JoinRoomScene';
