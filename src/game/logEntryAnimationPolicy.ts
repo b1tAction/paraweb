@@ -11,6 +11,7 @@ import {
   getMetadataNumberArray,
   getMetadataString,
 } from './logEntryPlayback';
+import { BOSS_BATTLE_DISSOLVE_DURATION, BOSS_BATTLE_HOLD_DURATION } from './boardConstants';
 import { getEventEffectConfig } from './eventAnimations';
 
 export type LogEntryAnimationContext = {
@@ -45,7 +46,6 @@ const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
   'fell_down->death': 180,
   'draw_event->death': 600,
   'death->respawn': 240,
-  'boss_attack->damage': 300,
 };
 
 export type LogEntryAnimationRule = {
@@ -186,8 +186,9 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   const currentEventType = getMetadataString(context.entry.metadata, 'event_type');
 
   // Thunder draw_event should not be skipped by immediate damage chaining.
+  // Total: popup 2800ms + gap 200ms + lightning effect ~700ms + hit pause 200ms = 3900ms
   if (currentActionType === 'draw_event' && currentEventType === 'thunder' && nextActionType === 'damage') {
-    return 2800 + EFFECT_START_GAP_MS + DRAW_EVENT_EFFECT_EXTRA_MS;
+    return 2800 + EFFECT_START_GAP_MS + 700;
   }
 
   // Ghost_hit draw_event should chain to damage with overlap (popup must finish first).
@@ -213,6 +214,33 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   // Relic draw_event has a custom animation (chest appear + bomb + weapon fly-out + disappear).
   if (currentActionType === 'draw_event' && currentEventType === 'relic') {
     return RELIC_ANIMATION_DELAY_MS;
+  }
+
+  // Boss battle dynamic transition delays.
+  // Derived entries should be consumed shortly after the boss dissolve
+  // animation's "hit moment" (dissolve + hold), not after the full animation.
+  // The hit moment is when onDissolveComplete fires the attack/skill effects.
+  // Hit moment = BOSS_BATTLE_DISSOLVE_DURATION + BOSS_BATTLE_HOLD_DURATION + ~200ms pause
+  const bossHitMomentDelay = BOSS_BATTLE_DISSOLVE_DURATION + BOSS_BATTLE_HOLD_DURATION + 200;
+
+  if (currentActionType === 'boss_damage' && context.nextEntry) {
+    const remainingHp = getMetadataNumber(context.entry.metadata, 'boss_remaining_hp');
+    if (remainingHp !== null && remainingHp <= 0) {
+      return BOSS_DEFEATED_ANIMATION_DELAY_MS;
+    }
+    const baseDelay = getMetadataBoolean(context.entry.metadata, 'is_crit') ? 2000 : 1800;
+    return Math.max(baseDelay, bossHitMomentDelay);
+  }
+
+  if (currentActionType === 'boss_attack' && context.nextEntry) {
+    const baseDelay = getMetadataString(context.entry.metadata, 'attack_type') === 'crit' ? 1900 : 1800;
+    return Math.max(baseDelay, bossHitMomentDelay);
+  }
+
+  if (currentActionType === 'boss_skill' && context.nextEntry) {
+    const skillType = getMetadataString(context.entry.metadata, 'skill_type');
+    const baseDelay = skillType === 'thunder' ? 2300 : (skillType === 'curse' || skillType === 'rest' ? 1900 : 1800);
+    return Math.max(baseDelay, bossHitMomentDelay);
   }
 
   if (context.nextEntry) {
