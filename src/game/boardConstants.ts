@@ -48,11 +48,6 @@ export const WARP_DOOR_CELL_OFFSET_Y = 1;
 export const WARP_DOOR_DEPTH_OFFSET = 52;
 export const WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET = 76;
 
-export const WATER_TELEPORT_TEXTURE_KEY = 'water-teleport';
-export const WATER_TELEPORT_ANIMATION_KEY = 'water-teleport-vortex';
-export const WATER_TELEPORT_FRAME_COUNT = 48;
-export const WATER_TELEPORT_FRAME_RATE = 24;
-
 export const SHRINE_TEXTURE_KEY = 'map-shrine';
 export const SHRINE_TILESET_NAME = 'shrine';
 
