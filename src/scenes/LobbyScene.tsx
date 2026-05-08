@@ -3,74 +3,61 @@
  */
 
 import type React from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
 import { assetCssUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
-const factionOptions = [
-  { value: 'qing_long', label: '青龙' },
-  { value: 'zhu_que', label: '朱雀' },
-  { value: 'bai_hu', label: '白虎' },
-  { value: 'xuan_wu', label: '玄武' },
-] as const;
-
-const factionSlots: Record<
-  string,
-  {
-    position: React.CSSProperties;
-    panel: React.CSSProperties;
-  }
-> = {
-  qing_long: {
-    position: { left: '37.5%', top: '70%' },
-    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' },
-  },
-  zhu_que: {
-    position: { left: '50%', top: '58%' },
-    panel: { left: '50%', top: '70%', transform: 'translateX(-50%)', textAlign: 'center' },
-  },
-  bai_hu: {
-    position: { left: '62.5%', top: '70%' },
-    panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' },
-  },
-  xuan_wu: {
-    position: { left: '50%', top: '85%' },
-    panel: { left: '50%', top: '88%', transform: 'translateX(-50%)', textAlign: 'center' },
-  },
+const factionMeta: Record<string, { label: string }> = {
+  qing_long: { label: '青龙' },
+  zhu_que: { label: '朱雀' },
+  bai_hu: { label: '白虎' },
+  xuan_wu: { label: '玄武' },
 };
 
+const playerSlots = [
+  {
+    key: 'left',
+    position: { left: '37.5%', top: '70%' },
+    panel: { left: '50%', top: '70%', transform: 'translateX(-50%)', textAlign: 'center' as const },
+  },
+  {
+    key: 'top',
+    position: { left: '50%', top: '58%' },
+    panel: { left: '50%', top: '67%', transform: 'translateX(-50%)', textAlign: 'center' as const },
+  },
+  {
+    key: 'right',
+    position: { left: '62.5%', top: '70%' },
+    panel: { left: '50%', top: '70%', transform: 'translateX(-50%)', textAlign: 'center' as const },
+  },
+  {
+    key: 'bottom',
+    position: { left: '50%', top: '85%' },
+    panel: { left: '50%', top: '85%', transform: 'translateX(-50%)', textAlign: 'center' as const },
+  },
+] as const;
+
 export const LobbyScene: React.FC = () => {
-  const { waitingSync, myPlayerId, matchId, faction: storedFaction, resetMatchState } = useGameStore();
-  const [selectedFaction, setSelectedFaction] = useState(storedFaction || 'qing_long');
-  const hasTouchedFactionRef = useRef(false);
+  const { waitingSync, myPlayerId, matchId, resetMatchState } = useGameStore();
   const [isStarting, setIsStarting] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [kickingPlayerId, setKickingPlayerId] = useState('');
-  const [isUpdatingFaction, setIsUpdatingFaction] = useState(false);
   const [isBeginPressed, setIsBeginPressed] = useState(false);
   const [notice, setNotice] = useState('');
 
-  const myWaitingPlayer = waitingSync?.players.find((player) => player.user_id === myPlayerId);
+  const lobbyPlayers = useMemo(() => {
+    const players = waitingSync?.players.filter((player) => Boolean(factionMeta[player.faction])) || [];
+    const nameSources = players.map((player) => ({
+      displayName: player.display_name || player.user_id,
+      userId: player.user_id,
+    }));
 
-  useEffect(() => {
-    if (!hasTouchedFactionRef.current && myWaitingPlayer?.faction && myWaitingPlayer.faction !== selectedFaction) {
-      setSelectedFaction(myWaitingPlayer.faction);
-      useGameStore.getState().setFaction(myWaitingPlayer.faction);
-    }
-  }, [myWaitingPlayer?.faction, selectedFaction]);
-
-  const disambiguatedPlayers = useMemo(() => {
-    const players = waitingSync?.players || [];
     return players.map((player) => ({
       ...player,
-      display: getDisambiguatedDisplayName(
-        player.display_name || player.user_id,
-        player.user_id,
-        players.map((p) => ({ displayName: p.display_name || p.user_id, userId: p.user_id })),
-      ),
+      display: getDisambiguatedDisplayName(player.display_name || player.user_id, player.user_id, nameSources),
     }));
   }, [waitingSync?.players]);
 
@@ -84,26 +71,9 @@ export const LobbyScene: React.FC = () => {
   }
 
   const { match_id, host_user_id, player_count, min_players, max_players, can_start } = waitingSync;
-
   const isHost = myPlayerId === host_user_id;
   const displayMatchId = match_id || matchId;
   const isBeginDisabled = !can_start || isStarting || isLeaving;
-
-  const handleSelectFaction = async (faction: string) => {
-    try {
-      setNotice('');
-      hasTouchedFactionRef.current = true;
-      setSelectedFaction(faction);
-      setIsUpdatingFaction(true);
-      useGameStore.getState().setFaction(faction);
-      await gameService.sendLobbyPlayerUpdate(faction);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : '更新阵营失败';
-      setNotice(errorMessage);
-    } finally {
-      setIsUpdatingFaction(false);
-    }
-  };
 
   const handleBegin = async () => {
     try {
@@ -158,9 +128,9 @@ export const LobbyScene: React.FC = () => {
       <section style={styles.roomHeader}>
         <button
           type="button"
+          style={styles.roomId}
           title="复制房间 ID"
           onClick={() => displayMatchId && navigator.clipboard.writeText(displayMatchId)}
-          style={styles.roomId}
         >
           房间 ID: {displayMatchId || '-'}
         </button>
@@ -169,95 +139,45 @@ export const LobbyScene: React.FC = () => {
         </div>
       </section>
 
-      <section style={styles.factionStage} aria-label="选择阵营">
-        {factionOptions.map((option) => {
-          const occupants = disambiguatedPlayers.filter((player) => player.faction === option.value);
-          const isSelected = selectedFaction === option.value;
-          const slot = factionSlots[option.value];
-          const selectFaction = () => {
-            if (!isUpdatingFaction) {
-              void handleSelectFaction(option.value);
-            }
-          };
-          const handleFactionKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              selectFaction();
-            }
-          };
+      <section style={styles.playerStage} aria-label="房间玩家">
+        {lobbyPlayers.slice(0, 4).map((player, index) => {
+          const slot = playerSlots[index];
+          const faction = factionMeta[player.faction] ?? factionMeta.qing_long;
+          const isMe = player.user_id === myPlayerId;
+          const isPlayerHost = player.user_id === host_user_id;
 
           return (
             <div
-              key={option.value}
+              key={player.user_id || slot.key}
               style={{
-                ...styles.factionSlot,
+                ...styles.playerSlot,
                 ...slot.position,
-                ...(isSelected ? styles.factionSlotSelected : undefined),
               }}
             >
-              <button
-                type="button"
-                aria-label={`选择${option.label}`}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={selectFaction}
-                style={styles.figureViewport}
-              >
-                <PhaserCharacterPreview faction={option.value} width={256} height={256} style={styles.figureCanvas} />
-              </button>
-              {/* biome-ignore lint/a11y/useSemanticElements: the panel contains nested kick buttons and cannot be a button element. */}
-              <div
-                role="button"
-                tabIndex={0}
-                aria-label={`选择${option.label}`}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={selectFaction}
-                onKeyDown={handleFactionKeyDown}
-                style={{ ...styles.factionPanel, ...slot.panel }}
-              >
-                <div style={styles.factionName}>{option.label}</div>
-                <div style={styles.occupants}>
-                  {occupants.length > 0 ? (
-                    occupants.map((player) => (
-                      <span
-                        key={player.user_id}
-                        style={{
-                          ...styles.occupantName,
-                          ...(player.user_id === myPlayerId ? styles.meName : undefined),
-                        }}
-                      >
-                        <span style={styles.occupantLabel}>
-                          {player.display}
-                          {player.user_id === host_user_id ? ' 房主' : ''}
-                          {player.user_id === myPlayerId ? ' 我' : ''}
-                        </span>
-                        {isHost && player.user_id !== myPlayerId && player.user_id !== host_user_id && (
-                          <button
-                            type="button"
-                            title={`移出 ${player.display}`}
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                            }}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              void handleKickPlayer(player.user_id);
-                            }}
-                            disabled={Boolean(kickingPlayerId) || isStarting || isLeaving}
-                            style={{
-                              ...styles.kickButton,
-                              ...(kickingPlayerId || isStarting || isLeaving ? styles.kickButtonDisabled : undefined),
-                            }}
-                          >
-                            {kickingPlayerId === player.user_id ? '...' : '移出'}
-                          </button>
-                        )}
-                      </span>
-                    ))
-                  ) : (
-                    <span style={styles.emptyName}>EMPTY</span>
-                  )}
+              <div style={styles.figureViewport} aria-hidden="true">
+                <PhaserCharacterPreview faction={player.faction} width={256} height={256} style={styles.figureCanvas} />
+              </div>
+              <div style={{ ...styles.playerPanel, ...slot.panel }}>
+                <div style={styles.playerName}>{player.display}</div>
+                <div style={styles.playerTags}>
+                  <span>{faction.label}</span>
+                  {isPlayerHost && <span>房主</span>}
+                  {isMe && <span>我</span>}
                 </div>
+                {isHost && !isMe && !isPlayerHost && (
+                  <button
+                    type="button"
+                    title={`移出 ${player.display}`}
+                    onClick={() => void handleKickPlayer(player.user_id)}
+                    disabled={Boolean(kickingPlayerId) || isStarting || isLeaving}
+                    style={{
+                      ...styles.kickButton,
+                      ...(kickingPlayerId || isStarting || isLeaving ? styles.kickButtonDisabled : undefined),
+                    }}
+                  >
+                    {kickingPlayerId === player.user_id ? '...' : '移出'}
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -399,12 +319,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#f8e9bb',
     fontSize: '13px',
   },
-  factionStage: {
+  playerStage: {
     position: 'absolute',
     inset: 0,
     pointerEvents: 'none',
   },
-  factionSlot: {
+  playerSlot: {
     position: 'absolute',
     transform: 'translate(-50%, -100%)',
     width: 'clamp(168px, 14.6vw, 256px)',
@@ -412,45 +332,22 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'stretch',
     justifyContent: 'center',
-    padding: 0,
-    color: 'inherit',
-    background: 'transparent',
-    border: 'none',
-    outline: 'none',
-    appearance: 'none',
-    WebkitAppearance: 'none',
-    WebkitTapHighlightColor: 'transparent',
-    boxShadow: 'none',
-    transition: 'none',
-    cursor: 'default',
-    fontFamily: 'inherit',
     filter: 'drop-shadow(0 12px 12px rgba(0, 0, 0, 0.45))',
-    pointerEvents: 'none',
-  },
-  factionSlotSelected: {
-    filter: 'drop-shadow(0 0 10px rgba(186, 247, 166, 0.85)) drop-shadow(0 12px 12px rgba(0, 0, 0, 0.45))',
   },
   figureViewport: {
     width: '100%',
     height: '100%',
     overflow: 'hidden',
     imageRendering: 'pixelated',
-    cursor: 'pointer',
-    outline: 'none',
-    pointerEvents: 'auto',
-    border: 'none',
-    padding: 0,
-    background: 'transparent',
-    display: 'block',
   },
   figureCanvas: {
     width: '100%',
     height: '100%',
   },
-  factionPanel: {
+  playerPanel: {
     position: 'absolute',
-    minWidth: 'clamp(116px, 10vw, 168px)',
-    maxWidth: 'min(230px, 24vw)',
+    minWidth: 'clamp(110px, 10vw, 160px)',
+    maxWidth: 'min(220px, 22vw)',
     padding: '7px 9px',
     color: '#fdf5d0',
     background: 'rgba(29, 35, 35, 0.72)',
@@ -458,13 +355,9 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     boxShadow: '0 9px 18px rgba(0, 0, 0, 0.28)',
     backdropFilter: 'blur(2px)',
-    cursor: 'pointer',
-    outline: 'none',
     pointerEvents: 'auto',
   },
-  factionName: {
-    margin: 0,
-    color: '#ffeeb0',
+  playerName: {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -473,9 +366,7 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.3,
     textShadow: '0 2px 4px rgba(0, 0, 0, 0.65)',
   },
-  occupants: {
-    width: '100%',
-    minHeight: '16px',
+  playerTags: {
     marginTop: '5px',
     display: 'flex',
     flexWrap: 'wrap',
@@ -484,27 +375,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#e9d393',
     fontSize: 'clamp(10px, 0.95vw, 12px)',
     lineHeight: 1.2,
-    overflow: 'hidden',
-  },
-  occupantName: {
-    maxWidth: '100%',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '4px',
-    overflow: 'hidden',
-  },
-  occupantLabel: {
-    minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
   },
   kickButton: {
-    flex: '0 0 auto',
-    minWidth: '34px',
-    minHeight: '18px',
-    padding: '2px 5px',
+    marginTop: '6px',
+    minWidth: '42px',
+    minHeight: '20px',
+    padding: '2px 7px',
     color: '#ffe0d9',
     background: 'rgba(97, 30, 22, 0.72)',
     border: '1px solid rgba(255, 184, 172, 0.45)',
@@ -517,12 +393,6 @@ const styles: Record<string, React.CSSProperties> = {
   kickButtonDisabled: {
     opacity: 0.64,
     cursor: 'not-allowed',
-  },
-  meName: {
-    color: '#baf7a6',
-  },
-  emptyName: {
-    color: 'rgba(255, 247, 214, 0.5)',
   },
   footerPanel: {
     position: 'absolute',

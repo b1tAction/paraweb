@@ -1,6 +1,5 @@
 import type React from 'react';
 import { useState } from 'react';
-import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
 import { assetCssUrl } from '../utils/assets';
 
@@ -18,7 +17,6 @@ export const CreateRoomScene: React.FC = () => {
   const displayName = useGameStore((state) => state.displayName);
   const [lobbyName, setLobbyName] = useState(`${displayName || 'PLAYER'}'S LOBBY`);
   const [maxPlayers, setMaxPlayers] = useState(4);
-  const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
 
   const handleCreate = async () => {
@@ -30,14 +28,11 @@ export const CreateRoomScene: React.FC = () => {
 
     try {
       setError('');
-      setIsCreating(true);
-      await gameService.createRoom(name, maxPlayers);
-      useGameStore.getState().setScene(Scene.Lobby);
+      useGameStore.getState().setPendingRoomAction({ type: 'create', lobbyName: name, maxPlayers });
+      useGameStore.getState().setScene(Scene.FactionSelect);
     } catch (err: unknown) {
       const message = await getErrorMessage(err);
       setError(`创建房间失败：${message}`);
-    } finally {
-      setIsCreating(false);
     }
   };
 
@@ -78,8 +73,8 @@ export const CreateRoomScene: React.FC = () => {
         </label>
 
         <div style={styles.actions}>
-          <button type="button" onClick={handleCreate} disabled={isCreating} style={styles.primaryButton}>
-            {isCreating ? '创建中...' : '创建'}
+          <button type="button" onClick={handleCreate} style={styles.primaryButton}>
+            创建
           </button>
         </div>
 

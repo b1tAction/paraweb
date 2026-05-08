@@ -626,7 +626,7 @@ export class NakamaService {
     const store = useGameStore.getState();
     store.setWaitingSync(data);
 
-    if (store.currentScene !== Scene.Lobby) {
+    if (store.currentScene !== Scene.Lobby && store.currentScene !== Scene.FactionSelect) {
       store.setScene(Scene.Lobby);
     }
 
@@ -693,7 +693,9 @@ export class NakamaService {
   private handleGameOver(data: protocol.GameOver) {
     const store = useGameStore.getState();
     const isWaitingRoomTermination =
-      store.currentScene === Scene.Lobby && !data.winner_id && (!data.stats || data.stats.length === 0);
+      (store.currentScene === Scene.Lobby || store.currentScene === Scene.FactionSelect) &&
+      !data.winner_id &&
+      (!data.stats || data.stats.length === 0);
 
     if (isWaitingRoomTermination) {
       store.setJoinRoomNotice('房主已解散房间');
