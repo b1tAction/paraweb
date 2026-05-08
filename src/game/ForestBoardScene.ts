@@ -77,10 +77,6 @@ import {
   SHRINE_TILESET_NAME,
   WARP_DOOR_ANIMATION_KEY,
   WARP_DOOR_TEXTURE_KEY,
-  WATER_TELEPORT_ANIMATION_KEY,
-  WATER_TELEPORT_FRAME_COUNT,
-  WATER_TELEPORT_FRAME_RATE,
-  WATER_TELEPORT_TEXTURE_KEY,
   WEAPON_CATEGORIES,
   WEAPON_ICON_KEYS,
 } from './boardConstants';
@@ -275,14 +271,6 @@ export class ForestBoardScene extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
-
-    for (let i = 1; i <= WATER_TELEPORT_FRAME_COUNT; i += 1) {
-      const frameName = String(i).padStart(5, '0');
-      this.load.image(
-        `${WATER_TELEPORT_TEXTURE_KEY}-${frameName}`,
-        assetUrl(`assets/effects/Water1/Png/water1_${frameName}.png`),
-      );
-    }
 
     // Load lightning bolt effect sprite sheet for thunder event
     this.load.spritesheet('lightning-bolt', assetUrl('assets/effects/Lightning-bolt.png'), {
@@ -559,17 +547,6 @@ export class ForestBoardScene extends Phaser.Scene {
         frames: this.anims.generateFrameNumbers(WARP_DOOR_TEXTURE_KEY, { start: 0, end: 8 }),
         frameRate: 12,
         repeat: -1,
-      });
-    }
-
-    if (!this.anims.exists(WATER_TELEPORT_ANIMATION_KEY)) {
-      this.anims.create({
-        key: WATER_TELEPORT_ANIMATION_KEY,
-        frames: Array.from({ length: WATER_TELEPORT_FRAME_COUNT }, (_, index) => ({
-          key: `${WATER_TELEPORT_TEXTURE_KEY}-${String(index + 1).padStart(5, '0')}`,
-        })),
-        frameRate: WATER_TELEPORT_FRAME_RATE,
-        repeat: 0,
       });
     }
 
