@@ -13,8 +13,8 @@ const factionOptions = [
   {
     value: 'qing_long',
     label: '青龙',
-    skillName: '行迹',
-    description: '每 2 回合充能，使用时获得治疗 buff、LP +1 且对 Boss 的伤害翻倍',
+    skillName: '威势',
+    description: '每 2 回合充能，使用后获得一回合威势BUFF，良性增益效果翻倍',
   },
   {
     value: 'zhu_que',
@@ -26,13 +26,13 @@ const factionOptions = [
     value: 'bai_hu',
     label: '白虎',
     skillName: '劫运',
-    description: '每 2 回合充能，使用时指定一名玩家，获取其 buff',
+    description: '每 2 回合充能，使用时指定一名玩家获得一回合劫运BUFF，获取其良性增益效果',
   },
   {
     value: 'xuan_wu',
     label: '玄武',
     skillName: '镇厄',
-    description: '每 2 回合充能，使用时免疫恶性事件和 debuff',
+    description: '每 2 回合充能，使用后获得一回合镇厄BUFF，免疫恶性事件和 debuff',
   },
 ] as const;
 
