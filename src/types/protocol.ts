@@ -5,6 +5,8 @@
  */
 
 // ========== 服务端 -> 客户端消息类型 ==========
+export type JsonObject = Record<string, unknown>;
+export type EmptyPayload = Record<PropertyKey, never>;
 
 /**
  * StateSync - 完整游戏状态同步
@@ -67,7 +69,7 @@ export interface LogEntry {
   /** 来源 */
   source: string;
   /** 元数据 */
-  metadata?: Record<string, any>;
+  metadata?: JsonObject;
 }
 
 /**
@@ -240,7 +242,7 @@ export interface RankingEntry {
   /** 排名 (1-4) */
   rank: number;
   /** 小游戏原始数据 (不同 game_type 有不同结构) */
-  game_data?: Record<string, any>;
+  game_data?: JsonObject;
 }
 
 /**
@@ -431,9 +433,7 @@ export interface ItemDefinitionConfig {
 /**
  * RollDice - 掷骰子请求
  */
-export interface RollDice {
-  // 空对象，服务端根据当前玩家计算
-}
+export type RollDice = EmptyPayload;
 
 /**
  * UseItem - 使用道具请求
@@ -479,20 +479,16 @@ export interface MiniGameDataSubmit {
   /** 小游戏类型 */
   game_type: string;
   /** 游戏数据 (不同 game_type 有不同结构) */
-  game_data: Record<string, any>;
+  game_data: JsonObject;
 }
 
 /**
  * StartGame - 开始游戏请求 (仅房主)
  */
-export interface StartGame {
-  // 空对象
-}
+export type StartGame = EmptyPayload;
 
 /**
  * RoundReady - 轮结束就绪信号
  * 客户端在 RoundEndWait 状态下，完成当前轮动画渲染后发送
  */
-export interface RoundReady {
-  // 空对象，服务端检查所有客户端已发送就绪信号
-}
+export type RoundReady = EmptyPayload;

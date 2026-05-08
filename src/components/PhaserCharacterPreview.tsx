@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef } from 'react';
 import * as Phaser from 'phaser';
+import type React from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
+  type CharacterRenderOptions,
   getCharacterOffsetY,
   getCharacterProfileByFaction,
   getCharacterRenderer,
-  type CharacterRenderOptions,
 } from '../game/characterRenderConfig';
 import type { Player } from '../types/protocol';
 
@@ -36,7 +37,7 @@ export const PhaserCharacterPreview: React.FC<PhaserCharacterPreviewProps> = ({
 
   const profile = useMemo(
     () => getCharacterProfileByFaction(faction, characterRenderOptions),
-    [faction, characterRenderOptions]
+    [faction, characterRenderOptions],
   );
 
   useEffect(() => {
@@ -78,8 +79,7 @@ export const PhaserCharacterPreview: React.FC<PhaserCharacterPreviewProps> = ({
           y: height / 2 + getCharacterOffsetY(profile) + yOffset,
         });
         const idleConfig = profile.animations.idle;
-        const fitScale =
-          Math.min(width / idleConfig.frameWidth, height / idleConfig.frameHeight) * 0.9;
+        const fitScale = Math.min(width / idleConfig.frameWidth, height / idleConfig.frameHeight) * 0.9;
         sprite.setScale((profile.scale ?? 1) * fitScale);
         renderer.play(this, sprite, profile, 'idle');
       }

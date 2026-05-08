@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
-import type { MapConfig, Player } from '../types/protocol';
+import type React from 'react';
+import { useEffect, useRef } from 'react';
+import type { CharacterRenderOptions } from '../game/characterRenderConfig';
 import { ForestBoardScene } from '../game/ForestBoardScene';
 import type { LogEntryAnimationContext } from '../game/logEntryAnimationPolicy';
-import type { CharacterRenderOptions } from '../game/characterRenderConfig';
+import type { MapConfig, Player } from '../types/protocol';
 
 type PhaserBoardProps = {
   mapConfig: MapConfig;
@@ -29,6 +30,15 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const initialSceneDataRef = useRef({
+    mapConfig,
+    players,
+    followPlayerId,
+    selfPlayerId,
+    activeAnimationContext,
+    settlementPlayer,
+    characterRenderOptions,
+  });
 
   useEffect(() => {
     if (!containerRef.current || gameRef.current) return;
@@ -45,15 +55,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       scale: { mode: Phaser.Scale.ENVELOP, autoCenter: Phaser.Scale.CENTER_BOTH },
     });
 
-    game.scene.add('ForestBoardScene', ForestBoardScene, true, {
-      mapConfig,
-      players,
-      followPlayerId,
-      selfPlayerId,
-      activeAnimationContext,
-      settlementPlayer,
-      characterRenderOptions,
-    });
+    game.scene.add('ForestBoardScene', ForestBoardScene, true, initialSceneDataRef.current);
 
     gameRef.current = game;
 
@@ -64,9 +66,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   }, []);
 
   useEffect(() => {
-    const scene = gameRef.current?.scene.getScene(
-      'ForestBoardScene'
-    ) as ForestBoardScene | undefined;
+    const scene = gameRef.current?.scene.getScene('ForestBoardScene') as ForestBoardScene | undefined;
 
     scene?.updateFromReact(
       mapConfig,
@@ -75,9 +75,17 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       selfPlayerId,
       activeAnimationContext,
       settlementPlayer,
-      characterRenderOptions
+      characterRenderOptions,
     );
-  }, [mapConfig, players, followPlayerId, selfPlayerId, activeAnimationContext, settlementPlayer, characterRenderOptions]);
+  }, [
+    mapConfig,
+    players,
+    followPlayerId,
+    selfPlayerId,
+    activeAnimationContext,
+    settlementPlayer,
+    characterRenderOptions,
+  ]);
 
   return (
     <div
@@ -91,4 +99,3 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
     />
   );
 };
-

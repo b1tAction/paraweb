@@ -15,6 +15,7 @@ interface DiceFaceProps {
   isRolling?: boolean;
   size?: number;
 }
+const DICE_FACE_CELLS = Array.from({ length: 9 }, (_, index) => ({ id: `dice-cell-${index}`, index }));
 
 const DiceFace: React.FC<DiceFaceProps> = ({ value, isRolling = false, size = 80 }) => {
   const dotPositions = DICE_DOTS[value] || [];
@@ -34,18 +35,16 @@ const DiceFace: React.FC<DiceFaceProps> = ({ value, isRolling = false, size = 80
         gridTemplateRows: '1fr 1fr 1fr',
         padding: padding,
         boxSizing: 'border-box',
-        boxShadow: isRolling
-          ? '0 4px 12px rgba(0,0,0,0.3)'
-          : '0 2px 4px rgba(0,0,0,0.1)',
+        boxShadow: isRolling ? '0 4px 12px rgba(0,0,0,0.3)' : '0 2px 4px rgba(0,0,0,0.1)',
         transform: isRolling ? `rotate(${Math.random() * 30 - 15}deg)` : 'none',
         transition: isRolling ? 'none' : 'transform 0.3s ease-out',
       }}
     >
-      {Array.from({ length: 9 }, (_, idx) => {
-        const hasDot = dotPositions.includes(idx);
+      {DICE_FACE_CELLS.map((cell) => {
+        const hasDot = dotPositions.includes(cell.index);
         return (
           <div
-            key={idx}
+            key={cell.id}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -78,7 +77,7 @@ export interface DiceRaceMiniGameProps {
   submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
-  onSubmit: (gameData: Record<string, any>) => void;
+  onSubmit: (gameData: Record<string, unknown>) => void;
 }
 
 export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
@@ -121,7 +120,9 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
       if (elapsed >= rollDuration) {
         setDisplayDice1(finalDice1);
         setDisplayDice2(finalDice2);
-        clearInterval(rollTimerRef.current!);
+        if (rollTimerRef.current) {
+          clearInterval(rollTimerRef.current);
+        }
         rollTimerRef.current = null;
         setPhase('result');
         return;
@@ -142,10 +143,9 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
     <div style={styles.gameArea}>
       {phase === 'idle' && (
         <>
-          <p style={{ fontSize: '14px', color: '#666', textAlign: 'center' }}>
-            投两个骰子，点数总和越高排名越高！
-          </p>
+          <p style={{ fontSize: '14px', color: '#666', textAlign: 'center' }}>投两个骰子，点数总和越高排名越高！</p>
           <button
+            type="button"
             onClick={handleRoll}
             style={isParticipant ? { ...styles.button, backgroundColor: '#2196F3' } : styles.buttonDisabled}
             disabled={!isParticipant}
@@ -161,9 +161,7 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
             <DiceFace value={displayDice1} isRolling={true} size={90} />
             <DiceFace value={displayDice2} isRolling={true} size={90} />
           </div>
-          <p style={{ fontSize: '14px', color: '#888', textAlign: 'center' }}>
-            投掷中...
-          </p>
+          <p style={{ fontSize: '14px', color: '#888', textAlign: 'center' }}>投掷中...</p>
         </>
       )}
 
@@ -177,6 +175,7 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
             分数： {dice1} + {dice2} = {score}
           </p>
           <button
+            type="button"
             onClick={handleSubmit}
             style={isSubmitting ? styles.buttonDisabled : { ...styles.button, backgroundColor: '#4CAF50' }}
             disabled={isSubmitting}

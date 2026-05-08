@@ -1,16 +1,23 @@
 import * as Phaser from 'phaser';
 import type { Player } from '../../types/protocol';
-import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
 import {
-  getCharacterRenderer,
-  resolveCharacterProfile,
-} from '../characterRenderConfig';
+  BLACKHOLE_ANIMATION_KEY,
+  BLACKHOLE_SIZE_SCALE,
+  BLACKHOLE_TEXTURE_KEY,
+  GAME_FONT_FAMILY,
+  WARP_DOOR_ANIMATION_KEY,
+  WARP_DOOR_CELL_OFFSET_Y,
+  WARP_DOOR_DEPTH_OFFSET,
+  WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET,
+  WARP_DOOR_TEXTURE_KEY,
+} from '../boardConstants';
+import { getCharacterRenderer, resolveCharacterProfile } from '../characterRenderConfig';
+import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
 import { isAnyDoorTeleportEntry } from '../logEntryAnimationPolicy';
 import { getMetadataNumber, getMetadataNumberArray, MOVE_STEP_MS } from '../logEntryPlayback';
 import { LAYER_CHARACTER_BASE, LAYER_EFFECT_BASE, worldDepth } from '../renderLayers';
-import { GAME_FONT_FAMILY, BLACKHOLE_TEXTURE_KEY, BLACKHOLE_ANIMATION_KEY, BLACKHOLE_SIZE_SCALE, WARP_DOOR_TEXTURE_KEY, WARP_DOOR_ANIMATION_KEY, WARP_DOOR_CELL_OFFSET_Y, WARP_DOOR_DEPTH_OFFSET, WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET } from '../boardConstants';
-import type { BoardAnimationContext } from './eventAnimations';
 import { playGenericLogEntryEffect } from './characterAnimations';
+import type { BoardAnimationContext } from './eventAnimations';
 
 // Re-export BoardCellView type for movementAnimations
 type BoardCellView = { x: number; y: number; index: number };
@@ -19,16 +26,14 @@ export function playMoveAnimation(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
   activeMoveAnimations: Set<string>,
-  refreshCellMarkerStates?: () => void
+  refreshCellMarkerStates?: () => void,
 ): void {
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
   const path = getMetadataNumberArray(entry.metadata, 'path');
   if (path.length < 2) {
-    const endPos = entry.metadata && Object.prototype.hasOwnProperty.call(entry.metadata, 'end_pos')
-      ? getMetadataNumber(entry.metadata, 'end_pos')
-      : null;
+    const endPos = entry.metadata && 'end_pos' in entry.metadata ? getMetadataNumber(entry.metadata, 'end_pos') : null;
     if (endPos !== null) {
       console.log('[ForestBoardScene] Directly setting player position from end_pos:', endPos);
       ctx.logDrivenPositions.set(entry.target, endPos);
@@ -51,7 +56,7 @@ export function playMoveAnimation(
     }));
   if (points.length === 0) return;
 
-  const player = ctx.players.find(p => p.player_id === entry.target) ?? ctx.players[0];
+  const player = ctx.players.find((p) => p.player_id === entry.target) ?? ctx.players[0];
   const order = ctx.players.indexOf(player);
   const profile = resolveCharacterProfile(player, order, ctx.characterRenderOptions);
   const renderer = getCharacterRenderer(ctx.characterRenderOptions);
@@ -102,7 +107,7 @@ export function playTeleportAnimation(
   followPlayerId?: string | null,
   settlementPlayer?: Player | null,
   mapTileHeight?: number,
-  refreshCellMarkerStates?: () => void
+  refreshCellMarkerStates?: () => void,
 ): void {
   const { entry } = context;
   if (!isAnyDoorTeleportEntry(entry)) {
@@ -141,7 +146,7 @@ export function playTeleportAnimation(
   const entrancePlayerDepth = entranceDoorY + WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET;
   const exitPlayerDepth = exitDoorY + WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET;
 
-  const player = ctx.players.find(p => p.player_id === entry.target) ?? ctx.players[0];
+  const player = ctx.players.find((p) => p.player_id === entry.target) ?? ctx.players[0];
   const order = ctx.players.indexOf(player);
   const renderer = getCharacterRenderer(ctx.characterRenderOptions);
   const profile = resolveCharacterProfile(player, order, ctx.characterRenderOptions);
@@ -181,14 +186,19 @@ export function playTeleportAnimation(
   const exitDoor = makeDoor(exitDoorX, exitDoorY, true);
   makeGlow(entranceDoorX, entranceDoorY, false);
   makeGlow(exitDoorX, exitDoorY, true);
-  const label = ctx.scene.add.text((entranceDoorX + exitDoorX) / 2, Math.min(entranceDoorY, exitDoorY) - 76, `${fromPos} -> ${toPos}`, {
-    fontFamily: GAME_FONT_FAMILY,
-    fontSize: '20px',
-    fontStyle: 'bold',
-    color: '#e1f5fe',
-    stroke: '#062333',
-    strokeThickness: 5,
-  });
+  const label = ctx.scene.add.text(
+    (entranceDoorX + exitDoorX) / 2,
+    Math.min(entranceDoorY, exitDoorY) - 76,
+    `${fromPos} -> ${toPos}`,
+    {
+      fontFamily: GAME_FONT_FAMILY,
+      fontSize: '20px',
+      fontStyle: 'bold',
+      color: '#e1f5fe',
+      stroke: '#062333',
+      strokeThickness: 5,
+    },
+  );
   label.setOrigin(0.5, 0.5);
   label.setDepth(depthBase);
   label.setAlpha(0);
@@ -278,7 +288,11 @@ export function playTeleportAnimation(
       scale: 0.92,
       duration: 360,
       ease: 'Cubic.easeIn',
-      onComplete: () => doors.forEach((object) => object.destroy()),
+      onComplete: () => {
+        doors.forEach((object) => {
+          object.destroy();
+        });
+      },
     });
   });
 }
@@ -287,7 +301,7 @@ export function playBlackholeTeleportAnimation(
   ctx: BoardAnimationContext,
   context: LogEntryAnimationContext,
   activeMoveAnimations: Set<string>,
-  refreshCellMarkerStates?: () => void
+  refreshCellMarkerStates?: () => void,
 ): void {
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
@@ -307,7 +321,7 @@ export function playBlackholeTeleportAnimation(
   const sourceDepth = worldDepth(LAYER_EFFECT_BASE, marker.y) + 60;
   const targetDepth = worldDepth(LAYER_EFFECT_BASE, targetY) + 60;
 
-  const player = ctx.players.find(p => p.player_id === entry.target) ?? ctx.players[0];
+  const player = ctx.players.find((p) => p.player_id === entry.target) ?? ctx.players[0];
   const order = ctx.players.indexOf(player);
   const renderer = getCharacterRenderer(ctx.characterRenderOptions);
   const profile = resolveCharacterProfile(player, order, ctx.characterRenderOptions);

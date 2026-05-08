@@ -4,33 +4,35 @@
  * 显示游戏主界面，玩家可以进行回合操作
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Scene, useGameStore } from '../store/gameStore';
-import { gameService } from '../service/NakamaService';
-import { PhaserBoard } from '../components/PhaserBoard';
-import type { Available, Player, Item } from '../types/protocol';
+import type React from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DebugLogEntry } from '../components/DebugLogEntry';
+import { PhaserBoard } from '../components/PhaserBoard';
+import { BOSS_BEAST_PORTRAIT_SRC, isBossPlayer } from '../game/bossVisualConfig';
 import {
+  createLogEntryAnimationContext,
+  getLogEntryAnimationDelay,
+  isLogEntryAnimationCandidate,
+  isReverseClockLostBuffEntry,
+  shouldRenderBoardLogEntryAnimation,
+} from '../game/logEntryAnimationPolicy';
+import {
+  applyLogEntryToPlayer,
+  clonePlayer,
   DICE_RESULT_DISPLAY_MS,
   DICE_ROLL_MIN_MS,
   DICE_UPGRADE_FLASH_MS,
   DICE_UPGRADE_RESULT_MS,
-  PLAYER_STAT_MAX,
-  applyLogEntryToPlayer,
-  clonePlayer,
+  type DiceRollResult,
   getLatestDiceRollResult,
   getMetadataNumber,
   getMetadataString,
-  type DiceRollResult,
+  PLAYER_STAT_MAX,
 } from '../game/logEntryPlayback';
-import {
-  createLogEntryAnimationContext,
-  getLogEntryAnimationDelay,
-  isReverseClockLostBuffEntry,
-  isLogEntryAnimationCandidate,
-  shouldRenderBoardLogEntryAnimation,
-} from '../game/logEntryAnimationPolicy';
-import { BOSS_BEAST_PORTRAIT_SRC, isBossPlayer } from '../game/bossVisualConfig';
+import { gameService } from '../service/NakamaService';
+import { Scene, useGameStore } from '../store/gameStore';
+import type { Available, Item, Player } from '../types/protocol';
+import { assetCssUrl, assetUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string; textColor?: string }> = {
@@ -58,12 +60,12 @@ const PLAYER_CARD_SIZE = {
   height: 32 * PLAYER_CARD_SCALE,
 };
 const PLAYER_CARD_IMAGES: Record<string, string> = {
-  qing_long: '/assets/ui/player_card_qinglong.png',
-  zhu_que: '/assets/ui/player_card_zhuque.png',
-  bai_hu: '/assets/ui/player_card_baihu.png',
-  xuan_wu: '/assets/ui/player_card_xuanwu.png',
+  qing_long: assetUrl('assets/ui/player_card_qinglong.png'),
+  zhu_que: assetUrl('assets/ui/player_card_zhuque.png'),
+  bai_hu: assetUrl('assets/ui/player_card_baihu.png'),
+  xuan_wu: assetUrl('assets/ui/player_card_xuanwu.png'),
 };
-const BOTTOM_BAR_ASSET_BASE = '/assets/bottom_bar';
+const BOTTOM_BAR_ASSET_BASE = assetUrl('assets/bottom_bar');
 const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   any_door: 'any_door.png',
   dice_upgrade: 'dice_upgrade.png',
@@ -78,7 +80,7 @@ function getFactionMeta(faction: string) {
 }
 
 function getBuffIconSrc(type: string) {
-  return `/assets/buff/${type}.png`;
+  return assetUrl(`assets/buff/${type}.png`);
 }
 
 function formatBuffDuration(duration: number) {
@@ -96,7 +98,6 @@ function getPlayerCardImage(faction: string) {
 function getBottomBarItemIcon(type: string) {
   return `${BOTTOM_BAR_ASSET_BASE}/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`;
 }
-
 
 function getLogEntryKey(entry: { timestamp: string; action_type: string; target: string; source: string }) {
   return `${entry.timestamp}:${entry.action_type}:${entry.target}:${entry.source}`;
@@ -120,11 +121,11 @@ function getDiceAssetType(diceType: string) {
 }
 
 function getDiceRotateSrc(diceType: string) {
-  return `/assets/dice/${getDiceAssetType(diceType)}_rotate.png`;
+  return assetUrl(`assets/dice/${getDiceAssetType(diceType)}_rotate.png`);
 }
 
 function getDiceResultSrc(diceType: string, steps: number) {
-  return `/assets/dice/${getDiceAssetType(diceType)}_result_${steps}.png`;
+  return assetUrl(`assets/dice/${getDiceAssetType(diceType)}_result_${steps}.png`);
 }
 
 function getDiceResultNumberStyle(diceType: string): React.CSSProperties {
@@ -139,8 +140,7 @@ function getDiceResultNumberStyle(diceType: string): React.CSSProperties {
   return {
     ...styles.diceResultNumber,
     color: palette.color,
-    textShadow:
-      `2px 0 0 ${palette.outline}, -2px 0 0 ${palette.outline}, 0 2px 0 ${palette.outline}, 0 -2px 0 ${palette.outline}, 0 6px 0 rgba(0, 0, 0, 0.42), 0 9px 14px rgba(0, 0, 0, 0.35)`,
+    textShadow: `2px 0 0 ${palette.outline}, -2px 0 0 ${palette.outline}, 0 2px 0 ${palette.outline}, 0 -2px 0 ${palette.outline}, 0 6px 0 rgba(0, 0, 0, 0.42), 0 9px 14px rgba(0, 0, 0, 0.35)`,
   };
 }
 
@@ -279,24 +279,20 @@ export const BoardScene: React.FC = () => {
   const [idleDicePreview, setIdleDicePreview] = useState<IdleDicePreview | null>(null);
   const [rolledDiceTurnKey, setRolledDiceTurnKey] = useState('');
   const [handledDiceResultKey, setHandledDiceResultKey] = useState(
-    () => getLatestDiceRollResult(playedEntries)?.key || ''
+    () => getLatestDiceRollResult(playedEntries)?.key || '',
   );
   const [handledDiceUpgradeKey, setHandledDiceUpgradeKey] = useState('');
   const [renderedPlayers, setRenderedPlayers] = useState<Player[]>(players);
 
   // Disambiguated display name map: playerId -> disambiguated name
   const disambiguatedNames = useMemo(() => {
-    const allPlayersData = players.map(p => ({
+    const allPlayersData = players.map((p) => ({
       displayName: p.display_name || p.player_id,
       userId: p.player_id,
     }));
     const map: Record<string, string> = {};
     for (const p of players) {
-      map[p.player_id] = getDisambiguatedDisplayName(
-        p.display_name || p.player_id,
-        p.player_id,
-        allPlayersData
-      );
+      map[p.player_id] = getDisambiguatedDisplayName(p.display_name || p.player_id, p.player_id, allPlayersData);
     }
     return map;
   }, [players]);
@@ -316,28 +312,22 @@ export const BoardScene: React.FC = () => {
   const handledReverseClockFlightKeyRef = useRef('');
   const [reverseClockBuffFlight, setReverseClockBuffFlight] = useState<ReverseClockBuffFlight | null>(null);
 
-  // #region agent instrumentation - Hypothesis C
-  useEffect(() => {
-    // Analytics fetch removed
-  }, [mapConfig]);
-  // #endregion
-
-   // 1. 新增：存储所有玩家的头像 Base64 (以 playerId 为 key)
-  const[avatars, setAvatars] = useState<Record<string, string>>({});
+  // 1. 新增：存储所有玩家的头像 Base64 (以 playerId 为 key)
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [itemTargetSelection, setItemTargetSelection] = useState<Item | null>(null);
   const [skillTargetSelection, setSkillTargetSelection] = useState(false);
   // 2. 新增：监听 Phaser 发过来的头像事件
   useEffect(() => {
-    const handleAvatarUpdate = (e: any) => {
-      const { playerId, avatarUrl } = e.detail;
-      setAvatars(prev => ({ ...prev, [playerId]: avatarUrl }));
+    const handleAvatarUpdate = (event: Event) => {
+      const { playerId, avatarUrl } = (event as CustomEvent<{ playerId: string; avatarUrl: string }>).detail;
+      setAvatars((prev) => ({ ...prev, [playerId]: avatarUrl }));
     };
 
     window.addEventListener('ui-player-avatar', handleAvatarUpdate);
     return () => {
       window.removeEventListener('ui-player-avatar', handleAvatarUpdate);
     };
-  },[]);
+  }, []);
 
   const isMyTurn = myPlayerId === currentPlayerId;
   const followPlayerId = useMemo(() => {
@@ -427,7 +417,9 @@ export const BoardScene: React.FC = () => {
   const boardPlayers = renderedPlayers.filter((player) => !isBossPlayer(player));
   const bossPlayer = renderedPlayers.find(isBossPlayer);
   const myPlayer = renderedPlayers.find((player) => player.player_id === myPlayerId);
-  const itemTargetPlayers = renderedPlayers.filter((player) => player.player_id !== myPlayerId && !isBossPlayer(player));
+  const itemTargetPlayers = renderedPlayers.filter(
+    (player) => player.player_id !== myPlayerId && !isBossPlayer(player),
+  );
   const myBuffs = myPlayer?.buffs ?? [];
   const isMainAction = turnState === 'main_action' || turnState === 'MainAction';
   const isTurnEndSettlement = turnState === 'turn_end' || turnState === 'TurnEnd';
@@ -440,12 +432,10 @@ export const BoardScene: React.FC = () => {
     const rank = miniGameResult?.rankings.find((entry) => entry.player_id === currentPlayerId)?.rank;
     return rank ? getDiceTypeForRank(rank) : '';
   }, [currentPlayerId, diceAssignments, miniGameResult]);
-  
+
   // ====================== 默认渲染操作 ====================== //
   const canUseOwnFactionSkill = Boolean(
-    myPlayer &&
-      (myPlayer.faction === 'qing_long' || myPlayer.faction === 'xuan_wu') &&
-      myPlayer.charge > 0
+    myPlayer && (myPlayer.faction === 'qing_long' || myPlayer.faction === 'xuan_wu') && myPlayer.charge > 0,
   );
   const actionView: Available | null =
     isMainAction && myPlayer
@@ -485,8 +475,7 @@ export const BoardScene: React.FC = () => {
     diceRollView.status === 'result' ||
     isBlockingDiceUpgradeAnimation;
   const selectedItemStillAvailable = Boolean(
-    itemTargetSelection &&
-      actionView?.items.some((item) => item.id === itemTargetSelection.id)
+    itemTargetSelection && actionView?.items.some((item) => item.id === itemTargetSelection.id),
   );
   const canKeepSkillTargetSelection = Boolean(
     skillTargetSelection &&
@@ -494,11 +483,11 @@ export const BoardScene: React.FC = () => {
       isMyTurn &&
       availableActions?.can_use_skill &&
       !decisionRequest &&
-      !hasPendingAnimations
+      !hasPendingAnimations,
   );
   const activeAnimationContext = useMemo(
     () => createLogEntryAnimationContext(playedEntries, pendingEntries),
-    [playedEntries, pendingEntries]
+    [playedEntries, pendingEntries],
   );
   const activeLogEntry =
     activeAnimationContext && isLogEntryAnimationCandidate(activeAnimationContext.entry)
@@ -517,15 +506,13 @@ export const BoardScene: React.FC = () => {
   useEffect(() => {
     if (
       itemTargetSelection &&
-      (
-        currentScene !== Scene.Board ||
+      (currentScene !== Scene.Board ||
         !isMainAction ||
         !isMyTurn ||
         !availableActions ||
         Boolean(decisionRequest) ||
         hasPendingAnimations ||
-        !selectedItemStillAvailable
-      )
+        !selectedItemStillAvailable)
     ) {
       setItemTargetSelection(null);
     }
@@ -585,13 +572,13 @@ export const BoardScene: React.FC = () => {
             playerId: currentPlayerId,
             diceType: currentDicePreviewType,
             face: rollPreviewDiceFace(),
-          }
+          },
     );
   }, [actionTurnKey, currentDicePreviewType, currentPlayerId]);
 
   // ====================== 队列处理逻辑 ====================== //
   const stateSyncQueue = useGameStore((state) => state.stateSyncQueue);
-  
+
   useEffect(() => {
     // 当存在没有执行完的动画或是正在扔骰子时，不触发下一次 StateSync 出队
     if (hasPendingAnimations) {
@@ -605,22 +592,23 @@ export const BoardScene: React.FC = () => {
 
     // 这里只有没有待播放动画且仍在队列里有待消费 StateSync
     if (stateSyncQueue.length > 0) {
-       console.log(`[BoardScene] 拔出下一个 StateSync。剩余队列长度：${stateSyncQueue.length - 1}`);
-       useGameStore.getState().applyNextStateSync();
-       gameService['routeSceneByState']?.(useGameStore.getState().globalState); // trigger route check
+      console.log(`[BoardScene] 拔出下一个 StateSync。剩余队列长度：${stateSyncQueue.length - 1}`);
+      useGameStore.getState().applyNextStateSync();
+      gameService.routeSceneByState(useGameStore.getState().globalState); // trigger route check
     }
-
   }, [stateSyncQueue.length, hasPendingAnimations]);
 
   useEffect(() => {
-    if (!shouldEnterGameOverAfterBoardAnimations({
-      currentScene,
-      pendingScene,
-      hasGameOver: Boolean(gameOver),
-      hasPendingAnimations,
-      stateSyncQueueLength: stateSyncQueue.length,
-      diceRollStatus: diceRollView.status,
-    })) {
+    if (
+      !shouldEnterGameOverAfterBoardAnimations({
+        currentScene,
+        pendingScene,
+        hasGameOver: Boolean(gameOver),
+        hasPendingAnimations,
+        stateSyncQueueLength: stateSyncQueue.length,
+        diceRollStatus: diceRollView.status,
+      })
+    ) {
       return;
     }
 
@@ -633,13 +621,15 @@ export const BoardScene: React.FC = () => {
   }, [currentScene, diceRollView.status, gameOver, hasPendingAnimations, pendingScene, stateSyncQueue.length]);
 
   useEffect(() => {
-    if (!shouldEnterMiniGameAfterBoardAnimations({
-      currentScene,
-      globalState,
-      hasPendingAnimations,
-      stateSyncQueueLength: stateSyncQueue.length,
-      diceRollStatus: diceRollView.status,
-    })) {
+    if (
+      !shouldEnterMiniGameAfterBoardAnimations({
+        currentScene,
+        globalState,
+        hasPendingAnimations,
+        stateSyncQueueLength: stateSyncQueue.length,
+        diceRollStatus: diceRollView.status,
+      })
+    ) {
       return;
     }
 
@@ -682,7 +672,7 @@ export const BoardScene: React.FC = () => {
       return applyLogEntryToPlayer(current, activeLogEntry);
     });
     lastAppliedSettlementEntryRef.current = key;
-  }, [activeLogEntry, settlementPlayerId, players]);
+  }, [activeLogEntry, settlementPlayerId]);
 
   useEffect(() => {
     if (!activeLogEntry || !shouldApplyImmediatePlayerStatUpdate(activeLogEntry.action_type)) return;
@@ -690,9 +680,7 @@ export const BoardScene: React.FC = () => {
     const key = getLogEntryKey(activeLogEntry);
     if (lastAppliedImmediateStatEntryRef.current === key) return;
 
-    setRenderedPlayers((current) =>
-      current.map((player) => applyLogEntryToPlayer(player, activeLogEntry))
-    );
+    setRenderedPlayers((current) => current.map((player) => applyLogEntryToPlayer(player, activeLogEntry)));
     lastAppliedImmediateStatEntryRef.current = key;
   }, [activeLogEntry]);
 
@@ -715,8 +703,8 @@ export const BoardScene: React.FC = () => {
               hp: syncedPlayer?.hp ?? player.hp,
               lp: syncedPlayer?.lp ?? player.lp,
             }
-          : player
-      )
+          : player,
+      ),
     );
     lastAppliedImmediateRespawnRef.current = key;
   }, [activeLogEntry, players]);
@@ -741,11 +729,9 @@ export const BoardScene: React.FC = () => {
       return;
     }
 
-    setRenderedPlayers((current) =>
-      current.map((player) => applyLogEntryToPlayer(player, latestPlayedEntry))
-    );
+    setRenderedPlayers((current) => current.map((player) => applyLogEntryToPlayer(player, latestPlayedEntry)));
     lastAppliedEntryRef.current = key;
-  }, [playedEntries, players]);
+  }, [playedEntries]);
 
   useEffect(() => {
     if (!isRoundEndWait) {
@@ -786,11 +772,12 @@ export const BoardScene: React.FC = () => {
   }, [activeAnimationContext, pendingEntries.length]);
 
   // Auto-scroll debug log when new entries appear
+  const playedEntryCount = playedEntries.length;
   useEffect(() => {
-    if (debugLogContentRef.current) {
+    if (debugLogContentRef.current && playedEntryCount >= 0) {
       debugLogContentRef.current.scrollTop = debugLogContentRef.current.scrollHeight;
     }
-  }, [playedEntries.length]);
+  }, [playedEntryCount]);
 
   useEffect(() => {
     if (!activeAnimationContext || activeAnimationContext.entry.action_type !== 'dice_roll') return;
@@ -851,8 +838,7 @@ export const BoardScene: React.FC = () => {
     });
 
     setDiceUpgradeView((current) => {
-      const shouldKeepCurrentFace =
-        current.status !== 'idle' && current.playerId === activeLogEntry.target;
+      const shouldKeepCurrentFace = current.status !== 'idle' && current.playerId === activeLogEntry.target;
       const startedAt = shouldKeepCurrentFace ? current.startedAt : Date.now();
 
       return {
@@ -894,7 +880,7 @@ export const BoardScene: React.FC = () => {
       setDiceUpgradeView((current) =>
         current.status === 'charging' && current.entryKey === diceUpgradeView.entryKey
           ? { ...current, status: 'upgraded', startedAt: Date.now() }
-          : current
+          : current,
       );
     }, delay);
 
@@ -906,9 +892,7 @@ export const BoardScene: React.FC = () => {
 
     const timeoutId = window.setTimeout(() => {
       setDiceUpgradeView((current) =>
-        current.status === 'upgraded' && current.entryKey === diceUpgradeView.entryKey
-          ? { status: 'idle' }
-          : current
+        current.status === 'upgraded' && current.entryKey === diceUpgradeView.entryKey ? { status: 'idle' } : current,
       );
     }, DICE_UPGRADE_RESULT_MS);
 
@@ -922,7 +906,7 @@ export const BoardScene: React.FC = () => {
       setDiceUpgradeView((current) =>
         current.status === 'charging' && !current.toDice && current.entryKey === diceUpgradeView.entryKey
           ? { status: 'idle' }
-          : current
+          : current,
       );
     }, 8000);
 
@@ -979,7 +963,7 @@ export const BoardScene: React.FC = () => {
       <div style={styles.uiLayer}>
         <div style={styles.topHud}>
           <h2 style={styles.title}>主棋盘</h2>
-          <div style={styles.playerBar} aria-label="玩家状态">
+          <div style={styles.playerBar}>
             {boardPlayers.map((player) => {
               const faction = getFactionMeta(player.faction);
               const isCurrentTurnPlayer = player.player_id === currentPlayerId;
@@ -1033,10 +1017,10 @@ export const BoardScene: React.FC = () => {
                       }}
                     />
                   </div>
-                  <div style={styles.pixelBuffRow} aria-label="Buff">
-                    {player.buffs?.slice(0, 10).map((buff, index) => (
+                  <div style={styles.pixelBuffRow}>
+                    {player.buffs?.slice(0, 10).map((buff) => (
                       <img
-                        key={`${buff.type}-${index}`}
+                        key={buff.type}
                         title={`${buff.name || buff.type}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
                         src={getBuffIconSrc(buff.type)}
                         alt={buff.name || buff.type}
@@ -1078,11 +1062,11 @@ export const BoardScene: React.FC = () => {
                   <span>HP {bossPlayer.hp}</span>
                   <span>位置 {bossPlayer.position}</span>
                 </div>
-                <div style={styles.buffDots} aria-label="Boss Buff">
+                <div style={styles.buffDots}>
                   {bossPlayer.buffs.length > 0
-                    ? bossPlayer.buffs.map((buff, index) => (
+                    ? bossPlayer.buffs.map((buff) => (
                         <img
-                          key={`${buff.type}-${index}`}
+                          key={buff.type}
                           title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
                           src={getBuffIconSrc(buff.type)}
                           alt={buff.name || buff.type}
@@ -1097,38 +1081,30 @@ export const BoardScene: React.FC = () => {
         </div>
 
         {myBuffs.length > 0 && (
-          <div style={styles.selfBuffPanel} aria-label="我的 Buff">
-            {myBuffs.map((buff, index) => (
+          <div style={styles.selfBuffPanel}>
+            {myBuffs.map((buff) => (
               <div
-                key={`${buff.type}-${index}`}
+                key={buff.type}
                 style={styles.selfBuffFrame}
                 title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
               >
                 <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
-                <img
-                  src={getBuffIconSrc(buff.type)}
-                  alt={buff.name}
-                  style={styles.selfBuffIcon}
-                />
+                <img src={getBuffIconSrc(buff.type)} alt={buff.name} style={styles.selfBuffIcon} />
               </div>
             ))}
           </div>
         )}
 
         {bossPlayer && bossPlayer.buffs.length > 0 && (
-          <div style={styles.bossBuffPanel} aria-label="Boss Buff">
-            {bossPlayer.buffs.map((buff, index) => (
+          <div style={styles.bossBuffPanel}>
+            {bossPlayer.buffs.map((buff) => (
               <div
-                key={`${buff.type}-${index}`}
+                key={buff.type}
                 style={styles.selfBuffFrame}
                 title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '鏆傛棤鏁堟灉璇存槑'}\n鍓╀綑鍥炲悎: ${formatBuffDuration(buff.duration)}`}
               >
                 <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
-                <img
-                  src={getBuffIconSrc(buff.type)}
-                  alt={buff.name}
-                  style={styles.selfBuffIcon}
-                />
+                <img src={getBuffIconSrc(buff.type)} alt={buff.name} style={styles.selfBuffIcon} />
               </div>
             ))}
           </div>
@@ -1148,18 +1124,18 @@ export const BoardScene: React.FC = () => {
             }
             aria-hidden="true"
           >
-            <div className="paradice-reverse-clock-flight__icon" />
+            <div
+              className="paradice-reverse-clock-flight__icon"
+              style={{ backgroundImage: assetCssUrl('assets/effects/reverseclock.png') }}
+            />
           </div>
         )}
 
         {shouldShowActionPanel && actionView && (
           <div style={styles.mapActionPanel}>
-            {!isMyTurn && (
-              <div style={styles.waitingActionText}>
-                等待玩家 {getPlayerName(currentPlayerId)} 操作
-              </div>
-            )}
+            {!isMyTurn && <div style={styles.waitingActionText}>等待玩家 {getPlayerName(currentPlayerId)} 操作</div>}
             <button
+              type="button"
               onClick={handleRollDice}
               style={{
                 ...styles.bottomBarButton,
@@ -1179,6 +1155,7 @@ export const BoardScene: React.FC = () => {
 
             {actionView.items.map((item) => (
               <button
+                type="button"
                 key={item.id}
                 onClick={() => handleUseItem(item)}
                 style={{
@@ -1189,17 +1166,13 @@ export const BoardScene: React.FC = () => {
                 aria-label={item.name}
                 disabled={!canInteractWithActions}
               >
-                <img
-                  src={getBottomBarItemIcon(item.type)}
-                  alt=""
-                  draggable={false}
-                  style={styles.bottomBarLogo}
-                />
+                <img src={getBottomBarItemIcon(item.type)} alt="" draggable={false} style={styles.bottomBarLogo} />
               </button>
             ))}
 
             {actionView.can_use_skill && (
               <button
+                type="button"
                 onClick={handleUseSkill}
                 style={{
                   ...styles.actionTile,
@@ -1238,7 +1211,7 @@ export const BoardScene: React.FC = () => {
                       diceUpgradeView.status === 'upgraded' && diceUpgradeView.toDice
                         ? diceUpgradeView.toDice
                         : diceUpgradeView.fromDice,
-                      diceUpgradeView.face
+                      diceUpgradeView.face,
                     )}
                     alt=""
                     className={
@@ -1272,9 +1245,7 @@ export const BoardScene: React.FC = () => {
                     backgroundImage: `url(${getDiceRotateSrc(diceRollView.diceType)})`,
                   }}
                 />
-              ) : (
-                null
-              )}
+              ) : null}
             </div>
           </>
         )}
@@ -1287,6 +1258,7 @@ export const BoardScene: React.FC = () => {
               <div style={styles.decisionOptions}>
                 {decisionRequest.options.map((option, index) => (
                   <button
+                    type="button"
                     key={option.id}
                     onClick={() => handleChoice(index)}
                     style={styles.decisionButton}
@@ -1310,6 +1282,7 @@ export const BoardScene: React.FC = () => {
               <div style={styles.decisionOptions}>
                 {itemTargetPlayers.map((player) => (
                   <button
+                    type="button"
                     key={player.player_id}
                     onClick={() => {
                       console.log('[BoardScene] 选择目标使用了道具', itemTargetSelection.id, player.player_id);
@@ -1326,10 +1299,7 @@ export const BoardScene: React.FC = () => {
                 ))}
               </div>
               <div style={styles.selectionFooter}>
-                <button
-                  onClick={() => setItemTargetSelection(null)}
-                  style={styles.selectionCancelButton}
-                >
+                <button type="button" onClick={() => setItemTargetSelection(null)} style={styles.selectionCancelButton}>
                   取消
                 </button>
               </div>
@@ -1342,12 +1312,11 @@ export const BoardScene: React.FC = () => {
             <div style={styles.selectionPanel}>
               <div style={styles.selectionEyebrow}>技能释放</div>
               <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', color: '#333' }}>选择技能目标玩家</h3>
-              <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#666' }}>
-                请为劫运选择一个作用目标
-              </p>
+              <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#666' }}>请为劫运选择一个作用目标</p>
               <div style={styles.decisionOptions}>
                 {itemTargetPlayers.map((player) => (
                   <button
+                    type="button"
                     key={player.player_id}
                     onClick={() => {
                       console.log('[BoardScene] 选择目标使用了技能', player.player_id);
@@ -1365,6 +1334,7 @@ export const BoardScene: React.FC = () => {
               </div>
               <div style={styles.selectionFooter}>
                 <button
+                  type="button"
                   onClick={() => setSkillTargetSelection(false)}
                   style={styles.selectionCancelButton}
                 >
@@ -1377,20 +1347,14 @@ export const BoardScene: React.FC = () => {
 
         {/* Debug Log Panel - bottom-left */}
         <div style={styles.debugLogPanel}>
-          <div style={styles.debugLogHeader}>
-            Action Log R{storeRound}
-          </div>
+          <div style={styles.debugLogHeader}>Action Log R{storeRound}</div>
           <div ref={debugLogContentRef} style={styles.debugLogContent}>
             {playedEntries
-              .filter(entry => entry.type === 'action' || entry.type === 'boss')
-              .map((entry, index) => (
-                <DebugLogEntry key={index} entry={entry} players={players} />
+              .filter((entry) => entry.type === 'action' || entry.type === 'boss')
+              .map((entry) => (
+                <DebugLogEntry key={getLogEntryKey(entry)} entry={entry} players={players} />
               ))}
-            {pendingEntries.length > 0 && (
-              <div style={styles.debugLogPending}>
-                +{pendingEntries.length} pending...
-              </div>
-            )}
+            {pendingEntries.length > 0 && <div style={styles.debugLogPending}>+{pendingEntries.length} pending...</div>}
           </div>
         </div>
       </div>
@@ -1474,7 +1438,7 @@ const styles: Record<string, React.CSSProperties> = {
   pixelLpTrack: {
     position: 'absolute',
     left: `${31 * PLAYER_CARD_SCALE}px`,
-    top: `${11.5 * PLAYER_CARD_SCALE}px`,   // 虽然有点怪, 但是 11.5px 刚刚好捏
+    top: `${11.5 * PLAYER_CARD_SCALE}px`, // 虽然有点怪, 但是 11.5px 刚刚好捏
     width: `${46 * PLAYER_CARD_SCALE}px`,
     height: `${4 * PLAYER_CARD_SCALE}px`,
     overflow: 'hidden',
@@ -1628,7 +1592,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '4px',
     marginTop: '2px',
   },
-  
+
   // ================= 新增以下样式 =================
   statRow: {
     display: 'flex',
@@ -1679,7 +1643,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '9px 19px 9px 22px',
-    backgroundImage: 'url("/assets/buff/frame.png")',
+    backgroundImage: assetCssUrl('assets/buff/frame.png'),
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center',
     filter: 'drop-shadow(0 5px 10px rgba(0, 0, 0, 0.36))',
@@ -1810,7 +1774,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '256px',
     height: '208px',
     transform: 'translate(-50%, -50%)',
-    backgroundImage: 'url("/assets/effects/sparkle.png")',
+    backgroundImage: assetCssUrl('assets/effects/sparkle.png'),
     backgroundRepeat: 'no-repeat',
     backgroundPosition: '0 0',
     backgroundSize: '1280px 208px',
@@ -1860,7 +1824,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 'min(560px, calc(100vw - 40px))',
     minHeight: '320px',
     padding: '42px 34px 28px',
-    backgroundImage: 'url("/assets/frame/frame_choose.png")',
+    backgroundImage: assetCssUrl('assets/frame/frame_choose.png'),
     backgroundSize: '700px auto',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',

@@ -1,7 +1,8 @@
 import type { Player } from '../types/protocol';
+import { assetUrl } from '../utils/assets';
 
 export const BOSS_BEAST_PROFILE_ID = 'boss_beast';
-export const BOSS_BEAST_ASSET_BASE = '/assets/boss/beast';
+export const BOSS_BEAST_ASSET_BASE = assetUrl('assets/boss/beast');
 
 export const BOSS_BEAST_ASSETS = {
   portrait: {
@@ -56,7 +57,7 @@ export const BOSS_BEAST_ASSETS = {
 } as const;
 
 export const BOSS_BEAST_PORTRAIT_SRC = BOSS_BEAST_ASSETS.portrait.textureUrl;
-export const BOSS_BEAST_RENDER_SCALE = 0.80;
+export const BOSS_BEAST_RENDER_SCALE = 0.8;
 export const BOSS_BEAST_RENDER_OFFSET_X = 48;
 export const BOSS_BEAST_RENDER_OFFSET_Y = 16;
 export const BOSS_BEAST_RENDER_ORIGIN_X = 0.5;

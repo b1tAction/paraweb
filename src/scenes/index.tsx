@@ -2,13 +2,13 @@
  * 场景组件导出
  */
 
-export { HomeScene } from './HomeScene';
+export { BoardScene } from './BoardScene';
 export { CreateRoomScene } from './CreateRoomScene';
+export { GameOverScene } from './GameOverScene';
+export { HomeScene } from './HomeScene';
 export { JoinRoomScene } from './JoinRoomScene';
 export { LobbyScene } from './LobbyScene';
-export { BoardScene } from './BoardScene';
 export { MiniGameSubmitRankScene, MiniGameSubmitRankScene as MiniGameScene } from './minigame';
-export { GameOverScene } from './GameOverScene';
 
 // TODO: 后续添加其他场景
 // export { CreateRoomScene } from './CreateRoomScene';

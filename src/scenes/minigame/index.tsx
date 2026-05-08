@@ -8,16 +8,17 @@
  * The result phase shows for a few seconds before StateSync auto-transitions to next state.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useGameStore } from '../../store/gameStore';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { gameService } from '../../service/NakamaService';
-import { DiceRaceMiniGame } from './DiceRaceMiniGame';
+import { useGameStore } from '../../store/gameStore';
 import { CountSecondsMiniGame } from './CountSecondsMiniGame';
+import { DiceRaceMiniGame } from './DiceRaceMiniGame';
 import { MathCalcMiniGame } from './MathCalcMiniGame';
-import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
-import { VernierMiniGame } from './VernierMiniGame';
 import { MiniGameLeaderboard } from './MiniGameLeaderboard';
 import { styles } from './MiniGameStyles';
+import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
+import { VernierMiniGame } from './VernierMiniGame';
 
 // ========== Game Phase ==========
 
@@ -45,10 +46,14 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   // Reset all state when mini-game round changes
   const startKey = useMemo(
     () => `${miniGameStart?.game_type || ''}:${(miniGameStart?.players || []).join(',')}`,
-    [miniGameStart?.game_type, miniGameStart?.players]
+    [miniGameStart?.game_type, miniGameStart?.players],
   );
+  const lastStartKeyRef = useRef(startKey);
 
   useEffect(() => {
+    if (lastStartKeyRef.current === startKey) return;
+
+    lastStartKeyRef.current = startKey;
     setSubmitted(false);
     setIsSubmitting(false);
     setSubmitError('');
@@ -73,7 +78,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       resultTimerRef.current = setTimeout(() => {
         const store = useGameStore.getState();
         store.setMiniGameResultPending(false);
-        
+
         // 清空小游戏数据，为下一轮做准备
         store.setMiniGameStart(null);
         store.setMiniGameResult(null);
@@ -108,46 +113,49 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   // ========== Submit handler (shared) ==========
 
-  const submitGameData = useCallback(async (gameData: Record<string, any>) => {
-    if (!isParticipant || submitted) return;
+  const submitGameData = useCallback(
+    async (gameData: Record<string, unknown>) => {
+      if (!isParticipant || submitted) return;
 
-    try {
-      setSubmitError('');
-      setIsSubmitting(true);
-      await gameService.sendMiniGameDataSubmit(gameType, gameData);
-      setSubmitted(true);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to submit mini-game data';
-      setSubmitError(message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [isParticipant, submitted, gameType]);
+      try {
+        setSubmitError('');
+        setIsSubmitting(true);
+        await gameService.sendMiniGameDataSubmit(gameType, gameData);
+        setSubmitted(true);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to submit mini-game data';
+        setSubmitError(message);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [isParticipant, submitted, gameType],
+  );
 
   // ========== Result rendering ==========
-
 
   const renderResult = () => {
     if (!miniGameResult) return null;
 
-    return (
-      <MiniGameLeaderboard 
-        gameType={gameType} 
-        result={miniGameResult} 
-      />
-    );
+    return <MiniGameLeaderboard gameType={gameType} result={miniGameResult} />;
   };
 
   // ========== Game title ==========
 
   const getGameTitle = () => {
     switch (gameType) {
-      case 'dice_race': return 'Roll Dice';
-      case 'count_seconds': return 'Count Seconds';
-      case 'math_calc': return 'Math Calculation';
-      case 'rainbow_memory': return 'Rainbow Memory';
-      case 'vernier': return 'Vernier Caliper';
-      default: return `Mini-Game: ${gameType}`;
+      case 'dice_race':
+        return 'Roll Dice';
+      case 'count_seconds':
+        return 'Count Seconds';
+      case 'math_calc':
+        return 'Math Calculation';
+      case 'rainbow_memory':
+        return 'Rainbow Memory';
+      case 'vernier':
+        return 'Vernier Caliper';
+      default:
+        return `Mini-Game: ${gameType}`;
     }
   };
 
@@ -157,9 +165,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
     return (
       <div style={styles.modalContainer}>
         <h2 style={styles.title}>Mini-Game</h2>
-        <p style={styles.submittedText}>
-          You are not participating this round. Waiting for others...
-        </p>
+        <p style={styles.submittedText}>You are not participating this round. Waiting for others...</p>
         {renderResult()}
       </div>
     );
@@ -178,11 +184,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   // ========== Result phase ==========
   if (gamePhase === 'result') {
-    return (
-      <div style={styles.modalContainer}>
-        {renderResult()}
-      </div>
-    );
+    return <div style={styles.modalContainer}>{renderResult()}</div>;
   }
 
   // ========== Playing phase ==========

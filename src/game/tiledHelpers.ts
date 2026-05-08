@@ -1,12 +1,15 @@
+type TiledProperty = { name?: string; value?: unknown };
+type TiledObjectWithProperties = { properties?: TiledProperty[] | Record<string, unknown> };
+
 export function getTiledProperty<T = unknown>(
-  obj: any,
+  obj: TiledObjectWithProperties | null | undefined,
   name: string,
-  fallback?: T
+  fallback?: T,
 ): T | undefined {
   const props = obj?.properties;
 
   if (Array.isArray(props)) {
-    const found = props.find((p: any) => p.name === name);
+    const found = props.find((property) => property.name === name);
     return found ? (found.value as T) : fallback;
   }
 

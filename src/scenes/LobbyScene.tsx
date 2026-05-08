@@ -2,10 +2,12 @@
  * LobbyScene - waiting room before the match begins.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
+import { assetCssUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const factionOptions = [
@@ -15,10 +17,13 @@ const factionOptions = [
   { value: 'xuan_wu', label: '玄武' },
 ] as const;
 
-const factionSlots: Record<string, {
-  position: React.CSSProperties;
-  panel: React.CSSProperties;
-}> = {
+const factionSlots: Record<
+  string,
+  {
+    position: React.CSSProperties;
+    panel: React.CSSProperties;
+  }
+> = {
   qing_long: {
     position: { left: '37.5%', top: '70%' },
     panel: { left: '50%', top: '73%', transform: 'translateX(-50%)', textAlign: 'center' },
@@ -78,14 +83,7 @@ export const LobbyScene: React.FC = () => {
     );
   }
 
-  const {
-    match_id,
-    host_user_id,
-    player_count,
-    min_players,
-    max_players,
-    can_start,
-  } = waitingSync;
+  const { match_id, host_user_id, player_count, min_players, max_players, can_start } = waitingSync;
 
   const isHost = myPlayerId === host_user_id;
   const displayMatchId = match_id || matchId;
@@ -167,8 +165,7 @@ export const LobbyScene: React.FC = () => {
           房间 ID: {displayMatchId || '-'}
         </button>
         <div style={styles.roomMeta}>
-          {player_count} / {max_players} 人
-          {player_count < min_players ? ` - NEED ${min_players}` : ''}
+          {player_count} / {max_players} 人{player_count < min_players ? ` - NEED ${min_players}` : ''}
         </div>
       </section>
 
@@ -198,17 +195,16 @@ export const LobbyScene: React.FC = () => {
                 ...(isSelected ? styles.factionSlotSelected : undefined),
               }}
             >
-              <div
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
                 aria-label={`选择${option.label}`}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={selectFaction}
-                onKeyDown={handleFactionKeyDown}
                 style={styles.figureViewport}
               >
                 <PhaserCharacterPreview faction={option.value} width={256} height={256} style={styles.figureCanvas} />
-              </div>
+              </button>
+              {/* biome-ignore lint/a11y/useSemanticElements: the panel contains nested kick buttons and cannot be a button element. */}
               <div
                 role="button"
                 tabIndex={0}
@@ -220,8 +216,8 @@ export const LobbyScene: React.FC = () => {
               >
                 <div style={styles.factionName}>{option.label}</div>
                 <div style={styles.occupants}>
-                  {occupants.length > 0
-                    ? occupants.map((player) => (
+                  {occupants.length > 0 ? (
+                    occupants.map((player) => (
                       <span
                         key={player.user_id}
                         style={{
@@ -258,7 +254,9 @@ export const LobbyScene: React.FC = () => {
                         )}
                       </span>
                     ))
-                  : <span style={styles.emptyName}>EMPTY</span>}
+                  ) : (
+                    <span style={styles.emptyName}>EMPTY</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -326,7 +324,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100vw',
     height: '100vh',
     overflow: 'hidden',
-    backgroundImage: 'url("/assets/waiting.png")',
+    backgroundImage: assetCssUrl('assets/waiting.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
@@ -440,6 +438,10 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     outline: 'none',
     pointerEvents: 'auto',
+    border: 'none',
+    padding: 0,
+    background: 'transparent',
+    display: 'block',
   },
   figureCanvas: {
     width: '100%',
@@ -544,7 +546,7 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: '170px',
     minHeight: '56px',
     color: '#352c20',
-    backgroundImage: 'url("/assets/button/button_up.png")',
+    backgroundImage: assetCssUrl('assets/button/button_up.png'),
     backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     backgroundColor: 'transparent',
@@ -556,7 +558,7 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: 'none',
   },
   beginButtonPressed: {
-    backgroundImage: 'url("/assets/button/button_press.png")',
+    backgroundImage: assetCssUrl('assets/button/button_press.png'),
     transform: 'translateY(2px)',
   },
   beginButtonDisabled: {

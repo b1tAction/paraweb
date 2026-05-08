@@ -180,7 +180,7 @@ export const styles: Record<string, CSSProperties> = {
     color: '#666',
     fontStyle: 'italic',
   },
-  
+
   // MathCalc Mini-Game Styles
   mathGameContainer: {
     display: 'flex',
@@ -280,7 +280,7 @@ export const styles: Record<string, CSSProperties> = {
   zeroBtn: {
     gridColumn: 'span 2',
   },
-  
+
   // Mini ranking styles for MathCalc finished phase
   miniRankingList: {
     width: '100%',
@@ -511,22 +511,22 @@ export const styles: Record<string, CSSProperties> = {
     fontWeight: '600',
   },
   // Specific Rank Styles
-  rank1: { 
-    background: 'linear-gradient(135deg, rgba(255,215,0,0.1) 0%, rgba(255,215,0,0.3) 100%)', 
+  rank1: {
+    background: 'linear-gradient(135deg, rgba(255,215,0,0.1) 0%, rgba(255,215,0,0.3) 100%)',
     border: '1.5px solid #FFD700',
     boxShadow: '0 8px 32px rgba(255, 215, 0, 0.2)',
   },
-  rank2: { 
-    background: 'linear-gradient(135deg, rgba(192,192,192,0.1) 0%, rgba(192,192,192,0.3) 100%)', 
-    border: '1.5px solid #C0C0C0' 
+  rank2: {
+    background: 'linear-gradient(135deg, rgba(192,192,192,0.1) 0%, rgba(192,192,192,0.3) 100%)',
+    border: '1.5px solid #C0C0C0',
   },
-  rank3: { 
-    background: 'linear-gradient(135deg, rgba(205,127,50,0.1) 0%, rgba(205,127,50,0.3) 100%)', 
-    border: '1.5px solid #CD7F32' 
+  rank3: {
+    background: 'linear-gradient(135deg, rgba(205,127,50,0.1) 0%, rgba(205,127,50,0.3) 100%)',
+    border: '1.5px solid #CD7F32',
   },
-  rank4: { 
-    background: 'linear-gradient(135deg, rgba(139,69,19,0.05) 0%, rgba(139,69,19,0.15) 100%)', 
-    border: '1.5px solid #8B4513' 
+  rank4: {
+    background: 'linear-gradient(135deg, rgba(139,69,19,0.05) 0%, rgba(139,69,19,0.15) 100%)',
+    border: '1.5px solid #8B4513',
   },
   badgeGold: { backgroundColor: '#FFD700', color: '#000' },
   badgeSilver: { backgroundColor: '#C0C0C0', color: '#000' },
@@ -537,8 +537,8 @@ export const styles: Record<string, CSSProperties> = {
 // Dice face dot positions in 3x3 grid (0=top-left, 8=bottom-right)
 // Each face maps to a set of grid indices where dots appear
 export const DICE_DOTS: Record<number, number[]> = {
-  1: [4],       // center
-  2: [2, 6],    // top-right, bottom-left
+  1: [4], // center
+  2: [2, 6], // top-right, bottom-left
   3: [2, 4, 6], // top-right, center, bottom-left
   4: [0, 2, 6, 8], // four corners
   5: [0, 2, 4, 6, 8], // four corners + center

@@ -1,0 +1,117 @@
+name: Deploy Web
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - closed
+  workflow_dispatch:
+
+concurrency:
+  group: paraweb-production-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and deploy web
+    runs-on: ubuntu-latest
+    environment: production
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event.pull_request.merged == true &&
+           github.event.pull_request.base.ref == 'master' &&
+           github.event.pull_request.head.ref == 'dev') }}
+    env:
+      VITE_NAKAMA_ENDPOINT: https://bitaction.cn
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+
+      - name: Resolve release id
+        run: echo "release_id=${{ github.event.pull_request.merge_commit_sha || github.sha }}" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web client
+        run: npm run build
+
+      - name: Prepare release archive
+        run: tar -czf paraweb.tar.gz -C dist .
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Upload release archive
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "install -d -m 755 /var/www/paraweb/incoming /var/www/paraweb/releases"
+          scp -P "$DEPLOY_PORT" paraweb.tar.gz "$DEPLOY_USER@$DEPLOY_HOST:/var/www/paraweb/incoming/$release_id.tar.gz"
+
+      - name: Activate release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE_ID='$release_id' APP_ROOT='/var/www/paraweb' bash -s" <<'EOF'
+          set -euo pipefail
+
+          incoming_dir="$APP_ROOT/incoming"
+          releases_dir="$APP_ROOT/releases"
+          release_dir="$releases_dir/$RELEASE_ID"
+          archive="$incoming_dir/$RELEASE_ID.tar.gz"
+          previous_target="$(readlink -f "$APP_ROOT/current" 2>/dev/null || true)"
+
+          install -d -m 755 "$incoming_dir" "$releases_dir"
+          test -s "$archive"
+          rm -rf "$release_dir"
+          install -d -m 755 "$release_dir"
+          tar -xzf "$archive" -C "$release_dir"
+          test -f "$release_dir/index.html"
+
+          ln -sfn "$release_dir" "$APP_ROOT/current.next"
+          mv -Tf "$APP_ROOT/current.next" "$APP_ROOT/current"
+          rm -f "$archive"
+
+          if ! test -f "$APP_ROOT/current/index.html"; then
+            if [ -n "$previous_target" ] && [ -d "$previous_target" ]; then
+              ln -sfn "$previous_target" "$APP_ROOT/current.next"
+              mv -Tf "$APP_ROOT/current.next" "$APP_ROOT/current"
+            fi
+            exit 1
+          fi
+
+          find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+            | sort -nr \
+            | awk 'NR > 5 {print $2}' \
+            | xargs -r rm -rf
+          EOF
