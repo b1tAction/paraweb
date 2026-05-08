@@ -183,11 +183,17 @@ function playBossBattleDissolveAnimation(
   // --- Raise preserved markers above overlay ---
   // Only preservedPlayerIds markers are raised; other characters remain
   // hidden behind the shader overlay (part of the "other space" visual).
-  const originalDepths = new Map<string, number>();
+  // Use reference counting on marker data to prevent concurrent animations
+  // from overwriting the true original depth.
   preservedPlayerIds.forEach((playerId) => {
     const marker = ctx.playerMarkers.get(playerId);
     if (marker) {
-      originalDepths.set(playerId, marker.depth);
+      const dissolveCount = marker.getData('bossBattleDissolveCount') || 0;
+      if (dissolveCount === 0) {
+        // Only record true original depth on first dissolve entry
+        marker.setData('bossBattleOriginalDepth', marker.depth);
+      }
+      marker.setData('bossBattleDissolveCount', dissolveCount + 1);
       marker.setDepth(LAYER_BOSS_BATTLE_CHARACTER);
       marker.setData('bossBattleDissolve', true);
     }
@@ -200,12 +206,20 @@ function playBossBattleDissolveAnimation(
   ctx.orchestrator.registerCleanupOnTimer(shaderObj, totalDuration);
 
   cleanupTracker.once('destroy', () => {
-    // Restore preserved marker depths and clear dissolve flags
-    originalDepths.forEach((originalDepth, playerId) => {
+    // Decrement reference count; only restore depth when all animations finish
+    preservedPlayerIds.forEach((playerId) => {
       const marker = ctx.playerMarkers.get(playerId);
       if (marker && marker.active) {
-        marker.setDepth(originalDepth);
-        marker.setData('bossBattleDissolve', false);
+        const count = (marker.getData('bossBattleDissolveCount') || 1) - 1;
+        marker.setData('bossBattleDissolveCount', Math.max(0, count));
+        if (count <= 0) {
+          const origDepth = marker.getData('bossBattleOriginalDepth');
+          if (origDepth !== undefined) {
+            marker.setDepth(origDepth);
+          }
+          marker.setData('bossBattleDissolve', false);
+          marker.setData('bossBattleOriginalDepth', undefined);
+        }
       }
     });
     ctx.tweens.killTweensOf(progressHolder);
@@ -239,14 +253,8 @@ function playBossBattleDissolveAnimation(
       duration: BOSS_BATTLE_RECOVERY_DURATION,
       ease: 'Sine.easeOut',
       onComplete: () => {
-        // Restore preserved marker depths and clear dissolve flags
-        originalDepths.forEach((originalDepth, playerId) => {
-          const marker = ctx.playerMarkers.get(playerId);
-          if (marker && marker.active) {
-            marker.setDepth(originalDepth);
-            marker.setData('bossBattleDissolve', false);
-          }
-        });
+        // Destruction triggers cleanupTracker.once('destroy') which handles
+        // reference-counted depth restoration — no duplicate logic here.
         if (shaderObj.active) shaderObj.destroy();
         if (cleanupTracker.active) cleanupTracker.destroy();
       },
@@ -656,7 +664,7 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
     sourceMarker,
     [entry.source, bossPlayer.player_id],
     () => playBossDamageEffects(ctx, context),
-    1000,
+    1500,
     BOSS_EDGE_COLOR_RED
   );
 }
@@ -679,7 +687,7 @@ export function playBossAttackAnimation(ctx: BoardAnimationContext, context: Log
     bossMarker,
     preservedIds,
     () => playBossAttackEffects(ctx, context),
-    1000,
+    1500,
     BOSS_EDGE_COLOR_RED
   );
 }
@@ -702,7 +710,7 @@ export function playBossSkillAnimation(
     ? [bossPlayer.player_id]
     : ctx.players.map((p) => p.player_id);
 
-  const effectsDuration = skillType === 'thunder' ? 1300 : 1000;
+  const effectsDuration = skillType === 'thunder' ? 2000 : 1500;
 
   playBossBattleDissolveAnimation(
     ctx,
