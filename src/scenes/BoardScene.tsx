@@ -71,6 +71,11 @@ const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   dice_upgrade: 'dice_upgrade.png',
   reverse_clock: 'reverse_clock.png',
 };
+const FACTION_SKILL_ICONS: Record<string, string> = {
+  qing_long: assetUrl('assets/buff/dominance.png'),
+  bai_hu: assetUrl('assets/buff/rob_luck.png'),
+  xuan_wu: assetUrl('assets/buff/suppress.png'),
+};
 function isBossBattleTurn(turnState: string) {
   return turnState === 'turn_boss_battle' || turnState === 'TurnBossBattle';
 }
@@ -97,6 +102,10 @@ function getPlayerCardImage(faction: string) {
 
 function getBottomBarItemIcon(type: string) {
   return `${BOTTOM_BAR_ASSET_BASE}/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`;
+}
+
+function getFactionSkillIconSrc(faction: string) {
+  return FACTION_SKILL_ICONS[faction];
 }
 
 function getLogEntryKey(entry: { timestamp: string; action_type: string; target: string; source: string }) {
@@ -445,6 +454,7 @@ export const BoardScene: React.FC = () => {
           can_use_skill: isMyTurn && availableActions ? availableActions.can_use_skill : canUseOwnFactionSkill,
         }
       : null;
+  const factionSkillIconSrc = myPlayer ? getFactionSkillIconSrc(myPlayer.faction) : '';
   const canInteractWithActions = isMyTurn && Boolean(availableActions);
   const actionTurnKey = isMainAction && currentPlayerId ? `${storeRound}:${storeTurn}:${currentPlayerId}` : '';
   const currentDicePreviewType = isMyTurn ? availableActions?.dice_type || miniGameDiceType : miniGameDiceType;
@@ -1175,16 +1185,18 @@ export const BoardScene: React.FC = () => {
                 type="button"
                 onClick={handleUseSkill}
                 style={{
-                  ...styles.actionTile,
-                  ...styles.skillActionTile,
+                  ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
                 }}
                 title="使用阵营技能"
+                aria-label="使用阵营技能"
                 disabled={!canInteractWithActions}
               >
-                <span style={styles.actionIcon}>✦</span>
-                <span style={styles.actionLabel}>阵营技能</span>
-                <span style={styles.actionMeta}>技能</span>
+                {factionSkillIconSrc ? (
+                  <img src={factionSkillIconSrc} alt="" draggable={false} style={styles.bottomBarLogo} />
+                ) : (
+                  <span style={styles.actionIcon}>技</span>
+                )}
               </button>
             )}
           </div>
