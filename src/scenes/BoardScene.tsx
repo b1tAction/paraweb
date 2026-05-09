@@ -1824,7 +1824,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 'min(560px, calc(100vw - 40px))',
     minHeight: '320px',
     padding: '42px 34px 28px',
-    backgroundImage: assetCssUrl('assets/frame/frame_choose.png'),
+    backgroundImage: assetCssUrl('assets/frame/frame_choose.webp'),
     backgroundSize: '700px auto',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',

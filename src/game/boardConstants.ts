@@ -48,11 +48,6 @@ export const WARP_DOOR_CELL_OFFSET_Y = 1;
 export const WARP_DOOR_DEPTH_OFFSET = 52;
 export const WARP_DOOR_PLAYER_FRONT_DEPTH_OFFSET = 76;
 
-export const WATER_TELEPORT_TEXTURE_KEY = 'water-teleport';
-export const WATER_TELEPORT_ANIMATION_KEY = 'water-teleport-vortex';
-export const WATER_TELEPORT_FRAME_COUNT = 48;
-export const WATER_TELEPORT_FRAME_RATE = 24;
-
 export const SHRINE_TEXTURE_KEY = 'map-shrine';
 export const SHRINE_TILESET_NAME = 'shrine';
 
@@ -102,6 +97,11 @@ export const HIDDEN_BUFF_TOTAL_EFFECT_MS = 1700; // total effect duration after 
 // Dizzy animation timing constants (ms)
 export const DIZZY_TOTAL_EFFECT_MS = 1500; // total dizzy effect duration
 export const DIZZY_TINT_COLOR = 0x9c27b0; // purple tint for stunned look
+
+// Boss battle dissolve animation timing constants (ms)
+export const BOSS_BATTLE_DISSOLVE_DURATION = 600;     // dissolve phase shader progress 0→1
+export const BOSS_BATTLE_HOLD_DURATION = 700;          // hold at full dissolve (boss charge-up pause)
+export const BOSS_BATTLE_RECOVERY_DURATION = 500;      // recovery phase shader progress 1→0
 
 // Relic animation texture and animation keys
 export const RELIC_TEXTURE_KEY = 'relic-chest';

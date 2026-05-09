@@ -49,6 +49,8 @@ export enum Scene {
   CreateRoom = 'CreateRoomScene',
   /** 加入房间 */
   JoinRoom = 'JoinRoomScene',
+  /** 选择阵营 */
+  FactionSelect = 'FactionSelectScene',
   /** 房间等待 ( Lobby ) */
   Lobby = 'LobbyScene',
   /** 小游戏提交排名 */
@@ -95,6 +97,17 @@ export type TurnState =
   | 'turn_end'
   | 'TurnEnd'
   | '';
+
+export type PendingRoomAction =
+  | {
+      type: 'join';
+      matchId: string;
+    }
+  | {
+      type: 'create';
+      lobbyName: string;
+      maxPlayers: number;
+    };
 
 // ========== Zustand Store ==========
 
@@ -157,6 +170,8 @@ interface GameState {
   matchId: string;
   /** 加入房间页提示 */
   joinRoomNotice: string;
+  /** 等待阵营选择确认后的房间动作 */
+  pendingRoomAction: PendingRoomAction | null;
   /** StateSync 等待队列：暂存接收到的状态，等待动画完成后再应用 */
   stateSyncQueue: StateSync[];
   /** 当前回合同步日志条目 (已播放完毕，显示在debug log中) */
@@ -185,6 +200,8 @@ interface GameState {
   setMatchId: (id: string) => void;
   /** 设置加入房间页提示 */
   setJoinRoomNotice: (notice: string) => void;
+  /** 设置等待阵营选择确认后的房间动作 */
+  setPendingRoomAction: (action: PendingRoomAction | null) => void;
 
   /** 设置场景 */
   setScene: (scene: Scene) => void;
@@ -271,6 +288,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   definitions: null,
   matchId: '',
   joinRoomNotice: '',
+  pendingRoomAction: null,
   displayName: '',
   stateSyncQueue: [],
   faction: '',
@@ -292,6 +310,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setMatchId: (id) => set({ matchId: id }),
   setJoinRoomNotice: (notice) => set({ joinRoomNotice: notice }),
+  setPendingRoomAction: (action) => set({ pendingRoomAction: action }),
 
   setScene: (scene) => set({ currentScene: scene }),
 
@@ -391,6 +410,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       faction: '',
       matchId: '',
       joinRoomNotice: '',
+      pendingRoomAction: null,
       players: [],
       currentPlayerId: '',
       round: 0,
@@ -420,6 +440,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       turnState: '',
       matchId: '',
       joinRoomNotice: state.joinRoomNotice,
+      pendingRoomAction: null,
       players: [],
       currentPlayerId: '',
       round: 0,

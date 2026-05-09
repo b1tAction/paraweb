@@ -5,10 +5,11 @@
  */
 
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import {
   BoardScene,
   CreateRoomScene,
+  FactionSelectScene,
   GameOverScene,
   HomeScene,
   JoinRoomScene,
@@ -25,6 +26,7 @@ const sceneComponents: Record<Scene, React.ComponentType> = {
   [Scene.Home]: HomeScene,
   [Scene.CreateRoom]: CreateRoomScene,
   [Scene.JoinRoom]: JoinRoomScene,
+  [Scene.FactionSelect]: FactionSelectScene,
   [Scene.Lobby]: LobbyScene,
   [Scene.Loading]: LoadingScene,
   [Scene.MiniGameSubmitRank]: MiniGameSubmitRankScene,
@@ -111,7 +113,10 @@ const App: React.FC = () => {
   const isMiniGameOverlay = currentScene === Scene.MiniGameSubmitRank;
   const SceneComponent = isMiniGameOverlay ? BoardScene : sceneComponents[currentScene] || HomeScene;
   const isHomeScene =
-    currentScene === Scene.Home || currentScene === Scene.CreateRoom || currentScene === Scene.JoinRoom;
+    currentScene === Scene.Home ||
+    currentScene === Scene.CreateRoom ||
+    currentScene === Scene.JoinRoom ||
+    currentScene === Scene.FactionSelect;
 
   return (
     <div style={styles.app}>
@@ -127,12 +132,16 @@ const App: React.FC = () => {
         </header>
       )}
       <main style={isHomeScene ? { ...styles.main, ...styles.homeMain } : styles.main}>
-        <SceneComponent />
+        <Suspense fallback={<LoadingScene />}>
+          <SceneComponent />
+        </Suspense>
       </main>
 
       {isMiniGameOverlay && (
         <div style={styles.overlay}>
-          <MiniGameSubmitRankScene />
+          <Suspense fallback={<LoadingScene />}>
+            <MiniGameSubmitRankScene />
+          </Suspense>
         </div>
       )}
 

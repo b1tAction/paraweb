@@ -141,8 +141,8 @@ export const JoinRoomScene: React.FC = () => {
       setError('');
       useGameStore.getState().setJoinRoomNotice('');
       setIsJoining(true);
-      await gameService.joinRoom(selectedMatchId);
-      useGameStore.getState().setScene(Scene.Lobby);
+      useGameStore.getState().setPendingRoomAction({ type: 'join', matchId: selectedMatchId });
+      useGameStore.getState().setScene(Scene.FactionSelect);
     } catch (err: unknown) {
       const message = await getErrorMessage(err);
       setError(`加入房间失败：${message}`);
@@ -268,7 +268,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '28px',
-    backgroundImage: assetCssUrl('assets/cover.png'),
+    backgroundImage: assetCssUrl('assets/cover.webp'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',

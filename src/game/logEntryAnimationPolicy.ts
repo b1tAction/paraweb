@@ -1,17 +1,18 @@
 import type { LogEntry } from '../types/protocol';
-import { getEventEffectConfig } from './eventAnimations';
 import {
   DEFAULT_ACTION_ANIMATION_DELAY_MS,
   DICE_RESULT_DISPLAY_MS,
   DICE_ROLL_MIN_MS,
   DICE_UPGRADE_FLASH_MS,
   DICE_UPGRADE_RESULT_MS,
+  MOVE_STEP_MS,
   getMetadataBoolean,
   getMetadataNumber,
   getMetadataNumberArray,
   getMetadataString,
-  MOVE_STEP_MS,
 } from './logEntryPlayback';
+import { BOSS_BATTLE_DISSOLVE_DURATION, BOSS_BATTLE_HOLD_DURATION } from './boardConstants';
+import { getEventEffectConfig } from './eventAnimations';
 
 export type LogEntryAnimationContext = {
   entry: LogEntry;
@@ -26,7 +27,8 @@ type AnimationRenderFilter = boolean | ((context: LogEntryAnimationContext) => b
 const IMMEDIATE_NEXT_ACTION_TYPES = new Set(['damage']);
 const BOSS_ACTION_TYPES = new Set(['boss_damage', 'boss_attack', 'boss_skill']);
 
-const BOSS_DEFEATED_ANIMATION_DELAY_MS = 1900;
+
+const BOSS_DEFEATED_ANIMATION_DELAY_MS = 2400;
 
 // Gap between popup dismiss and effect start for draw_event
 const EFFECT_START_GAP_MS = 200;
@@ -44,7 +46,6 @@ const ACTION_TRANSITION_DELAY_MS: Record<string, number> = {
   'fell_down->death': 180,
   'draw_event->death': 600,
   'death->respawn': 240,
-  'boss_attack->damage': 200,
 };
 
 export type LogEntryAnimationRule = {
@@ -62,7 +63,7 @@ export function isReverseClockLostBuffEntry(entry?: LogEntry | null): entry is L
     entry &&
       entry.action_type === 'add_buff' &&
       entry.source === 'item_reverse_clock_buff' &&
-      getMetadataString(entry.metadata, 'buff_type') === 'lost',
+      getMetadataString(entry.metadata, 'buff_type') === 'lost'
   );
 }
 
@@ -112,21 +113,21 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
       const remainingHp = getMetadataNumber(entry.metadata, 'boss_remaining_hp');
       if (remainingHp !== null && remainingHp <= 0) return BOSS_DEFEATED_ANIMATION_DELAY_MS;
 
-      return getMetadataBoolean(entry.metadata, 'is_crit') ? 1500 : 1100;
+      return getMetadataBoolean(entry.metadata, 'is_crit') ? 2000 : 1800;
     },
   },
   boss_attack: {
     renderOnBoard: true,
-    delayMs: ({ entry }) => (getMetadataString(entry.metadata, 'attack_type') === 'crit' ? 1400 : 1100),
+    delayMs: ({ entry }) => (getMetadataString(entry.metadata, 'attack_type') === 'crit' ? 1900 : 1800),
   },
   boss_skill: {
     renderOnBoard: true,
     delayMs: ({ entry }) => {
       const skillType = getMetadataString(entry.metadata, 'skill_type');
-      if (skillType === 'thunder') return 1700;
-      if (skillType === 'curse' || skillType === 'rest') return 1500;
-      if (skillType === 'thorns') return 1300;
-      return 1500;
+      if (skillType === 'thunder') return 2300;
+      if (skillType === 'curse' || skillType === 'rest') return 1900;
+      if (skillType === 'thorns') return 1800;
+      return 1900;
     },
   },
   death: {
@@ -157,7 +158,7 @@ export function isLogEntryAnimationCandidate(entry?: LogEntry | null) {
 
 export function createLogEntryAnimationContext(
   playedEntries: LogEntry[],
-  pendingEntries: LogEntry[],
+  pendingEntries: LogEntry[]
 ): LogEntryAnimationContext | null {
   const entry = pendingEntries[0];
   if (!entry) return null;
@@ -173,8 +174,7 @@ export function createLogEntryAnimationContext(
 export function shouldRenderBoardLogEntryAnimation(context?: LogEntryAnimationContext | null) {
   if (!context || !isLogEntryAnimationCandidate(context.entry)) return false;
 
-  const filter =
-    LOG_ENTRY_ANIMATION_RULES[context.entry.action_type]?.renderOnBoard ?? DEFAULT_ANIMATION_RULE.renderOnBoard;
+  const filter = LOG_ENTRY_ANIMATION_RULES[context.entry.action_type]?.renderOnBoard ?? DEFAULT_ANIMATION_RULE.renderOnBoard;
   return typeof filter === 'function' ? filter(context) : filter;
 }
 
@@ -186,8 +186,9 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   const currentEventType = getMetadataString(context.entry.metadata, 'event_type');
 
   // Thunder draw_event should not be skipped by immediate damage chaining.
+  // Total: popup 2800ms + gap 200ms + lightning effect ~700ms + hit pause 200ms = 3900ms
   if (currentActionType === 'draw_event' && currentEventType === 'thunder' && nextActionType === 'damage') {
-    return 2800 + EFFECT_START_GAP_MS + DRAW_EVENT_EFFECT_EXTRA_MS;
+    return 2800 + EFFECT_START_GAP_MS + 700;
   }
 
   // Ghost_hit draw_event should chain to damage with overlap (popup must finish first).
@@ -213,6 +214,33 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   // Relic draw_event has a custom animation (chest appear + bomb + weapon fly-out + disappear).
   if (currentActionType === 'draw_event' && currentEventType === 'relic') {
     return RELIC_ANIMATION_DELAY_MS;
+  }
+
+  // Boss battle dynamic transition delays.
+  // Derived entries should be consumed shortly after the boss dissolve
+  // animation's "hit moment" (dissolve + hold), not after the full animation.
+  // The hit moment is when onDissolveComplete fires the attack/skill effects.
+  // Hit moment = BOSS_BATTLE_DISSOLVE_DURATION + BOSS_BATTLE_HOLD_DURATION + ~200ms pause
+  const bossHitMomentDelay = BOSS_BATTLE_DISSOLVE_DURATION + BOSS_BATTLE_HOLD_DURATION + 200;
+
+  if (currentActionType === 'boss_damage' && context.nextEntry) {
+    const remainingHp = getMetadataNumber(context.entry.metadata, 'boss_remaining_hp');
+    if (remainingHp !== null && remainingHp <= 0) {
+      return BOSS_DEFEATED_ANIMATION_DELAY_MS;
+    }
+    const baseDelay = getMetadataBoolean(context.entry.metadata, 'is_crit') ? 2000 : 1800;
+    return Math.max(baseDelay, bossHitMomentDelay);
+  }
+
+  if (currentActionType === 'boss_attack' && context.nextEntry) {
+    const baseDelay = getMetadataString(context.entry.metadata, 'attack_type') === 'crit' ? 1900 : 1800;
+    return Math.max(baseDelay, bossHitMomentDelay);
+  }
+
+  if (currentActionType === 'boss_skill' && context.nextEntry) {
+    const skillType = getMetadataString(context.entry.metadata, 'skill_type');
+    const baseDelay = skillType === 'thunder' ? 2300 : (skillType === 'curse' || skillType === 'rest' ? 1900 : 1800);
+    return Math.max(baseDelay, bossHitMomentDelay);
   }
 
   if (context.nextEntry) {
