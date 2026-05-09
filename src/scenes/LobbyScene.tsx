@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
-import { assetCssUrl, assetImageCssUrl } from '../utils/assets';
+import { assetCssUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const factionMeta: Record<string, { label: string }> = {
@@ -244,7 +244,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100vw',
     height: '100vh',
     overflow: 'hidden',
-    backgroundImage: assetImageCssUrl('assets/waiting.png'),
+    backgroundImage: assetCssUrl('assets/waiting.webp'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',

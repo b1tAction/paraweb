@@ -32,7 +32,7 @@ import {
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
 import type { Available, Item, Player } from '../types/protocol';
-import { assetCssUrl, assetImageCssUrl, assetUrl } from '../utils/assets';
+import { assetCssUrl, assetUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string; textColor?: string }> = {
@@ -1824,7 +1824,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: 'min(560px, calc(100vw - 40px))',
     minHeight: '320px',
     padding: '42px 34px 28px',
-    backgroundImage: assetImageCssUrl('assets/frame/frame_choose.png'),
+    backgroundImage: assetCssUrl('assets/frame/frame_choose.webp'),
     backgroundSize: '700px auto',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',

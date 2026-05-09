@@ -355,7 +355,7 @@ export class ForestBoardScene extends Phaser.Scene {
       });
     });
 
-    this.load.image('event-popup-frame', assetUrl('assets/frame/event_frame.png'));
+    this.load.image('event-popup-frame', assetUrl('assets/frame/event_frame.webp'));
 
     this.load.spritesheet(BLACKHOLE_TEXTURE_KEY, assetUrl('assets/effects/Black-hole.png'), {
       frameWidth: 72,

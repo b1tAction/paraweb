@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseRoomLabel } from '../api/nakama';
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
-import { assetImageCssUrl } from '../utils/assets';
+import { assetCssUrl } from '../utils/assets';
 
 type RoomListItem = {
   match_id?: string;
@@ -268,7 +268,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '28px',
-    backgroundImage: assetImageCssUrl('assets/cover.png'),
+    backgroundImage: assetCssUrl('assets/cover.webp'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',
