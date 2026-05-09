@@ -118,8 +118,7 @@ function shouldApplyImmediatePlayerStatUpdate(actionType: string) {
     actionType === 'death' ||
     actionType === 'heal' ||
     actionType === 'modify_lp' ||
-    actionType === 'fell_down' ||
-    actionType === 'boss_damage'
+    actionType === 'fell_down'
   );
 }
 
