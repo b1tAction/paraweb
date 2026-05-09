@@ -15,10 +15,26 @@ const factionMeta: Record<string, { label: string }> = {
 };
 
 const playerSlots = [
-  { key: 'left', position: { left: '37.5%', top: '76%' } },
-  { key: 'top', position: { left: '50%', top: '64%' } },
-  { key: 'right', position: { left: '62.5%', top: '76%' } },
-  { key: 'bottom', position: { left: '50%', top: '90%' } },
+  {
+    key: 'left',
+    position: { left: '37.5%', top: '70%' },
+    panel: { left: '50%', top: '70%', transform: 'translateX(-50%)', textAlign: 'center' as const },
+  },
+  {
+    key: 'top',
+    position: { left: '50%', top: '58%' },
+    panel: { left: '50%', top: '67%', transform: 'translateX(-50%)', textAlign: 'center' as const },
+  },
+  {
+    key: 'right',
+    position: { left: '62.5%', top: '70%' },
+    panel: { left: '50%', top: '70%', transform: 'translateX(-50%)', textAlign: 'center' as const },
+  },
+  {
+    key: 'bottom',
+    position: { left: '50%', top: '85%' },
+    panel: { left: '50%', top: '85%', transform: 'translateX(-50%)', textAlign: 'center' as const },
+  },
 ] as const;
 
 export const GameOverScene: React.FC = () => {
@@ -149,11 +165,12 @@ export const GameOverScene: React.FC = () => {
               }}
             >
               <div style={styles.figureViewport} aria-hidden="true">
-                <PhaserCharacterPreview faction={player.faction} width={224} height={224} style={styles.figureCanvas} />
+                <PhaserCharacterPreview faction={player.faction} width={256} height={256} style={styles.figureCanvas} />
               </div>
               <div
                 style={{
                   ...styles.playerPanel,
+                  ...slot.panel,
                   ...(isWinner ? styles.winnerPlayerPanel : undefined),
                 }}
               >
@@ -356,7 +373,7 @@ const styles: Record<string, React.CSSProperties> = {
   playerSlot: {
     position: 'absolute',
     transform: 'translate(-50%, -100%)',
-    width: 'clamp(160px, 13.5vw, 224px)',
+    width: 'clamp(168px, 14.6vw, 256px)',
     aspectRatio: '1 / 1',
     display: 'flex',
     alignItems: 'stretch',
@@ -378,9 +395,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   playerPanel: {
     position: 'absolute',
-    left: '50%',
-    top: '80%',
-    transform: 'translateX(-50%)',
     minWidth: 'clamp(110px, 10vw, 156px)',
     maxWidth: 'min(220px, 22vw)',
     padding: '7px 9px',
