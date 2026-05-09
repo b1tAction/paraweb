@@ -152,11 +152,17 @@ function playBossBattleDissolveAnimation(
   const worldWidth = cam.width / zoom;
   const worldHeight = cam.height / zoom;
 
-  // Compute center marker's normalized viewport position for uCenter
+  // Compute center marker's normalized viewport position for uCenter.
+  // If centerMarker is outside the camera viewport (e.g. player on a distant
+  // part of the map), uCenter would fall outside [0,1] range, causing the
+  // dissolve expansion to never reach all viewport pixels even at progress=1.
+  // Fallback to viewport center (0.5, 0.5) when marker is off-screen so the
+  // shader always covers the entire viewport.
   const screenX = (centerMarker.x - cam.worldView.x) * zoom;
   const screenY = (centerMarker.y - cam.worldView.y) * zoom;
-  const uCenterX = screenX / cam.width;
-  const uCenterY = 1.0 - screenY / cam.height;
+  const isOffScreen = screenX < 0 || screenX > cam.width || screenY < 0 || screenY > cam.height;
+  const uCenterX = isOffScreen ? 0.5 : screenX / cam.width;
+  const uCenterY = isOffScreen ? 0.5 : 1.0 - screenY / cam.height;
 
   const progressHolder = { value: 0 };
   const shaderObj = ctx.scene.add.shader(
