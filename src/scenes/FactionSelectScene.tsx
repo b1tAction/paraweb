@@ -201,7 +201,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 'clamp(18px, 3.4vh, 34px)',
     padding: '84px 28px 44px',
     boxSizing: 'border-box',
-    backgroundImage: assetCssUrl('assets/waiting.png'),
+    backgroundImage: assetCssUrl('assets/waiting.webp'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',

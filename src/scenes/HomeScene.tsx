@@ -169,7 +169,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: '28px',
     padding: '24px',
-    backgroundImage: assetCssUrl('assets/cover.png'),
+    backgroundImage: assetCssUrl('assets/cover.webp'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',

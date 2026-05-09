@@ -92,7 +92,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '28px',
-    backgroundImage: assetCssUrl('assets/cover.png'),
+    backgroundImage: assetCssUrl('assets/cover.webp'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',

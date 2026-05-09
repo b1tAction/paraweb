@@ -244,7 +244,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100vw',
     height: '100vh',
     overflow: 'hidden',
-    backgroundImage: assetCssUrl('assets/waiting.png'),
+    backgroundImage: assetCssUrl('assets/waiting.webp'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
