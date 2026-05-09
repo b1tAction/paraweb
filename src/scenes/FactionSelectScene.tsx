@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
-import { assetCssUrl } from '../utils/assets';
+import { assetCssUrl, assetImageCssUrl } from '../utils/assets';
 
 const factionOptions = [
   {
@@ -201,7 +201,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 'clamp(18px, 3.4vh, 34px)',
     padding: '84px 28px 44px',
     boxSizing: 'border-box',
-    backgroundImage: assetCssUrl('assets/waiting.png'),
+    backgroundImage: assetImageCssUrl('assets/waiting.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',

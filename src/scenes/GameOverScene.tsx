@@ -4,7 +4,7 @@ import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
 import { isBossPlayer } from '../game/bossVisualConfig';
 import { gameService } from '../service/NakamaService';
 import { useGameStore } from '../store/gameStore';
-import { assetCssUrl } from '../utils/assets';
+import { assetCssUrl, assetImageCssUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const factionMeta: Record<string, { label: string }> = {
@@ -242,7 +242,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100vw',
     height: '100vh',
     overflow: 'hidden',
-    backgroundImage: assetCssUrl('assets/waiting.png'),
+    backgroundImage: assetImageCssUrl('assets/waiting.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
@@ -261,7 +261,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     color: '#fff8d7',
-    backgroundImage: assetCssUrl('assets/waiting.png'),
+    backgroundImage: assetImageCssUrl('assets/waiting.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',

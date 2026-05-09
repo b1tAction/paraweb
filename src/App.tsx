@@ -5,7 +5,7 @@
  */
 
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import {
   BoardScene,
   CreateRoomScene,
@@ -132,12 +132,16 @@ const App: React.FC = () => {
         </header>
       )}
       <main style={isHomeScene ? { ...styles.main, ...styles.homeMain } : styles.main}>
-        <SceneComponent />
+        <Suspense fallback={<LoadingScene />}>
+          <SceneComponent />
+        </Suspense>
       </main>
 
       {isMiniGameOverlay && (
         <div style={styles.overlay}>
-          <MiniGameSubmitRankScene />
+          <Suspense fallback={<LoadingScene />}>
+            <MiniGameSubmitRankScene />
+          </Suspense>
         </div>
       )}
 

@@ -6,7 +6,7 @@ import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
-import { assetCssUrl, assetUrl } from '../utils/assets';
+import { assetCssUrl, assetImageCssUrl, assetUrl } from '../utils/assets';
 
 async function getErrorMessage(err: unknown): Promise<string> {
   if (err instanceof Error && err.message) return err.message;
@@ -169,7 +169,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: '28px',
     padding: '24px',
-    backgroundImage: assetCssUrl('assets/cover.png'),
+    backgroundImage: assetImageCssUrl('assets/cover.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',

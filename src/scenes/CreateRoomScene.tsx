@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import { Scene, useGameStore } from '../store/gameStore';
-import { assetCssUrl } from '../utils/assets';
+import { assetImageCssUrl } from '../utils/assets';
 
 async function getErrorMessage(err: unknown): Promise<string> {
   if (err instanceof Error && err.message) return err.message;
@@ -92,7 +92,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '28px',
-    backgroundImage: assetCssUrl('assets/cover.png'),
+    backgroundImage: assetImageCssUrl('assets/cover.png'),
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',
