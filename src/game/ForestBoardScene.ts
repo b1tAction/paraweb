@@ -47,16 +47,16 @@ import {
   LP_MINUS_TEXTURE_KEY,
   PLAYER_NAME_SCREEN_FONT_SIZE,
   PLAYER_NAME_TEXTURE_RESOLUTION,
+  PROJECTILE_BLACK_CHARGE_ANIMATION_KEY,
+  PROJECTILE_BLACK_CHARGE_FRAME_COUNT,
+  PROJECTILE_BLACK_CHARGE_TEXTURE_KEY,
+  PROJECTILE_BLUE_CHARGE_ANIMATION_KEY,
+  PROJECTILE_BLUE_CHARGE_FRAME_COUNT,
+  PROJECTILE_BLUE_CHARGE_TEXTURE_KEY,
   PROJECTILE_CHARGE_ANIMATION_KEY,
   PROJECTILE_CHARGE_FRAME_COUNT,
   PROJECTILE_CHARGE_TEXTURE_KEY,
-  PROJECTILE_FIREBALL_ANIMATION_KEY,
-  PROJECTILE_FIREBALL_FRAME_COUNT,
-  PROJECTILE_FIREBALL_TEXTURE_KEY,
   PROJECTILE_FRAME_RATE,
-  PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY,
-  PROJECTILE_MAGIC_SPHERE_FRAME_COUNT,
-  PROJECTILE_MAGIC_SPHERE_TEXTURE_KEY,
   PROJECTILE_SPEAR_ANIMATION_KEY,
   PROJECTILE_SPEAR_FRAME_COUNT,
   PROJECTILE_SPEAR_TEXTURE_KEY,
@@ -393,15 +393,17 @@ export class ForestBoardScene extends Phaser.Scene {
       frameHeight: 96,
       spacing: 32,
     });
-    this.load.spritesheet('wizard-black-magic-sphere', assetUrl('assets/figures/wizard_black/Magic_sphere.png'), {
+    // Load projectile sprite sheet: wizard blue charge for boss damage crit
+    this.load.spritesheet('wizard-blue-charge', assetUrl('assets/figures/wizard_blue/Charge.png'), {
       frameWidth: 96,
-      frameHeight: 96,
-      spacing: 32,
+      frameHeight: 64,
+      spacing: 0,
     });
-    this.load.spritesheet('wizard-blue-fireball', assetUrl('assets/figures/wizard_blue/Fireball.png'), {
+    // Load projectile sprite sheet: wizard black charge for boss damage crit
+    this.load.spritesheet('wizard-black-charge', assetUrl('assets/figures/wizard_black/Charge_1.png'), {
       frameWidth: 96,
-      frameHeight: 96,
-      spacing: 32,
+      frameHeight: 128,
+      spacing: 0,
     });
 
     const renderer = getCharacterRenderer(this.characterRenderOptions);
@@ -623,24 +625,24 @@ export class ForestBoardScene extends Phaser.Scene {
       });
     }
 
-    if (!this.anims.exists(PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY)) {
+    if (!this.anims.exists(PROJECTILE_BLACK_CHARGE_ANIMATION_KEY)) {
       this.anims.create({
-        key: PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY,
-        frames: this.anims.generateFrameNumbers(PROJECTILE_MAGIC_SPHERE_TEXTURE_KEY, {
+        key: PROJECTILE_BLACK_CHARGE_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(PROJECTILE_BLACK_CHARGE_TEXTURE_KEY, {
           start: 0,
-          end: PROJECTILE_MAGIC_SPHERE_FRAME_COUNT - 1,
+          end: PROJECTILE_BLACK_CHARGE_FRAME_COUNT - 1,
         }),
         frameRate: PROJECTILE_FRAME_RATE,
         repeat: 0,
       });
     }
 
-    if (!this.anims.exists(PROJECTILE_FIREBALL_ANIMATION_KEY)) {
+    if (!this.anims.exists(PROJECTILE_BLUE_CHARGE_ANIMATION_KEY)) {
       this.anims.create({
-        key: PROJECTILE_FIREBALL_ANIMATION_KEY,
-        frames: this.anims.generateFrameNumbers(PROJECTILE_FIREBALL_TEXTURE_KEY, {
+        key: PROJECTILE_BLUE_CHARGE_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(PROJECTILE_BLUE_CHARGE_TEXTURE_KEY, {
           start: 0,
-          end: PROJECTILE_FIREBALL_FRAME_COUNT - 1,
+          end: PROJECTILE_BLUE_CHARGE_FRAME_COUNT - 1,
         }),
         frameRate: PROJECTILE_FRAME_RATE,
         repeat: 0,

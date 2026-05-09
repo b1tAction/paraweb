@@ -12,16 +12,16 @@ import {
 import { isBossPlayer } from '../bossVisualConfig';
 import { getMetadataString, getMetadataNumber, getMetadataBoolean } from '../logEntryPlayback';
 import { LAYER_EFFECT_BASE, LAYER_SHADER_OVERLAY, LAYER_BOSS_BATTLE_CHARACTER, worldDepth } from '../renderLayers';
-import { GAME_FONT_FAMILY, CHARACTER_HALF_HEIGHT, PROJECTILE_CHARGE_ANIMATION_KEY, PROJECTILE_SPEAR_ANIMATION_KEY, PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY, PROJECTILE_FIREBALL_ANIMATION_KEY, PROJECTILE_FLY_DURATION_MS, BOSS_BATTLE_DISSOLVE_DURATION, BOSS_BATTLE_HOLD_DURATION, BOSS_BATTLE_RECOVERY_DURATION } from '../boardConstants';
+import { GAME_FONT_FAMILY, CHARACTER_HALF_HEIGHT, PROJECTILE_CHARGE_ANIMATION_KEY, PROJECTILE_SPEAR_ANIMATION_KEY, PROJECTILE_BLACK_CHARGE_ANIMATION_KEY, PROJECTILE_BLUE_CHARGE_ANIMATION_KEY, PROJECTILE_BLACK_CHARGE_SCALE, PROJECTILE_BLUE_CHARGE_SCALE, PROJECTILE_FLY_DURATION_MS, BOSS_BATTLE_DISSOLVE_DURATION, BOSS_BATTLE_HOLD_DURATION, BOSS_BATTLE_RECOVERY_DURATION } from '../boardConstants';
 import { BOSS_BATTLE_DISSOLVE_SHADER_NAME, BOSS_BATTLE_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/bossBattleDissolve';
 import type { BoardAnimationContext } from './eventAnimations';
 
-// Map profile id to projectile animation key for boss damage crit
-const PROFILE_ID_TO_PROJECTILE_ANIM: Record<string, string> = {
-  green: PROJECTILE_CHARGE_ANIMATION_KEY,
-  red: PROJECTILE_SPEAR_ANIMATION_KEY,
-  white: PROJECTILE_FIREBALL_ANIMATION_KEY,
-  black: PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY,
+// Map profile id to projectile animation key and scale for boss damage crit
+const PROFILE_ID_TO_PROJECTILE: Record<string, { animKey: string; scale: number }> = {
+  green: { animKey: PROJECTILE_CHARGE_ANIMATION_KEY, scale: 1.5 },
+  red: { animKey: PROJECTILE_SPEAR_ANIMATION_KEY, scale: 1.5 },
+  white: { animKey: PROJECTILE_BLUE_CHARGE_ANIMATION_KEY, scale: PROJECTILE_BLUE_CHARGE_SCALE },
+  black: { animKey: PROJECTILE_BLACK_CHARGE_ANIMATION_KEY, scale: PROJECTILE_BLACK_CHARGE_SCALE },
 };
 
 // --- Helper functions ---
@@ -152,11 +152,17 @@ function playBossBattleDissolveAnimation(
   const worldWidth = cam.width / zoom;
   const worldHeight = cam.height / zoom;
 
-  // Compute center marker's normalized viewport position for uCenter
+  // Compute center marker's normalized viewport position for uCenter.
+  // If centerMarker is outside the camera viewport (e.g. player on a distant
+  // part of the map), uCenter would fall outside [0,1] range, causing the
+  // dissolve expansion to never reach all viewport pixels even at progress=1.
+  // Fallback to viewport center (0.5, 0.5) when marker is off-screen so the
+  // shader always covers the entire viewport.
   const screenX = (centerMarker.x - cam.worldView.x) * zoom;
   const screenY = (centerMarker.y - cam.worldView.y) * zoom;
-  const uCenterX = screenX / cam.width;
-  const uCenterY = 1.0 - screenY / cam.height;
+  const isOffScreen = screenX < 0 || screenX > cam.width || screenY < 0 || screenY > cam.height;
+  const uCenterX = isOffScreen ? 0.5 : screenX / cam.width;
+  const uCenterY = isOffScreen ? 0.5 : 1.0 - screenY / cam.height;
 
   const progressHolder = { value: 0 };
   const shaderObj = ctx.scene.add.shader(
@@ -271,12 +277,13 @@ function playProjectileFly(
   toX: number,
   toY: number,
   animKey: string,
+  scale: number,
   depthBase = LAYER_EFFECT_BASE
 ): void {
   const projectile = ctx.scene.add.sprite(fromX, fromY, animKey);
   projectile.setOrigin(0.5, 0.5);
   projectile.setDepth(worldDepth(depthBase, fromY) + 50);
-  projectile.setScale(1.5);
+  projectile.setScale(scale);
   projectile.play(animKey);
 
   ctx.tweens.add({
@@ -513,11 +520,11 @@ function playBossDamageEffects(ctx: BoardAnimationContext, context: LogEntryAnim
       }
 
       // Launch projectile from source to boss
-      const projectileAnimKey = sourceProfileId ? PROFILE_ID_TO_PROJECTILE_ANIM[sourceProfileId] : undefined;
-      if (projectileAnimKey) {
+      const projectileConfig = sourceProfileId ? PROFILE_ID_TO_PROJECTILE[sourceProfileId] : undefined;
+      if (projectileConfig) {
         const sourcePoint = getMarkerEffectPoint(sourceMarker, ctx, entry.source);
         const bossPoint = getMarkerEffectPoint(bossMarker, ctx, bossPlayer.player_id);
-        playProjectileFly(ctx, sourcePoint.x, sourcePoint.y, bossPoint.x, bossPoint.y, projectileAnimKey, depthBase);
+        playProjectileFly(ctx, sourcePoint.x, sourcePoint.y, bossPoint.x, bossPoint.y, projectileConfig.animKey, projectileConfig.scale, depthBase);
       }
     } else if (sourceProfile) {
       // Normal: random attack_1 or attack_2
