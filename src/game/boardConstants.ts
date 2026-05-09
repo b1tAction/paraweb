@@ -60,13 +60,15 @@ export const PROJECTILE_SPEAR_TEXTURE_KEY = 'witch-red-spear';
 export const PROJECTILE_SPEAR_ANIMATION_KEY = 'witch_red_spear_anim';
 export const PROJECTILE_SPEAR_FRAME_COUNT = 10;
 
-export const PROJECTILE_MAGIC_SPHERE_TEXTURE_KEY = 'wizard-black-magic-sphere';
-export const PROJECTILE_MAGIC_SPHERE_ANIMATION_KEY = 'wizard_black_magic_sphere_anim';
-export const PROJECTILE_MAGIC_SPHERE_FRAME_COUNT = 16;
+export const PROJECTILE_BLACK_CHARGE_TEXTURE_KEY = 'wizard-black-charge';
+export const PROJECTILE_BLACK_CHARGE_ANIMATION_KEY = 'wizard_black_charge_anim';
+export const PROJECTILE_BLACK_CHARGE_FRAME_COUNT = 6;
+export const PROJECTILE_BLACK_CHARGE_SCALE = 1.125;
 
-export const PROJECTILE_FIREBALL_TEXTURE_KEY = 'wizard-blue-fireball';
-export const PROJECTILE_FIREBALL_ANIMATION_KEY = 'wizard_blue_fireball_anim';
-export const PROJECTILE_FIREBALL_FRAME_COUNT = 8;
+export const PROJECTILE_BLUE_CHARGE_TEXTURE_KEY = 'wizard-blue-charge';
+export const PROJECTILE_BLUE_CHARGE_ANIMATION_KEY = 'wizard_blue_charge_anim';
+export const PROJECTILE_BLUE_CHARGE_FRAME_COUNT = 8;
+export const PROJECTILE_BLUE_CHARGE_SCALE = 2.25;
 
 export const PROJECTILE_FRAME_RATE = 10;
 export const PROJECTILE_FLY_DURATION_MS = 400;
