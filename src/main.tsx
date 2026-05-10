@@ -47,11 +47,14 @@ const loadFullFont = () => {
     style: 'normal',
     display: 'swap',
   });
-  fullFont.load().then((loaded) => {
-    document.fonts.add(loaded);
-  }).catch(() => {
-    // Network failure is tolerable — subset font covers most characters
-  });
+  fullFont
+    .load()
+    .then((loaded) => {
+      document.fonts.add(loaded);
+    })
+    .catch(() => {
+      // Network failure is tolerable — subset font covers most characters
+    });
 };
 
 if (typeof window.requestIdleCallback === 'function') {

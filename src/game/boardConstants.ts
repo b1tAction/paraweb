@@ -101,9 +101,9 @@ export const DIZZY_TOTAL_EFFECT_MS = 1500; // total dizzy effect duration
 export const DIZZY_TINT_COLOR = 0x9c27b0; // purple tint for stunned look
 
 // Boss battle dissolve animation timing constants (ms)
-export const BOSS_BATTLE_DISSOLVE_DURATION = 600;     // dissolve phase shader progress 0→1
-export const BOSS_BATTLE_HOLD_DURATION = 700;          // hold at full dissolve (boss charge-up pause)
-export const BOSS_BATTLE_RECOVERY_DURATION = 500;      // recovery phase shader progress 1→0
+export const BOSS_BATTLE_DISSOLVE_DURATION = 600; // dissolve phase shader progress 0→1
+export const BOSS_BATTLE_HOLD_DURATION = 700; // hold at full dissolve (boss charge-up pause)
+export const BOSS_BATTLE_RECOVERY_DURATION = 500; // recovery phase shader progress 1→0
 
 // Relic animation texture and animation keys
 export const RELIC_TEXTURE_KEY = 'relic-chest';
