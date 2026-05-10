@@ -60,15 +60,34 @@ export class NakamaService {
         const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
         const port = window.location.port ? `:${window.location.port}` : '';
         const base = `${protocol}://${browserHost}${port}`;
-        const pathname = window.location.pathname || '';
-        if (pathname === '/game/paradice' || pathname.startsWith('/game/paradice/')) {
-          return `${base}/game/paradice/api`;
+        const apiPath = this.resolveDefaultApiPath(window.location.pathname || '');
+        if (apiPath) {
+          return `${base}${apiPath}`;
         }
         return base;
       }
     }
 
     return '127.0.0.1:17350';
+  }
+
+  private resolveDefaultApiPath(pathname: string): string {
+    const basePath = this.resolveAppBasePath();
+    if (!basePath) return '';
+
+    const normalizedPathname = pathname.endsWith('/') ? pathname : `${pathname}/`;
+    if (normalizedPathname !== basePath && !normalizedPathname.startsWith(basePath)) return '';
+
+    return `${basePath}api`;
+  }
+
+  private resolveAppBasePath(): string {
+    const rawBaseUrl = import.meta.env.BASE_URL?.trim() || '/';
+    if (rawBaseUrl === './' || rawBaseUrl === '/') return '';
+
+    const parsedPath = new URL(rawBaseUrl, window.location.origin).pathname;
+    const normalizedPath = parsedPath.replace(/^\/+|\/+$/g, '');
+    return normalizedPath ? `/${normalizedPath}/` : '';
   }
 
   private loadServerConfig(): NakamaEndpoint {
