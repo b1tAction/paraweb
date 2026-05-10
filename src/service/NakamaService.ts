@@ -59,7 +59,12 @@ export class NakamaService {
       if (browserHost && browserHost !== 'localhost' && browserHost !== 'wails.localhost') {
         const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
         const port = window.location.port ? `:${window.location.port}` : '';
-        return `${protocol}://${browserHost}${port}`;
+        const base = `${protocol}://${browserHost}${port}`;
+        const pathname = window.location.pathname || '';
+        if (pathname === '/game/paradice' || pathname.startsWith('/game/paradice/')) {
+          return `${base}/game/paradice/api`;
+        }
+        return base;
       }
     }
 

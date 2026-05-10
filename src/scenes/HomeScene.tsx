@@ -140,7 +140,7 @@ export const StartScene: React.FC = () => {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveServerConfig();
                 }}
-                placeholder="https://bitaction.cn"
+                placeholder="https://bitaction.cn/game/paradice/api"
                 style={styles.input}
                 autoCapitalize="none"
                 autoCorrect="off"
