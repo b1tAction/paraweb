@@ -35,6 +35,8 @@ import type { Available, Item, Player } from '../types/protocol';
 import { assetCssUrl, assetUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
+const SHOW_DEV_DEBUG_UI = import.meta.env.DEV;
+
 const FACTION_META: Record<string, { label: string; color: string; bgColor: string; textColor?: string }> = {
   qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
   zhu_que: { label: '朱雀', color: '#e62b62', bgColor: 'rgba(253, 228, 237, 0.9)' },
@@ -951,6 +953,45 @@ export const BoardScene: React.FC = () => {
     return () => window.clearTimeout(timeoutId);
   }, [diceRollView]);
 
+  const bossStatusPanel = bossPlayer ? (
+    <div style={styles.rightPanel}>
+      <div style={styles.bossSection}>
+        <div style={styles.bossHeader}>
+          <div style={styles.bossAvatar}>
+            <img
+              src={BOSS_BEAST_PORTRAIT_SRC}
+              alt={`${getPlayerName(bossPlayer.player_id)} 头像`}
+              style={styles.bossAvatarImage}
+            />
+          </div>
+          <div style={styles.bossTitleGroup}>
+            <strong style={styles.bossTitle}>Boss</strong>
+            <span style={styles.bossId} title={bossPlayer.player_id}>
+              {getPlayerName(bossPlayer.player_id)}
+            </span>
+          </div>
+        </div>
+        <div style={styles.bossStats}>
+          <span>HP {bossPlayer.hp}</span>
+          <span>位置 {bossPlayer.position}</span>
+        </div>
+        <div style={styles.buffDots}>
+          {bossPlayer.buffs.length > 0
+            ? bossPlayer.buffs.map((buff) => (
+                <img
+                  key={buff.type}
+                  title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
+                  src={getBuffIconSrc(buff.type)}
+                  alt={buff.name || buff.type}
+                  style={styles.buffDot}
+                />
+              ))
+            : null}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div style={styles.sceneRoot}>
       <div style={styles.boardLayer}>
@@ -970,7 +1011,7 @@ export const BoardScene: React.FC = () => {
 
       <div style={styles.uiLayer}>
         <div style={styles.topHud}>
-          <h2 style={styles.title}>主棋盘</h2>
+          {SHOW_DEV_DEBUG_UI && <h2 style={styles.title}>主棋盘</h2>}
           <div style={styles.playerBar}>
             {boardPlayers.map((player) => {
               const faction = getFactionMeta(player.faction);
@@ -1040,53 +1081,17 @@ export const BoardScene: React.FC = () => {
               );
             })}
           </div>
-          <div style={styles.statusSection}>
-            <p style={styles.info}>全局状态：{globalState}</p>
-            <p style={styles.info}>回合状态：{turnState}</p>
-            <p style={styles.info}>当前玩家：{getPlayerName(currentPlayerId)}</p>
-          </div>
-        </div>
-
-        <div style={styles.sidePanels}>
-          {bossPlayer && (
-            <div style={styles.rightPanel}>
-              <div style={styles.bossSection}>
-                <div style={styles.bossHeader}>
-                  <div style={styles.bossAvatar}>
-                    <img
-                      src={BOSS_BEAST_PORTRAIT_SRC}
-                      alt={`${getPlayerName(bossPlayer.player_id)} 头像`}
-                      style={styles.bossAvatarImage}
-                    />
-                  </div>
-                  <div style={styles.bossTitleGroup}>
-                    <strong style={styles.bossTitle}>Boss</strong>
-                    <span style={styles.bossId} title={bossPlayer.player_id}>
-                      {getPlayerName(bossPlayer.player_id)}
-                    </span>
-                  </div>
-                </div>
-                <div style={styles.bossStats}>
-                  <span>HP {bossPlayer.hp}</span>
-                  <span>位置 {bossPlayer.position}</span>
-                </div>
-                <div style={styles.buffDots}>
-                  {bossPlayer.buffs.length > 0
-                    ? bossPlayer.buffs.map((buff) => (
-                        <img
-                          key={buff.type}
-                          title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
-                          src={getBuffIconSrc(buff.type)}
-                          alt={buff.name || buff.type}
-                          style={styles.buffDot}
-                        />
-                      ))
-                    : null}
-                </div>
-              </div>
+          {SHOW_DEV_DEBUG_UI && (
+            <div style={styles.statusSection}>
+              <p style={styles.info}>全局状态：{globalState}</p>
+              <p style={styles.info}>回合状态：{turnState}</p>
+              <p style={styles.info}>当前玩家：{getPlayerName(currentPlayerId)}</p>
             </div>
           )}
+          {!SHOW_DEV_DEBUG_UI && bossStatusPanel}
         </div>
+
+        {SHOW_DEV_DEBUG_UI && bossStatusPanel && <div style={styles.sidePanels}>{bossStatusPanel}</div>}
 
         {myBuffs.length > 0 && (
           <div style={styles.selfBuffPanel}>
@@ -1355,18 +1360,21 @@ export const BoardScene: React.FC = () => {
           </div>
         )}
 
-        {/* Debug Log Panel - bottom-left */}
-        <div style={styles.debugLogPanel}>
-          <div style={styles.debugLogHeader}>Action Log R{storeRound}</div>
-          <div ref={debugLogContentRef} style={styles.debugLogContent}>
-            {playedEntries
-              .filter((entry) => entry.type === 'action' || entry.type === 'boss')
-              .map((entry) => (
-                <DebugLogEntry key={getLogEntryKey(entry)} entry={entry} players={players} />
-              ))}
-            {pendingEntries.length > 0 && <div style={styles.debugLogPending}>+{pendingEntries.length} pending...</div>}
+        {SHOW_DEV_DEBUG_UI && (
+          <div style={styles.debugLogPanel}>
+            <div style={styles.debugLogHeader}>Action Log R{storeRound}</div>
+            <div ref={debugLogContentRef} style={styles.debugLogContent}>
+              {playedEntries
+                .filter((entry) => entry.type === 'action' || entry.type === 'boss')
+                .map((entry) => (
+                  <DebugLogEntry key={getLogEntryKey(entry)} entry={entry} players={players} />
+                ))}
+              {pendingEntries.length > 0 && (
+                <div style={styles.debugLogPending}>+{pendingEntries.length} pending...</div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
