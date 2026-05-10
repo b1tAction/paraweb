@@ -136,7 +136,7 @@ function clampBossStat(value: number) {
 
 function normalizeHp(player: Player) {
   const maxHp = player.max_hp || PLAYER_STAT_MAX;
-  return isBossPlayer(player) ? clampBossStat(player.hp) : Math.max(0, Math.min(maxHp, player.hp));
+  return Math.max(0, Math.min(maxHp, player.hp));
 }
 
 function normalizeLp(player: Player) {
