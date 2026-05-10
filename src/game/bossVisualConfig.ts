@@ -2,16 +2,15 @@ import type { Player } from '../types/protocol';
 import { assetUrl } from '../utils/assets';
 
 export const BOSS_BEAST_PROFILE_ID = 'boss_beast';
-export const BOSS_BEAST_ASSET_BASE = assetUrl('assets/boss/beast');
 
 export const BOSS_BEAST_ASSETS = {
   portrait: {
     textureKey: 'boss_beast_portrait',
-    textureUrl: `${BOSS_BEAST_ASSET_BASE}/portrait.png`,
+    textureUrl: assetUrl('assets/boss/beast/portrait.png'),
   },
   idle: {
     textureKey: 'boss_beast_idle',
-    textureUrl: `${BOSS_BEAST_ASSET_BASE}/idle.png`,
+    textureUrl: assetUrl('assets/boss/beast/idle.png'),
     frameWidth: 256,
     frameHeight: 256,
     frameCount: 8,
@@ -20,7 +19,7 @@ export const BOSS_BEAST_ASSETS = {
   },
   attack: {
     textureKey: 'boss_beast_attack',
-    textureUrl: `${BOSS_BEAST_ASSET_BASE}/attack.png`,
+    textureUrl: assetUrl('assets/boss/beast/attack.png'),
     frameWidth: 256,
     frameHeight: 256,
     frameCount: 8,
@@ -29,7 +28,7 @@ export const BOSS_BEAST_ASSETS = {
   },
   hurt: {
     textureKey: 'boss_beast_hurt',
-    textureUrl: `${BOSS_BEAST_ASSET_BASE}/hurt.png`,
+    textureUrl: assetUrl('assets/boss/beast/hurt.png'),
     frameWidth: 256,
     frameHeight: 256,
     frameCount: 2,
@@ -38,7 +37,7 @@ export const BOSS_BEAST_ASSETS = {
   },
   skillCast: {
     textureKey: 'boss_beast_skill_cast',
-    textureUrl: `${BOSS_BEAST_ASSET_BASE}/skill_cast.png`,
+    textureUrl: assetUrl('assets/boss/beast/skill_cast.png'),
     frameWidth: 256,
     frameHeight: 256,
     frameCount: 8,
@@ -47,7 +46,7 @@ export const BOSS_BEAST_ASSETS = {
   },
   defeated: {
     textureKey: 'boss_beast_defeated',
-    textureUrl: `${BOSS_BEAST_ASSET_BASE}/defeated.png`,
+    textureUrl: assetUrl('assets/boss/beast/defeated.png'),
     frameWidth: 256,
     frameHeight: 256,
     frameCount: 8,

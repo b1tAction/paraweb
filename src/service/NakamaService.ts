@@ -5,7 +5,7 @@
  * 实现消息监听、路由和场景切换逻辑
  */
 
-import { Client, type Match, type MatchData, Session, type Socket } from '@heroiclabs/nakama-js';
+import { Client, type Match, type MatchData, type Session, type Socket } from '@heroiclabs/nakama-js';
 import * as opcodes from '../api/opcodes';
 import { Scene, useGameStore } from '../store/gameStore';
 import type * as protocol from '../types/protocol';
@@ -16,6 +16,12 @@ import {
   type NakamaEndpoint,
   parseNakamaEndpoint,
 } from '../utils/nakamaEndpoint';
+
+type ServerConfig = NakamaEndpoint & {
+  sdkPort: string;
+  httpApiBaseUrl: string;
+  webSocketUrl: string;
+};
 
 /**
  * NakamaService 类
@@ -32,8 +38,6 @@ export class NakamaService {
   // Device ID prefix for device-UUID-based authentication
   private readonly DEVICE_ID_PREFIX = 'paradiced_';
   // LocalStorage keys
-  private readonly STORAGE_KEY_TOKEN = 'paradiced_session_token';
-  private readonly STORAGE_KEY_REFRESH_TOKEN = 'paradiced_refresh_token';
   private readonly STORAGE_KEY_USERNAME = 'paradiced_username';
   private readonly STORAGE_KEY_DEVICE_UUID = 'paradiced_device_uuid';
   private readonly STORAGE_KEY_NAKAMA_ENDPOINT = 'paradiced_nakama_endpoint';
@@ -90,6 +94,19 @@ export class NakamaService {
     return normalizedPath ? `/${normalizedPath}/` : '';
   }
 
+  private getDefaultEndpoint(): NakamaEndpoint {
+    return parseNakamaEndpoint(this.DEFAULT_ENDPOINT_INPUT);
+  }
+
+  private buildServerConfig(endpoint: NakamaEndpoint): ServerConfig {
+    return {
+      ...endpoint,
+      sdkPort: getNakamaSdkPort(endpoint),
+      httpApiBaseUrl: getNakamaHttpApiBaseUrl(endpoint),
+      webSocketUrl: getNakamaWebSocketUrl(endpoint),
+    };
+  }
+
   private loadServerConfig(): NakamaEndpoint {
     this.removeLegacyServerConfig();
 
@@ -103,7 +120,36 @@ export class NakamaService {
       }
     }
 
-    return parseNakamaEndpoint(this.DEFAULT_ENDPOINT_INPUT);
+    return this.getDefaultEndpoint();
+  }
+
+  getDefaultServerConfig(): ServerConfig {
+    return this.buildServerConfig(this.getDefaultEndpoint());
+  }
+
+  getServerConfig(): ServerConfig {
+    return this.buildServerConfig(this.endpoint);
+  }
+
+  getStoredDisplayName(): string {
+    return localStorage.getItem(this.STORAGE_KEY_USERNAME)?.trim() || '';
+  }
+
+  setServerConfig(endpointInput: string) {
+    const nextEndpoint = parseNakamaEndpoint(endpointInput);
+
+    this.endpoint = nextEndpoint;
+    localStorage.setItem(this.STORAGE_KEY_NAKAMA_ENDPOINT, nextEndpoint.endpoint);
+    this.removeLegacyServerConfig();
+    this.rebuildClient();
+
+    console.log('[Nakama] 服务器配置已更新', {
+      endpoint: this.endpoint.endpoint,
+      host: this.endpoint.host,
+      port: this.endpoint.port,
+      path: this.endpoint.path,
+      useSSL: this.endpoint.useSSL,
+    });
   }
 
   private removeLegacyServerConfig() {
@@ -170,32 +216,6 @@ export class NakamaService {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
 
-  getServerConfig(): NakamaEndpoint & { sdkPort: string; httpApiBaseUrl: string; webSocketUrl: string } {
-    return {
-      ...this.endpoint,
-      sdkPort: getNakamaSdkPort(this.endpoint),
-      httpApiBaseUrl: getNakamaHttpApiBaseUrl(this.endpoint),
-      webSocketUrl: getNakamaWebSocketUrl(this.endpoint),
-    };
-  }
-
-  setServerConfig(endpointInput: string) {
-    const nextEndpoint = parseNakamaEndpoint(endpointInput);
-
-    this.endpoint = nextEndpoint;
-    localStorage.setItem(this.STORAGE_KEY_NAKAMA_ENDPOINT, nextEndpoint.endpoint);
-    this.removeLegacyServerConfig();
-    this.rebuildClient();
-
-    console.log('[Nakama] 服务器配置已更新', {
-      endpoint: this.endpoint.endpoint,
-      host: this.endpoint.host,
-      port: this.endpoint.port,
-      path: this.endpoint.path,
-      useSSL: this.endpoint.useSSL,
-    });
-  }
-
   /**
    * 构建 joinMatch metadata，确保 display_name 和 faction 始终可用。
    * - display_name: 优先使用调用方传入的，其次 store.displayName，最后 session.username
@@ -224,7 +244,7 @@ export class NakamaService {
    *
    * Uses Nakama's device authentication with a persistent device UUID.
    * One device = one account, regardless of display name.
-   * Called by HomeScene "开始游戏" button when restoreSession fails.
+   * Called by HomeScene "开始游戏" button when no active session exists.
    *
    * Flow:
    * 1. Get/create deviceUUID → deviceId = paradiced_{deviceUUID}
@@ -270,9 +290,7 @@ export class NakamaService {
       display_name: displayName,
     });
 
-    // Save session tokens and display name
-    localStorage.setItem(this.STORAGE_KEY_TOKEN, session.token);
-    localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
+    // Save display name for the next app start.
     localStorage.setItem(this.STORAGE_KEY_USERNAME, displayName);
 
     // Create and connect socket
@@ -349,9 +367,7 @@ export class NakamaService {
       username: session.username,
     });
 
-    // Save session tokens and username to localStorage (for restore)
-    localStorage.setItem(this.STORAGE_KEY_TOKEN, session.token);
-    localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
+    // Save username for the next app start.
     localStorage.setItem(this.STORAGE_KEY_USERNAME, username);
 
     // Create and connect socket
@@ -392,9 +408,7 @@ export class NakamaService {
       username: session.username,
     });
 
-    // 保存 session token 和 refresh token 到 localStorage (用于恢复登录)
-    localStorage.setItem(this.STORAGE_KEY_TOKEN, session.token);
-    localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
+    localStorage.setItem(this.STORAGE_KEY_USERNAME, username);
 
     // 创建并连接 socket
     const socket = this.createConfiguredSocket();
@@ -412,85 +426,12 @@ export class NakamaService {
   }
 
   /**
-   * 2. 恢复会话 (使用之前保存的 token)
+   * 2. 登出
    *
-   * 刷新页面时，使用 localStorage 中的 session token 恢复登录状态
-   * 避免用户每次都输入密码
-   *
-   * @returns 成功恢复返回 true，否则返回 false
-   */
-  async restoreSession(): Promise<boolean> {
-    const savedToken = localStorage.getItem(this.STORAGE_KEY_TOKEN);
-    const savedRefreshToken = localStorage.getItem(this.STORAGE_KEY_REFRESH_TOKEN);
-
-    if (!savedToken) {
-      console.log('[Nakama] 没有找到保存的 session token');
-      return false;
-    }
-
-    try {
-      console.log('[Nakama] 尝试恢复 session...');
-
-      // 使用 Session.restore 从 token 恢复 session
-      // 注意：这里我们只用 token，refreshToken 参数传空字符串也可以
-      let session = Session.restore(savedToken, savedRefreshToken || '');
-
-      // 检查 token 是否过期
-      const nowSeconds = Math.floor(Date.now() / 1000);
-      if (session.isexpired(nowSeconds)) {
-        console.log('[Nakama] Session 已过期，尝试刷新...');
-
-        // 如果 token 过期了，尝试用 refresh token 刷新
-        try {
-          session = await this.client.sessionRefresh(session);
-          localStorage.setItem(this.STORAGE_KEY_TOKEN, session.token);
-          localStorage.setItem(this.STORAGE_KEY_REFRESH_TOKEN, session.refresh_token);
-          console.log('[Nakama] Session 刷新成功');
-        } catch {
-          console.log('[Nakama] Session 刷新失败，需要重新登录');
-          localStorage.removeItem(this.STORAGE_KEY_TOKEN);
-          localStorage.removeItem(this.STORAGE_KEY_REFRESH_TOKEN);
-          return false;
-        }
-      }
-
-      console.log('[Nakama] Session 恢复成功', {
-        userId: session.user_id,
-        username: session.username,
-      });
-
-      // 创建并连接 socket
-      const socket = this.createConfiguredSocket();
-      await socket.connect(session, false);
-
-      console.log('[Nakama] WebSocket 连接已建立');
-
-      useGameStore.getState().setConnection(session, socket);
-      useGameStore.getState().setMyPlayerId(session.user_id || '');
-      // Restore displayName from saved username (more reliable than session.username)
-      const savedUsername = localStorage.getItem(this.STORAGE_KEY_USERNAME);
-      useGameStore.getState().setDisplayName(savedUsername || session.username || 'Unknown');
-
-      this.setupListeners(socket);
-
-      return true;
-    } catch (error: unknown) {
-      console.error('[Nakama] Session 恢复失败', error instanceof Error ? error.message : error);
-      localStorage.removeItem(this.STORAGE_KEY_TOKEN);
-      localStorage.removeItem(this.STORAGE_KEY_REFRESH_TOKEN);
-      return false;
-    }
-  }
-
-  /**
-   * 3. 登出
-   *
-   * 清除 localStorage 中的 token 并断开连接。
+   * 清除本地昵称并断开连接。
    * 注意：deviceUUID 保留在 localStorage 中，下次 autoLogin 使用同一账号。
    */
   async logout(): Promise<void> {
-    localStorage.removeItem(this.STORAGE_KEY_TOKEN);
-    localStorage.removeItem(this.STORAGE_KEY_REFRESH_TOKEN);
     localStorage.removeItem(this.STORAGE_KEY_USERNAME);
 
     const { socket, match } = useGameStore.getState();
@@ -504,7 +445,7 @@ export class NakamaService {
   }
 
   /**
-   * 4. 设备认证 (保留用于兼容)
+   * 3. 设备认证 (保留用于兼容)
    * @deprecated 请使用 loginWithPassword 代替
    */
   async connect(deviceId: string, displayName: string): Promise<Session> {

@@ -51,6 +51,9 @@ jobs:
       - name: Build web client
         run: npm run build
 
+      - name: Write web version manifest
+        run: node scripts/write-web-version.mjs "$release_id"
+
       - name: Prepare release archive
         run: tar -czf paraweb.tar.gz -C dist .
 
