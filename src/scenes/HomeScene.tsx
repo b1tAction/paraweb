@@ -20,7 +20,7 @@ async function getErrorMessage(err: unknown): Promise<string> {
 
 export const StartScene: React.FC = () => {
   const { session, displayName } = useGameStore();
-  const [nickname, setNickname] = useState('');
+  const [nickname, setNickname] = useState(() => gameService.getStoredDisplayName() || '');
   const hasHydratedNicknameRef = useRef(false);
   const [serverEndpoint, setServerEndpoint] = useState('');
   const [showServerConfig, setShowServerConfig] = useState(false);
