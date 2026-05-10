@@ -17,6 +17,12 @@ import {
   parseNakamaEndpoint,
 } from '../utils/nakamaEndpoint';
 
+type ServerConfig = NakamaEndpoint & {
+  sdkPort: string;
+  httpApiBaseUrl: string;
+  webSocketUrl: string;
+};
+
 /**
  * NakamaService 类
  *
@@ -90,6 +96,19 @@ export class NakamaService {
     return normalizedPath ? `/${normalizedPath}/` : '';
   }
 
+  private getDefaultEndpoint(): NakamaEndpoint {
+    return parseNakamaEndpoint(this.DEFAULT_ENDPOINT_INPUT);
+  }
+
+  private buildServerConfig(endpoint: NakamaEndpoint): ServerConfig {
+    return {
+      ...endpoint,
+      sdkPort: getNakamaSdkPort(endpoint),
+      httpApiBaseUrl: getNakamaHttpApiBaseUrl(endpoint),
+      webSocketUrl: getNakamaWebSocketUrl(endpoint),
+    };
+  }
+
   private loadServerConfig(): NakamaEndpoint {
     this.removeLegacyServerConfig();
 
@@ -103,7 +122,32 @@ export class NakamaService {
       }
     }
 
-    return parseNakamaEndpoint(this.DEFAULT_ENDPOINT_INPUT);
+    return this.getDefaultEndpoint();
+  }
+
+  getDefaultServerConfig(): ServerConfig {
+    return this.buildServerConfig(this.getDefaultEndpoint());
+  }
+
+  getServerConfig(): ServerConfig {
+    return this.buildServerConfig(this.endpoint);
+  }
+
+  setServerConfig(endpointInput: string) {
+    const nextEndpoint = parseNakamaEndpoint(endpointInput);
+
+    this.endpoint = nextEndpoint;
+    localStorage.setItem(this.STORAGE_KEY_NAKAMA_ENDPOINT, nextEndpoint.endpoint);
+    this.removeLegacyServerConfig();
+    this.rebuildClient();
+
+    console.log('[Nakama] 服务器配置已更新', {
+      endpoint: this.endpoint.endpoint,
+      host: this.endpoint.host,
+      port: this.endpoint.port,
+      path: this.endpoint.path,
+      useSSL: this.endpoint.useSSL,
+    });
   }
 
   private removeLegacyServerConfig() {
@@ -168,32 +212,6 @@ export class NakamaService {
 
     const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  }
-
-  getServerConfig(): NakamaEndpoint & { sdkPort: string; httpApiBaseUrl: string; webSocketUrl: string } {
-    return {
-      ...this.endpoint,
-      sdkPort: getNakamaSdkPort(this.endpoint),
-      httpApiBaseUrl: getNakamaHttpApiBaseUrl(this.endpoint),
-      webSocketUrl: getNakamaWebSocketUrl(this.endpoint),
-    };
-  }
-
-  setServerConfig(endpointInput: string) {
-    const nextEndpoint = parseNakamaEndpoint(endpointInput);
-
-    this.endpoint = nextEndpoint;
-    localStorage.setItem(this.STORAGE_KEY_NAKAMA_ENDPOINT, nextEndpoint.endpoint);
-    this.removeLegacyServerConfig();
-    this.rebuildClient();
-
-    console.log('[Nakama] 服务器配置已更新', {
-      endpoint: this.endpoint.endpoint,
-      host: this.endpoint.host,
-      port: this.endpoint.port,
-      path: this.endpoint.path,
-      useSSL: this.endpoint.useSSL,
-    });
   }
 
   /**

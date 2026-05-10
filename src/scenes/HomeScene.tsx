@@ -126,13 +126,12 @@ export const StartScene: React.FC = () => {
         </button>
 
         <button type="button" onClick={() => setShowServerConfig((visible) => !visible)} style={styles.linkButton}>
-          SERVER
+          SERVER SETTINGS
         </button>
 
         {showServerConfig && (
           <div style={styles.serverPanel}>
             <label style={styles.label}>
-              SERVER ADDRESS
               <input
                 type="text"
                 value={serverEndpoint}
@@ -140,7 +139,7 @@ export const StartScene: React.FC = () => {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveServerConfig();
                 }}
-                placeholder="https://bitaction.cn/game/paradice/api"
+                placeholder={gameService.getDefaultServerConfig().endpoint}
                 style={styles.input}
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -242,6 +241,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'not-allowed',
   },
   secondaryButton: {
+    padding: '12px 13px',
     minHeight: '38px',
     color: '#fff7d6',
     background: 'rgba(255, 247, 214, 0.1)',
@@ -261,7 +261,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   serverPanel: {
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
     gap: '10px',
     paddingTop: '4px',
   },
