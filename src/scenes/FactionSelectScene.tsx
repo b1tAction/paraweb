@@ -288,8 +288,7 @@ const styles: Record<string, React.CSSProperties> = {
     imageRendering: 'pixelated',
   },
   figureStageSelected: {
-    filter:
-      'drop-shadow(0 0 10px rgba(144, 215, 144, 0.93)) drop-shadow(0 0 38px rgb(149, 220, 153))',
+    filter: 'drop-shadow(0 0 10px rgba(144, 215, 144, 0.93)) drop-shadow(0 0 38px rgb(149, 220, 153))',
   },
   factionFigureViewport: {
     width: 'min(500px, 100%)',

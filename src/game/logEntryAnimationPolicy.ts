@@ -1,18 +1,18 @@
 import type { LogEntry } from '../types/protocol';
+import { BOSS_BATTLE_DISSOLVE_DURATION, BOSS_BATTLE_HOLD_DURATION } from './boardConstants';
+import { getEventEffectConfig } from './eventAnimations';
 import {
   DEFAULT_ACTION_ANIMATION_DELAY_MS,
   DICE_RESULT_DISPLAY_MS,
   DICE_ROLL_MIN_MS,
   DICE_UPGRADE_FLASH_MS,
   DICE_UPGRADE_RESULT_MS,
-  MOVE_STEP_MS,
   getMetadataBoolean,
   getMetadataNumber,
   getMetadataNumberArray,
   getMetadataString,
+  MOVE_STEP_MS,
 } from './logEntryPlayback';
-import { BOSS_BATTLE_DISSOLVE_DURATION, BOSS_BATTLE_HOLD_DURATION } from './boardConstants';
-import { getEventEffectConfig } from './eventAnimations';
 
 export type LogEntryAnimationContext = {
   entry: LogEntry;
@@ -26,7 +26,6 @@ type AnimationRenderFilter = boolean | ((context: LogEntryAnimationContext) => b
 
 const IMMEDIATE_NEXT_ACTION_TYPES = new Set(['damage']);
 const BOSS_ACTION_TYPES = new Set(['boss_damage', 'boss_attack', 'boss_skill']);
-
 
 const BOSS_DEFEATED_ANIMATION_DELAY_MS = 2400;
 
@@ -63,7 +62,7 @@ export function isReverseClockLostBuffEntry(entry?: LogEntry | null): entry is L
     entry &&
       entry.action_type === 'add_buff' &&
       entry.source === 'item_reverse_clock_buff' &&
-      getMetadataString(entry.metadata, 'buff_type') === 'lost'
+      getMetadataString(entry.metadata, 'buff_type') === 'lost',
   );
 }
 
@@ -158,7 +157,7 @@ export function isLogEntryAnimationCandidate(entry?: LogEntry | null) {
 
 export function createLogEntryAnimationContext(
   playedEntries: LogEntry[],
-  pendingEntries: LogEntry[]
+  pendingEntries: LogEntry[],
 ): LogEntryAnimationContext | null {
   const entry = pendingEntries[0];
   if (!entry) return null;
@@ -174,7 +173,8 @@ export function createLogEntryAnimationContext(
 export function shouldRenderBoardLogEntryAnimation(context?: LogEntryAnimationContext | null) {
   if (!context || !isLogEntryAnimationCandidate(context.entry)) return false;
 
-  const filter = LOG_ENTRY_ANIMATION_RULES[context.entry.action_type]?.renderOnBoard ?? DEFAULT_ANIMATION_RULE.renderOnBoard;
+  const filter =
+    LOG_ENTRY_ANIMATION_RULES[context.entry.action_type]?.renderOnBoard ?? DEFAULT_ANIMATION_RULE.renderOnBoard;
   return typeof filter === 'function' ? filter(context) : filter;
 }
 
@@ -239,7 +239,7 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
 
   if (currentActionType === 'boss_skill' && context.nextEntry) {
     const skillType = getMetadataString(context.entry.metadata, 'skill_type');
-    const baseDelay = skillType === 'thunder' ? 2300 : (skillType === 'curse' || skillType === 'rest' ? 1900 : 1800);
+    const baseDelay = skillType === 'thunder' ? 2300 : skillType === 'curse' || skillType === 'rest' ? 1900 : 1800;
     return Math.max(baseDelay, bossHitMomentDelay);
   }
 

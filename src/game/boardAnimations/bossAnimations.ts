@@ -1,20 +1,35 @@
-import * as Phaser from 'phaser';
+import type * as Phaser from 'phaser';
 import type { LogEntry, Player } from '../../types/protocol';
-import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
+import {
+  BOSS_BATTLE_DISSOLVE_DURATION,
+  BOSS_BATTLE_HOLD_DURATION,
+  BOSS_BATTLE_RECOVERY_DURATION,
+  CHARACTER_HALF_HEIGHT,
+  GAME_FONT_FAMILY,
+  PROJECTILE_BLACK_CHARGE_ANIMATION_KEY,
+  PROJECTILE_BLACK_CHARGE_SCALE,
+  PROJECTILE_BLUE_CHARGE_ANIMATION_KEY,
+  PROJECTILE_BLUE_CHARGE_SCALE,
+  PROJECTILE_CHARGE_ANIMATION_KEY,
+  PROJECTILE_FLY_DURATION_MS,
+  PROJECTILE_SPEAR_ANIMATION_KEY,
+} from '../boardConstants';
+import { isBossPlayer } from '../bossVisualConfig';
 import type { CharacterRenderOptions, CharacterRenderProfile } from '../characterRenderConfig';
 import {
-  getCharacterRenderer,
-  getCharacterEffectOffsetY,
-  getAnimationKey,
-  resolveCharacterProfile,
   type CharacterAnimationState,
+  getAnimationKey,
+  getCharacterEffectOffsetY,
+  getCharacterRenderer,
+  resolveCharacterProfile,
 } from '../characterRenderConfig';
-import { isBossPlayer } from '../bossVisualConfig';
-import { getMetadataString, getMetadataNumber, getMetadataBoolean } from '../logEntryPlayback';
-import { LAYER_EFFECT_BASE, LAYER_SHADER_OVERLAY, LAYER_BOSS_BATTLE_CHARACTER, worldDepth } from '../renderLayers';
-import { GAME_FONT_FAMILY, CHARACTER_HALF_HEIGHT, PROJECTILE_CHARGE_ANIMATION_KEY, PROJECTILE_SPEAR_ANIMATION_KEY, PROJECTILE_BLACK_CHARGE_ANIMATION_KEY, PROJECTILE_BLUE_CHARGE_ANIMATION_KEY, PROJECTILE_BLACK_CHARGE_SCALE, PROJECTILE_BLUE_CHARGE_SCALE, PROJECTILE_FLY_DURATION_MS, BOSS_BATTLE_DISSOLVE_DURATION, BOSS_BATTLE_HOLD_DURATION, BOSS_BATTLE_RECOVERY_DURATION } from '../boardConstants';
-import { BOSS_BATTLE_DISSOLVE_SHADER_NAME, BOSS_BATTLE_DISSOLVE_FRAGMENT_SOURCE } from '../shaders/bossBattleDissolve';
+import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
+import { getMetadataBoolean, getMetadataNumber, getMetadataString } from '../logEntryPlayback';
+import { LAYER_BOSS_BATTLE_CHARACTER, LAYER_EFFECT_BASE, LAYER_SHADER_OVERLAY, worldDepth } from '../renderLayers';
+import { BOSS_BATTLE_DISSOLVE_FRAGMENT_SOURCE, BOSS_BATTLE_DISSOLVE_SHADER_NAME } from '../shaders/bossBattleDissolve';
 import type { BoardAnimationContext } from './eventAnimations';
+
+type ShaderUniformValue = number | readonly number[];
 
 // Map profile id to projectile animation key and scale for boss damage crit
 const PROFILE_ID_TO_PROJECTILE: Record<string, { animKey: string; scale: number }> = {
@@ -30,17 +45,18 @@ export function getBossPlayer(players: Player[]): Player | null {
   return players.find(isBossPlayer) ?? null;
 }
 
-export function getBossMarker(players: Player[], playerMarkers: Map<string, Phaser.GameObjects.Sprite>): Phaser.GameObjects.Sprite | null {
+export function getBossMarker(
+  players: Player[],
+  playerMarkers: Map<string, Phaser.GameObjects.Sprite>,
+): Phaser.GameObjects.Sprite | null {
   const bossPlayer = getBossPlayer(players);
-  return bossPlayer ? playerMarkers.get(bossPlayer.player_id) ?? null : null;
+  return bossPlayer ? (playerMarkers.get(bossPlayer.player_id) ?? null) : null;
 }
 
 export function getBossTargetIds(entry: LogEntry): string[] {
   const rawTargets = entry.metadata?.targets;
   if (Array.isArray(rawTargets)) {
-    return rawTargets
-      .map((target) => String(target).trim())
-      .filter(Boolean);
+    return rawTargets.map((target) => String(target).trim()).filter(Boolean);
   }
 
   return getMetadataString(entry.metadata, 'targets')
@@ -52,7 +68,7 @@ export function getBossTargetIds(entry: LogEntry): string[] {
 function resolveCharacterProfileForPlayer(
   player: Player,
   players: Player[],
-  characterRenderOptions?: CharacterRenderOptions
+  characterRenderOptions?: CharacterRenderOptions,
 ): CharacterRenderProfile {
   const order = players.indexOf(player);
   return resolveCharacterProfile(player, order, characterRenderOptions);
@@ -62,7 +78,7 @@ function resolveCharacterProfileFromMarker(
   marker: Phaser.GameObjects.Sprite,
   players: Player[],
   playerMarkers: Map<string, Phaser.GameObjects.Sprite>,
-  characterRenderOptions?: CharacterRenderOptions
+  characterRenderOptions?: CharacterRenderOptions,
 ): CharacterRenderProfile {
   const player = players.find((p) => playerMarkers.get(p.player_id) === marker);
   if (!player) return resolveCharacterProfileForPlayer(players[0], players, characterRenderOptions);
@@ -72,7 +88,7 @@ function resolveCharacterProfileFromMarker(
 function getPlayerIdForMarker(
   marker: Phaser.GameObjects.Sprite,
   players: Player[],
-  playerMarkers: Map<string, Phaser.GameObjects.Sprite>
+  playerMarkers: Map<string, Phaser.GameObjects.Sprite>,
 ): string | undefined {
   return players.find((player) => playerMarkers.get(player.player_id) === marker)?.player_id;
 }
@@ -80,7 +96,7 @@ function getPlayerIdForMarker(
 function getMarkerEffectPoint(
   marker: Phaser.GameObjects.Sprite,
   ctx: BoardAnimationContext,
-  playerId?: string
+  playerId?: string,
 ): { x: number; y: number } {
   const resolvedPlayerId = playerId ?? getPlayerIdForMarker(marker, ctx.players, ctx.playerMarkers);
   const profile = resolvedPlayerId
@@ -100,7 +116,7 @@ export function playBossProfileAnimation(
   players: Player[],
   playerMarkers: Map<string, Phaser.GameObjects.Sprite>,
   characterRenderOptions?: CharacterRenderOptions,
-  returnToIdle = true
+  returnToIdle = true,
 ): boolean {
   const profile = resolveCharacterProfileFromMarker(marker, players, playerMarkers, characterRenderOptions);
   const renderer = getCharacterRenderer(characterRenderOptions);
@@ -141,7 +157,7 @@ function playBossBattleDissolveAnimation(
   preservedPlayerIds: string[],
   onDissolveComplete: () => void,
   effectsDurationMs: number,
-  edgeColor: [number, number, number] = BOSS_EDGE_COLOR_RED
+  edgeColor: [number, number, number] = BOSS_EDGE_COLOR_RED,
 ): void {
   const cam = ctx.scene.cameras.main;
   const zoom = cam.zoom || 1;
@@ -169,7 +185,7 @@ function playBossBattleDissolveAnimation(
     {
       name: BOSS_BATTLE_DISSOLVE_SHADER_NAME,
       fragmentSource: BOSS_BATTLE_DISSOLVE_FRAGMENT_SOURCE,
-      setupUniforms: (setUniform: (name: string, value: any) => void) => {
+      setupUniforms: (setUniform: (name: string, value: ShaderUniformValue) => void) => {
         setUniform('uProgress', progressHolder.value);
         setUniform('uTime', ctx.scene.time.now / 1000);
         setUniform('uResolution', [cam.width, cam.height]);
@@ -180,7 +196,7 @@ function playBossBattleDissolveAnimation(
     worldX,
     worldY,
     worldWidth,
-    worldHeight
+    worldHeight,
   );
   shaderObj.setOrigin(0.5, 0.5);
   shaderObj.setScrollFactor(0);
@@ -207,7 +223,8 @@ function playBossBattleDissolveAnimation(
 
   // --- Cleanup tracker for interruption safety ---
   const cleanupTracker = ctx.scene.add.container(0, 0);
-  const totalDuration = BOSS_BATTLE_DISSOLVE_DURATION + BOSS_BATTLE_HOLD_DURATION + effectsDurationMs + BOSS_BATTLE_RECOVERY_DURATION + 500;
+  const totalDuration =
+    BOSS_BATTLE_DISSOLVE_DURATION + BOSS_BATTLE_HOLD_DURATION + effectsDurationMs + BOSS_BATTLE_RECOVERY_DURATION + 500;
   ctx.orchestrator.registerCleanupOnTimer(cleanupTracker, totalDuration);
   ctx.orchestrator.registerCleanupOnTimer(shaderObj, totalDuration);
 
@@ -215,7 +232,7 @@ function playBossBattleDissolveAnimation(
     // Decrement reference count; only restore depth when all animations finish
     preservedPlayerIds.forEach((playerId) => {
       const marker = ctx.playerMarkers.get(playerId);
-      if (marker && marker.active) {
+      if (marker?.active) {
         const count = (marker.getData('bossBattleDissolveCount') || 1) - 1;
         marker.setData('bossBattleDissolveCount', Math.max(0, count));
         if (count <= 0) {
@@ -278,7 +295,7 @@ function playProjectileFly(
   toY: number,
   animKey: string,
   scale: number,
-  depthBase = LAYER_EFFECT_BASE
+  depthBase = LAYER_EFFECT_BASE,
 ): void {
   const projectile = ctx.scene.add.sprite(fromX, fromY, animKey);
   projectile.setOrigin(0.5, 0.5);
@@ -304,7 +321,7 @@ export function playBossPulse(
   textColor = '#ffebee',
   scale = 2.2,
   playerId?: string,
-  depthBase = LAYER_EFFECT_BASE
+  depthBase = LAYER_EFFECT_BASE,
 ): void {
   const { x, y } = getMarkerEffectPoint(marker, ctx, playerId);
 
@@ -350,7 +367,7 @@ export function playBossLineEffect(
   toMarker: Phaser.GameObjects.Sprite,
   color: number,
   label?: string,
-  depthBase = LAYER_EFFECT_BASE
+  depthBase = LAYER_EFFECT_BASE,
 ): void {
   const fromPoint = getMarkerEffectPoint(fromMarker, ctx);
   const toPoint = getMarkerEffectPoint(toMarker, ctx);
@@ -392,14 +409,18 @@ export function playBossLineEffect(
     alpha: 0,
     duration: 760,
     ease: 'Cubic.easeOut',
-    onComplete: () => cleanupTargets.forEach((target) => target.destroy()),
+    onComplete: () => {
+      cleanupTargets.forEach((target) => {
+        target.destroy();
+      });
+    },
   });
 }
 
 export function playBossThornsPulse(
   ctx: BoardAnimationContext,
   marker: Phaser.GameObjects.Sprite,
-  depthBase = LAYER_EFFECT_BASE
+  depthBase = LAYER_EFFECT_BASE,
 ): void {
   playBossPulse(ctx, marker, 'Boss 荆棘', 0x8e24aa, '#f3e5f5', 2.05, undefined, depthBase);
 
@@ -435,7 +456,7 @@ export function playBossThunderFlash(
   ctx: BoardAnimationContext,
   marker: Phaser.GameObjects.Sprite,
   playerId?: string,
-  depthBase = LAYER_EFFECT_BASE
+  depthBase = LAYER_EFFECT_BASE,
 ): void {
   const { x, y } = getMarkerEffectPoint(marker, ctx, playerId);
 
@@ -453,7 +474,7 @@ export function playBossThunderFlash(
 export function playBossThunderStrike(
   ctx: BoardAnimationContext,
   marker: Phaser.GameObjects.Sprite,
-  depthBase = LAYER_EFFECT_BASE
+  depthBase = LAYER_EFFECT_BASE,
 ): void {
   const landingX = marker.x;
   const landingY = marker.y + CHARACTER_HALF_HEIGHT;
@@ -511,7 +532,10 @@ function playBossDamageEffects(ctx: BoardAnimationContext, context: LogEntryAnim
       const attackState: CharacterAnimationState = 'attack_crit';
       const attackAnimEvent = `animationcomplete-${getAnimationKey(sourceProfile, attackState)}`;
 
-      if (sourceProfile.animations[attackState] && sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)) {
+      if (
+        sourceProfile.animations[attackState] &&
+        sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)
+      ) {
         sourceMarker.removeAllListeners(attackAnimEvent);
         sourceRenderer.play(ctx.scene, sourceMarker, sourceProfile, attackState);
         sourceMarker.once(attackAnimEvent, () => {
@@ -524,14 +548,26 @@ function playBossDamageEffects(ctx: BoardAnimationContext, context: LogEntryAnim
       if (projectileConfig) {
         const sourcePoint = getMarkerEffectPoint(sourceMarker, ctx, entry.source);
         const bossPoint = getMarkerEffectPoint(bossMarker, ctx, bossPlayer.player_id);
-        playProjectileFly(ctx, sourcePoint.x, sourcePoint.y, bossPoint.x, bossPoint.y, projectileConfig.animKey, projectileConfig.scale, depthBase);
+        playProjectileFly(
+          ctx,
+          sourcePoint.x,
+          sourcePoint.y,
+          bossPoint.x,
+          bossPoint.y,
+          projectileConfig.animKey,
+          projectileConfig.scale,
+          depthBase,
+        );
       }
     } else if (sourceProfile) {
       // Normal: random attack_1 or attack_2
       const attackState: CharacterAnimationState = Math.random() < 0.5 ? 'attack_1' : 'attack_2';
       const attackAnimEvent = `animationcomplete-${getAnimationKey(sourceProfile, attackState)}`;
 
-      if (sourceProfile.animations[attackState] && sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)) {
+      if (
+        sourceProfile.animations[attackState] &&
+        sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)
+      ) {
         sourceMarker.removeAllListeners(attackAnimEvent);
         sourceRenderer.play(ctx.scene, sourceMarker, sourceProfile, attackState);
         sourceMarker.once(attackAnimEvent, () => {
@@ -551,7 +587,7 @@ function playBossDamageEffects(ctx: BoardAnimationContext, context: LogEntryAnim
     ctx.players,
     ctx.playerMarkers,
     ctx.characterRenderOptions,
-    !isDefeated
+    !isDefeated,
   );
 
   bossMarker.setTint(0xffffff);
@@ -569,8 +605,14 @@ function playBossDamageEffects(ctx: BoardAnimationContext, context: LogEntryAnim
       if (!currentBossPlayer || !currentBossMarker) return;
 
       playBossProfileAnimation(
-        ctx.scene, currentBossMarker, currentBossPlayer.player_id, 'defeated',
-        ctx.players, ctx.playerMarkers, ctx.characterRenderOptions, false
+        ctx.scene,
+        currentBossMarker,
+        currentBossPlayer.player_id,
+        'defeated',
+        ctx.players,
+        ctx.playerMarkers,
+        ctx.characterRenderOptions,
+        false,
       );
     });
   }
@@ -589,14 +631,28 @@ function playBossAttackEffects(ctx: BoardAnimationContext, context: LogEntryAnim
   }
 
   playBossProfileAnimation(
-    ctx.scene, bossMarker, bossPlayer.player_id, 'attack',
-    ctx.players, ctx.playerMarkers, ctx.characterRenderOptions
+    ctx.scene,
+    bossMarker,
+    bossPlayer.player_id,
+    'attack',
+    ctx.players,
+    ctx.playerMarkers,
+    ctx.characterRenderOptions,
   );
 
   const attackType = getMetadataString(entry.metadata, 'attack_type') || 'normal';
   const isCrit = attackType === 'crit' || getMetadataBoolean(entry.metadata, 'is_crit');
   const color = isCrit ? 0xff1744 : 0xd32f2f;
-  playBossPulse(ctx, bossMarker, isCrit ? 'Boss 暴击' : 'Boss 普攻', color, '#ffebee', isCrit ? 2.4 : 2.0, bossPlayer.player_id, depthBase);
+  playBossPulse(
+    ctx,
+    bossMarker,
+    isCrit ? 'Boss 暴击' : 'Boss 普攻',
+    color,
+    '#ffebee',
+    isCrit ? 2.4 : 2.0,
+    bossPlayer.player_id,
+    depthBase,
+  );
 
   if (targetMarker) {
     playBossLineEffect(ctx, bossMarker, targetMarker, color, isCrit ? 'CRIT' : 'ATTACK', depthBase);
@@ -612,8 +668,13 @@ function playBossSkillEffects(ctx: BoardAnimationContext, context: LogEntryAnima
   const depthBase = LAYER_BOSS_BATTLE_CHARACTER;
 
   playBossProfileAnimation(
-    ctx.scene, bossMarker, bossPlayer.player_id, 'skill_cast',
-    ctx.players, ctx.playerMarkers, ctx.characterRenderOptions
+    ctx.scene,
+    bossMarker,
+    bossPlayer.player_id,
+    'skill_cast',
+    ctx.players,
+    ctx.playerMarkers,
+    ctx.characterRenderOptions,
   );
 
   const skillType = getMetadataString(entry.metadata, 'skill_type') || 'skill';
@@ -636,7 +697,9 @@ function playBossSkillEffects(ctx: BoardAnimationContext, context: LogEntryAnima
       break;
     case 'curse':
       playBossPulse(ctx, bossMarker, 'Boss 诅咒', 0x7e57c2, '#f3e5f5', 2.1, bossPlayer.player_id, depthBase);
-      targetMarkers.forEach((marker) => playBossPulse(ctx, marker, '诅咒', 0x7e57c2, '#f3e5f5', 1.8, undefined, depthBase));
+      targetMarkers.forEach((marker) => {
+        playBossPulse(ctx, marker, '诅咒', 0x7e57c2, '#f3e5f5', 1.8, undefined, depthBase);
+      });
       break;
     case 'rest':
       playBossPulse(ctx, bossMarker, 'Boss 回复', 0x66bb6a, '#e8f5e9', 2.2, bossPlayer.player_id, depthBase);
@@ -672,7 +735,7 @@ export function playBossDamageAnimation(ctx: BoardAnimationContext, context: Log
     [entry.source, bossPlayer.player_id],
     () => playBossDamageEffects(ctx, context),
     1500,
-    BOSS_EDGE_COLOR_RED
+    BOSS_EDGE_COLOR_RED,
   );
 }
 
@@ -685,9 +748,7 @@ export function playBossAttackAnimation(ctx: BoardAnimationContext, context: Log
   const targetMarker = ctx.playerMarkers.get(entry.target);
 
   // Dissolve from boss position, preserve boss and target
-  const preservedIds = targetMarker
-    ? [bossPlayer.player_id, entry.target]
-    : [bossPlayer.player_id];
+  const preservedIds = targetMarker ? [bossPlayer.player_id, entry.target] : [bossPlayer.player_id];
 
   playBossBattleDissolveAnimation(
     ctx,
@@ -695,14 +756,11 @@ export function playBossAttackAnimation(ctx: BoardAnimationContext, context: Log
     preservedIds,
     () => playBossAttackEffects(ctx, context),
     1500,
-    BOSS_EDGE_COLOR_RED
+    BOSS_EDGE_COLOR_RED,
   );
 }
 
-export function playBossSkillAnimation(
-  ctx: BoardAnimationContext,
-  context: LogEntryAnimationContext
-): void {
+export function playBossSkillAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
   const { entry } = context;
   const bossPlayer = getBossPlayer(ctx.players);
   const bossMarker = getBossMarker(ctx.players, ctx.playerMarkers);
@@ -725,7 +783,7 @@ export function playBossSkillAnimation(
     preservedIds,
     () => playBossSkillEffects(ctx, context),
     effectsDuration,
-    BOSS_EDGE_COLOR_PURPLE
+    BOSS_EDGE_COLOR_PURPLE,
   );
 }
 

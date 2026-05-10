@@ -59,11 +59,35 @@ export class NakamaService {
       if (browserHost && browserHost !== 'localhost' && browserHost !== 'wails.localhost') {
         const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
         const port = window.location.port ? `:${window.location.port}` : '';
-        return `${protocol}://${browserHost}${port}`;
+        const base = `${protocol}://${browserHost}${port}`;
+        const apiPath = this.resolveDefaultApiPath(window.location.pathname || '');
+        if (apiPath) {
+          return `${base}${apiPath}`;
+        }
+        return base;
       }
     }
 
     return '127.0.0.1:17350';
+  }
+
+  private resolveDefaultApiPath(pathname: string): string {
+    const basePath = this.resolveAppBasePath();
+    if (!basePath) return '';
+
+    const normalizedPathname = pathname.endsWith('/') ? pathname : `${pathname}/`;
+    if (normalizedPathname !== basePath && !normalizedPathname.startsWith(basePath)) return '';
+
+    return `${basePath}api`;
+  }
+
+  private resolveAppBasePath(): string {
+    const rawBaseUrl = import.meta.env.BASE_URL?.trim() || '/';
+    if (rawBaseUrl === './' || rawBaseUrl === '/') return '';
+
+    const parsedPath = new URL(rawBaseUrl, window.location.origin).pathname;
+    const normalizedPath = parsedPath.replace(/^\/+|\/+$/g, '');
+    return normalizedPath ? `/${normalizedPath}/` : '';
   }
 
   private loadServerConfig(): NakamaEndpoint {
