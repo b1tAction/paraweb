@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import viteCompression from 'vite-plugin-compression';
 
 export default defineConfig({
-  base: './',
+  base: process.env.VITE_BASE_PATH || './',
   plugins: [
     react(),
     // Pre-compress static assets with gzip for nginx gzip_static
