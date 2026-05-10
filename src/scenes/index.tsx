@@ -1,16 +1,14 @@
 /**
- * Scene component exports - lazy loaded for code splitting.
+ * Scene component exports.
  *
- * Each scene is loaded via React.lazy() so that its code (and CSS
- * background-image references) are only fetched when the scene is
- * actually rendered. This reduces the initial bundle size and
- * prevents large images like cover.png from being referenced at
- * startup.
+ * HomeScene is eager because it is the first screen after the bootstrap
+ * preload gate. Other scenes stay lazy-loaded for code splitting.
  */
 
 import React from 'react';
+import { HomeScene } from './HomeScene';
 
-export const HomeScene = React.lazy(() => import('./HomeScene').then((m) => ({ default: m.HomeScene })));
+export { HomeScene };
 export const CreateRoomScene = React.lazy(() =>
   import('./CreateRoomScene').then((m) => ({ default: m.CreateRoomScene })),
 );

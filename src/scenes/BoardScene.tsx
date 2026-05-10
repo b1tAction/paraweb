@@ -65,7 +65,6 @@ const PLAYER_CARD_IMAGES: Record<string, string> = {
   bai_hu: assetUrl('assets/ui/player_card_baihu.png'),
   xuan_wu: assetUrl('assets/ui/player_card_xuanwu.png'),
 };
-const BOTTOM_BAR_ASSET_BASE = assetUrl('assets/bottom_bar');
 const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   any_door: 'any_door.png',
   dice_upgrade: 'dice_upgrade.png',
@@ -101,7 +100,7 @@ function getPlayerCardImage(faction: string) {
 }
 
 function getBottomBarItemIcon(type: string) {
-  return `${BOTTOM_BAR_ASSET_BASE}/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`;
+  return assetUrl(`assets/bottom_bar/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`);
 }
 
 function getFactionSkillIconSrc(faction: string) {
@@ -1155,7 +1154,7 @@ export const BoardScene: React.FC = () => {
               disabled={!canInteractWithActions}
             >
               <img
-                src={`${BOTTOM_BAR_ASSET_BASE}/dice_roll.png`}
+                src={assetUrl('assets/bottom_bar/dice_roll.png')}
                 alt=""
                 draggable={false}
                 style={styles.bottomBarLogo}
@@ -1686,7 +1685,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     border: 'none',
     backgroundColor: 'transparent',
-    backgroundImage: `url("${BOTTOM_BAR_ASSET_BASE}/frame.png")`,
+    backgroundImage: assetCssUrl('assets/bottom_bar/frame.png'),
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center',
     backgroundSize: '100% 100%',
