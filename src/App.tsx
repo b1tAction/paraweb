@@ -16,7 +16,7 @@ import {
   LobbyScene,
   MiniGameSubmitRankScene,
 } from './scenes';
-import { gameService } from './service/NakamaService';
+import { checkForUpdate, type DesktopUpdateCheckResult, openExternalUrl } from './service/updateService';
 import { Scene, useGameStore } from './store/gameStore';
 
 /**
@@ -45,6 +45,34 @@ function LoadingScene() {
       <h2>加载中...</h2>
       <p>正在初始化游戏</p>
     </div>
+  );
+}
+
+type DesktopUpdateNoticeProps = {
+  update: DesktopUpdateCheckResult;
+  onDismiss: () => void;
+};
+
+function DesktopUpdateNotice({ update, onDismiss }: DesktopUpdateNoticeProps) {
+  const releaseUrl = update.releaseUrl || 'https://github.com/b1tAction/paraweb/releases/latest';
+
+  return (
+    <aside style={styles.updateNotice} role="status" aria-live="polite">
+      <div style={styles.updateNoticeHeader}>
+        <strong style={styles.updateNoticeTitle}>发现新版本</strong>
+      </div>
+      <p style={styles.updateNoticeText}>
+        当前版本 {update.currentVersion}，最新版本 {update.latestVersion || '未知'}
+      </p>
+      <div style={styles.updateNoticeActions}>
+        <button type="button" onClick={() => openExternalUrl(releaseUrl)} style={styles.updateNoticePrimaryButton}>
+          查看下载
+        </button>
+        <button type="button" onClick={onDismiss} style={styles.updateNoticeSecondaryButton}>
+          稍后提醒
+        </button>
+      </div>
+    </aside>
   );
 }
 
@@ -78,37 +106,29 @@ function BossBattleScene() {
  */
 const App: React.FC = () => {
   const currentScene = useGameStore((state) => state.currentScene);
-  // 用于跟踪是否正在恢复 session
-  const [isRestoring, setIsRestoring] = useState(true);
-  // 应用启动时尝试恢复 session。
+  const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdateCheckResult | null>(null);
+  const [isUpdateDismissed, setIsUpdateDismissed] = useState(false);
+
   useEffect(() => {
-    const tryRestore = async () => {
+    let cancelled = false;
+
+    const checkUpdate = async () => {
       try {
-        const restored = await gameService.restoreSession();
-        console.log('[App] Session 恢复结果:', restored);
-      } catch (err) {
-        console.error('[App] Session 恢复失败:', err);
-      } finally {
-        setIsRestoring(false);
+        const result = await checkForUpdate();
+        if (!cancelled && result?.hasUpdate) {
+          setDesktopUpdate(result);
+        }
+      } catch (error) {
+        console.warn('[App] 桌面更新检查失败:', error);
       }
     };
 
-    tryRestore();
-  }, []);
+    void checkUpdate();
 
-  // 恢复期间显示加载中
-  if (isRestoring) {
-    return (
-      <div style={styles.app}>
-        <span className="zpix-font-loader" aria-hidden="true">
-          Zpix 中文字体预加载
-        </span>
-        <main style={styles.main}>
-          <LoadingScene />
-        </main>
-      </div>
-    );
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const isMiniGameOverlay = currentScene === Scene.MiniGameSubmitRank;
   const SceneComponent = isMiniGameOverlay ? BoardScene : sceneComponents[currentScene] || HomeScene;
@@ -120,6 +140,9 @@ const App: React.FC = () => {
 
   return (
     <div style={styles.app}>
+      {desktopUpdate?.hasUpdate && !isUpdateDismissed && (
+        <DesktopUpdateNotice update={desktopUpdate} onDismiss={() => setIsUpdateDismissed(true)} />
+      )}
       <span className="zpix-font-loader" aria-hidden="true">
         Zpix 中文字体预加载
       </span>
@@ -181,6 +204,55 @@ const styles: Record<string, React.CSSProperties> = {
   main: {
     flex: 1,
     padding: '20px',
+  },
+  updateNotice: {
+    position: 'fixed',
+    top: '18px',
+    right: '18px',
+    zIndex: 1200,
+    width: 'min(360px, calc(100vw - 36px))',
+    padding: '16px 18px',
+    borderRadius: '16px',
+    border: '2px solid rgba(255, 248, 215, 0.7)',
+    backgroundColor: 'rgba(28, 24, 18, 0.96)',
+    color: '#fff8d7',
+    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.28)',
+  },
+  updateNoticeHeader: {
+    marginBottom: '10px',
+  },
+  updateNoticeTitle: {
+    fontSize: '16px',
+    lineHeight: 1.2,
+  },
+  updateNoticeText: {
+    margin: '0 0 14px',
+    fontSize: '13px',
+    lineHeight: 1.6,
+    color: 'rgba(255, 248, 215, 0.9)',
+  },
+  updateNoticeActions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '10px',
+  },
+  updateNoticePrimaryButton: {
+    minWidth: '104px',
+    padding: '10px 16px',
+    border: 'none',
+    borderRadius: '999px',
+    color: '#332817',
+    backgroundColor: '#ffe08a',
+    cursor: 'pointer',
+  },
+  updateNoticeSecondaryButton: {
+    minWidth: '104px',
+    padding: '10px 16px',
+    border: '1px solid rgba(255, 248, 215, 0.45)',
+    borderRadius: '999px',
+    color: '#fff8d7',
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
   },
   homeMain: {
     padding: 0,

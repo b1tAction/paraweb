@@ -115,7 +115,7 @@ jobs:
         run: wails version
 
       - name: Build Wails desktop binary
-        run: wails build -clean -s -platform windows/amd64 -o ParaDiced.exe
+        run: wails build -clean -s -platform windows/amd64 -o ParaDiced.exe -ldflags "-X main.appVersion=${{ needs.prepare-release.outputs.tag }}"
 
       - name: Rename and generate checksum
         shell: pwsh
@@ -189,7 +189,7 @@ jobs:
         run: wails version
 
       - name: Build Wails desktop binary
-        run: wails build -clean -s -platform darwin/arm64
+        run: wails build -clean -s -platform darwin/arm64 -ldflags "-X main.appVersion=${{ needs.prepare-release.outputs.tag }}"
 
       - name: Package and generate checksum
         run: |
@@ -268,7 +268,7 @@ jobs:
         run: wails version
 
       - name: Build Wails desktop binary
-        run: wails build -clean -s -platform linux/amd64
+        run: wails build -clean -s -platform linux/amd64 -ldflags "-X main.appVersion=${{ needs.prepare-release.outputs.tag }}"
 
       - name: Download AppImage tools
         run: |
