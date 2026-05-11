@@ -6,7 +6,6 @@ import { styles } from './MiniGameStyles';
 
 export interface VernierMiniGameProps {
   isParticipant: boolean;
-  submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
@@ -16,7 +15,6 @@ type Phase = 'countdown' | 'playing' | 'reveal' | 'finished';
 
 export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
   isParticipant,
-  submitted,
   isSubmitting,
   submitError,
   onSubmit,
@@ -99,7 +97,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
   }, [countdown, phase, isParticipant]);
 
   const handleStop = () => {
-    if (phase !== 'playing' || !isParticipant || submitted || isSubmitting) return;
+    if (phase !== 'playing' || !isParticipant || isSubmitting) return;
 
     const dev = Math.abs(position - 50);
     setDeviation(dev);
