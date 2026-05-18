@@ -1,4 +1,6 @@
 import { assetUrl, setAssetVersion } from './utils/assets';
+import { installGlobalButtonSfx } from './utils/buttonSfx';
+import { playStartBgm } from './utils/startBgm';
 import { isWailsRuntime } from './utils/runtime';
 
 interface WebVersionManifest {
@@ -37,6 +39,8 @@ const rootElement = (() => {
 
   return element;
 })();
+
+installGlobalButtonSfx();
 
 function normalizedBaseUrl(): string {
   const baseUrl = import.meta.env.BASE_URL || '/';
@@ -188,6 +192,7 @@ function ensureBootstrapStyle(): void {
 
 function renderBootstrapShell(): void {
   ensureBootstrapStyle();
+  playStartBgm();
 
   rootElement.innerHTML = `
     <main class="paradice-bootstrap" aria-live="polite">
