@@ -6,12 +6,15 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { assetUrl } from './utils/assets';
+import { installGlobalButtonSfx } from './utils/buttonSfx';
 import './index.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Missing #root element');
 }
+
+installGlobalButtonSfx();
 /**
  * Font loading strategy: progressive enhancement
  *
