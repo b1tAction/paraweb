@@ -161,6 +161,8 @@ interface GameState {
   diceAssignments: Record<string, string>;
   /** 游戏结束信息 (如果有) */
   gameOver: GameOver | null;
+  /** 游戏结束动画是否完成 */
+  gameOverAnimationComplete: boolean;
   /** 开始游戏确认 (包含地图配置) */
   startGameAck: StartGameAck | null;
   /** 地图配置 (用于渲染地图) */
@@ -227,6 +229,8 @@ interface GameState {
   setDiceAssignments: (assignments: Record<string, string>) => void;
   /** 设置游戏结束 */
   setGameOver: (gameOver: GameOver | null) => void;
+  /** 设置游戏结束动画完成状态 */
+  setGameOverAnimationComplete: (complete: boolean) => void;
   /** 将增量entries追加到播放队列 */
   addPendingEntries: (entries: LogEntry[]) => void;
   /** 从队列取第一条移到已播放列表 */
@@ -292,6 +296,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   miniGameResult: null,
   diceAssignments: {},
   gameOver: null,
+  gameOverAnimationComplete: false,
   startGameAck: null,
   mapConfig: null,
   definitions: null,
@@ -355,6 +360,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setDiceAssignments: (assignments) => set({ diceAssignments: assignments }),
 
   setGameOver: (gameOver) => set({ gameOver }),
+  setGameOverAnimationComplete: (complete) => set({ gameOverAnimationComplete: complete }),
 
   addPendingEntries: (entries) => set((state) => ({ pendingEntries: [...state.pendingEntries, ...entries] })),
   playNextEntry: () =>
@@ -436,6 +442,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       miniGameResult: null,
       diceAssignments: {},
       gameOver: null,
+      gameOverAnimationComplete: false,
       playedEntries: [],
       pendingEntries: [],
       startGameAck: null,
@@ -468,6 +475,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       miniGameResult: null,
       diceAssignments: {},
       gameOver: null,
+      gameOverAnimationComplete: false,
       playedEntries: [],
       pendingEntries: [],
       startGameAck: null,

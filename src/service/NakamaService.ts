@@ -662,7 +662,7 @@ export class NakamaService {
     const store = useGameStore.getState();
     const isWaitingRoomTermination =
       (store.currentScene === Scene.Lobby || store.currentScene === Scene.FactionSelect) &&
-      !data.winner_id &&
+      (!data.rankings || data.rankings.length === 0) &&
       (!data.stats || data.stats.length === 0);
 
     if (isWaitingRoomTermination) {
@@ -674,6 +674,7 @@ export class NakamaService {
     }
 
     store.setGameOver(data);
+    store.setGameOverAnimationComplete(false);
 
     if (
       store.currentScene === Scene.Board ||
@@ -685,8 +686,10 @@ export class NakamaService {
       store.setScene(Scene.GameOver);
     }
 
+    const champion = data.rankings[0];
     console.log('[Nakama] 游戏结束', {
-      winner: data.winner_id,
+      champion: champion?.display_name ?? champion?.player_id,
+      championScore: champion?.total_score,
     });
   }
 

@@ -1,7 +1,10 @@
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
+import { GameOverAnimation } from './GameOverAnimation';
 import { isBossPlayer } from '../game/bossVisualConfig';
+import { getAchievementDef } from '../game/achievementDefs';
+import { getFactionColors, getScoreCategoryColor } from '../game/scoreCategoryColors';
 import { gameService } from '../service/NakamaService';
 import { useGameStore } from '../store/gameStore';
 import { assetCssUrl } from '../utils/assets';
@@ -38,7 +41,13 @@ const playerSlots = [
 ] as const;
 
 export const GameOverScene: React.FC = () => {
-  const { gameOver, players, myPlayerId, resetMatchState } = useGameStore();
+  const gameOver = useGameStore((s) => s.gameOver);
+  const gameOverAnimationComplete = useGameStore((s) => s.gameOverAnimationComplete);
+  const players = useGameStore((s) => s.players);
+  const myPlayerId = useGameStore((s) => s.myPlayerId);
+  const resetMatchState = useGameStore((s) => s.resetMatchState);
+  const setGameOverAnimationComplete = useGameStore((s) => s.setGameOverAnimationComplete);
+
   const [isRestarting, setIsRestarting] = useState(false);
   const [isRestartPressed, setIsRestartPressed] = useState(false);
 
@@ -47,6 +56,15 @@ export const GameOverScene: React.FC = () => {
     () => new Map(visiblePlayers.map((player) => [player.player_id, player])),
     [visiblePlayers],
   );
+
+  // Faction lookup from players array
+  const factionLookup = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of visiblePlayers) {
+      map[p.player_id] = p.faction;
+    }
+    return map;
+  }, [visiblePlayers]);
 
   // Disambiguated display name map
   const disambiguatedNames = useMemo(() => {
@@ -65,41 +83,57 @@ export const GameOverScene: React.FC = () => {
     return disambiguatedNames[playerId] || playerId;
   };
 
-  const winner = useMemo(() => {
-    if (!gameOver) return null;
+  // Champion from rankings[0]
+  const champion = useMemo(() => {
+    if (!gameOver || gameOver.rankings.length === 0) return null;
+    return gameOver.rankings[0];
+  }, [gameOver]);
 
-    return playerMap.get(gameOver.winner_id) ?? null;
-  }, [gameOver, playerMap]);
-
-  const summaryRows = useMemo(() => {
+  // Rankings enriched with faction and display info
+  const enrichedRankings = useMemo(() => {
     if (!gameOver) return [];
+    return gameOver.rankings.map((r) => ({
+      ...r,
+      faction: factionLookup[r.player_id] ?? '',
+      displayName: getPlayerName(r.player_id),
+      isMe: r.player_id === myPlayerId,
+      isChampion: r.rank === 1,
+    }));
+  }, [gameOver, factionLookup, getPlayerName, myPlayerId]);
 
+  // Stats enriched with faction
+  const enrichedStats = useMemo(() => {
+    if (!gameOver) return [];
     return gameOver.stats
-      .filter((stat) => playerMap.has(stat.player_id))
-      .sort((a, b) => {
-        if (b.rounds_won !== a.rounds_won) return b.rounds_won - a.rounds_won;
-        if (b.events_drawn !== a.events_drawn) return b.events_drawn - a.events_drawn;
-        return b.items_used - a.items_used;
-      })
-      .map((stat) => {
-        return {
-          ...stat,
-          displayName: disambiguatedNames[stat.player_id] || stat.player_id,
-          isWinner: stat.player_id === gameOver.winner_id,
-          isMe: stat.player_id === myPlayerId,
-        };
-      });
-  }, [disambiguatedNames, gameOver, myPlayerId, playerMap]);
+      .filter((stat) => !stat.player_id.includes('beeeeeef')) // Exclude Boss from main table
+      .map((stat) => ({
+        ...stat,
+        faction: factionLookup[stat.player_id] ?? '',
+        displayName: getPlayerName(stat.player_id),
+        isMe: stat.player_id === myPlayerId,
+        isChampion: champion?.player_id === stat.player_id,
+      }));
+  }, [gameOver, factionLookup, getPlayerName, myPlayerId, champion]);
+
+  // Handle animation completion
+  const handleAnimationComplete = useCallback(() => {
+    setGameOverAnimationComplete(true);
+  }, [setGameOverAnimationComplete]);
 
   if (!gameOver) {
     return <div style={styles.loading}>加载中...</div>;
   }
 
+  // If animation not complete, show the animation overlay
+  if (!gameOverAnimationComplete) {
+    return <GameOverAnimation onComplete={handleAnimationComplete} />;
+  }
+
+  // ====== Final settlement page ======
+
   const handleRestart = async () => {
     if (isRestarting) return;
-
     setIsRestarting(true);
-
     try {
       await gameService.leaveRoom();
     } catch (error) {
@@ -110,29 +144,31 @@ export const GameOverScene: React.FC = () => {
     }
   };
 
-  const winnerFactionKey = winner?.faction?.trim() || '';
-  const winnerFaction = winnerFactionKey ? (factionMeta[winnerFactionKey] ?? null) : null;
-  const winnerDisplayName = getPlayerName(winner?.player_id || gameOver.winner_id);
-  const winnerTagLabel = winnerFaction?.label || winner?.faction?.trim() || '-';
-  const showWinnerFigure = Boolean(winner);
+  const championPlayer = champion ? playerMap.get(champion.player_id) : null;
+  const championFactionKey = championPlayer?.faction?.trim() || (champion ? factionLookup[champion.player_id] : '');
+  const championFaction = championFactionKey ? (factionMeta[championFactionKey] ?? null) : null;
+  const championDisplayName = champion ? getPlayerName(champion.player_id) : '-';
+  const championTagLabel = championFaction?.label || championFactionKey || '-';
+  const showChampionFigure = Boolean(championPlayer);
 
   return (
     <main style={styles.page}>
       <div style={styles.overlay} aria-hidden="true" />
 
+      {/* Champion banner */}
       <section style={styles.heroSection} aria-label="游戏结果">
         <div style={styles.resultLabel}>Game Over</div>
         <h1 style={styles.title}>胜者</h1>
         <div
           style={{
             ...styles.winnerCard,
-            ...(showWinnerFigure ? styles.winnerCardWithFigure : styles.winnerCardTextOnly),
+            ...(showChampionFigure ? styles.winnerCardWithFigure : styles.winnerCardTextOnly),
           }}
         >
-          {showWinnerFigure && winner && (
+          {showChampionFigure && championPlayer && (
             <div style={styles.winnerFigureViewport} aria-hidden="true">
               <PhaserCharacterPreview
-                faction={winner.faction}
+                faction={championPlayer.faction}
                 width={160}
                 height={160}
                 style={styles.winnerFigureCanvas}
@@ -140,20 +176,23 @@ export const GameOverScene: React.FC = () => {
             </div>
           )}
           <div style={styles.winnerInfo}>
-            <div style={styles.winnerName}>{winnerDisplayName}</div>
+            <div style={styles.winnerName}>{championDisplayName}</div>
             <div style={styles.winnerTags}>
-              <span>{winnerTagLabel}</span>
-              {winner?.player_id === myPlayerId && <span>我</span>}
+              <span>{championTagLabel}</span>
+              {champion?.player_id === myPlayerId && <span>我</span>}
+              <span style={{ color: '#FFD700' }}>{champion?.total_score ?? 0} pts</span>
             </div>
           </div>
         </div>
       </section>
 
+      {/* Player stage */}
       <section style={styles.playerStage} aria-label="玩家站位">
         {visiblePlayers.slice(0, 4).map((player, index) => {
           const slot = playerSlots[index];
           const faction = factionMeta[player.faction] ?? factionMeta.qing_long;
-          const isWinner = player.player_id === gameOver.winner_id;
+          const isChampionPlayer = player.player_id === champion?.player_id;
+          const playerRanking = gameOver.rankings.find((r) => r.player_id === player.player_id);
 
           return (
             <div
@@ -161,7 +200,7 @@ export const GameOverScene: React.FC = () => {
               style={{
                 ...styles.playerSlot,
                 ...slot.position,
-                ...(isWinner ? styles.winnerPlayerSlot : undefined),
+                ...(isChampionPlayer ? styles.winnerPlayerSlot : undefined),
               }}
             >
               <div style={styles.figureViewport} aria-hidden="true">
@@ -171,14 +210,15 @@ export const GameOverScene: React.FC = () => {
                 style={{
                   ...styles.playerPanel,
                   ...slot.panel,
-                  ...(isWinner ? styles.winnerPlayerPanel : undefined),
+                  ...(isChampionPlayer ? styles.winnerPlayerPanel : undefined),
                 }}
               >
                 <div style={styles.playerName}>{getPlayerName(player.player_id)}</div>
                 <div style={styles.playerTags}>
                   <span>{faction.label}</span>
-                  {isWinner && <span>胜者</span>}
+                  {isChampionPlayer && <span style={{ color: '#FFD700' }}>胜者</span>}
                   {player.player_id === myPlayerId && <span>我</span>}
+                  {playerRanking && <span>{playerRanking.total_score}pts</span>}
                 </div>
               </div>
             </div>
@@ -186,11 +226,56 @@ export const GameOverScene: React.FC = () => {
         })}
       </section>
 
-      <section style={styles.summaryPanel} aria-label="结算统计">
+      {/* Rankings + Stats panel */}
+      <section style={styles.summaryPanel} aria-label="排名与统计">
+        {/* Rankings table */}
+        <div style={styles.panelHeader}>
+          <h2 style={styles.panelTitle}>排名</h2>
+        </div>
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>排名</th>
+                <th style={styles.th}>玩家</th>
+                <th style={styles.th}>阵营</th>
+                <th style={styles.thScore}>总分</th>
+                <th style={styles.thScore}>小游戏</th>
+                <th style={styles.thScore}>Boss</th>
+                <th style={styles.thScore}>道具</th>
+                <th style={styles.thScore}>成就</th>
+              </tr>
+            </thead>
+            <tbody>
+              {enrichedRankings.map((r) => (
+                <tr
+                  key={r.player_id}
+                  style={{
+                    ...styles.row,
+                    ...(r.isChampion ? styles.winnerRow : undefined),
+                  }}
+                >
+                  <td style={styles.td}>{r.rank}</td>
+                  <td style={styles.td}>
+                    {r.displayName}
+                    {r.isMe ? ' · 我' : ''}
+                  </td>
+                  <td style={styles.td}>{factionMeta[r.faction]?.label ?? r.faction}</td>
+                  <td style={{ ...styles.td, fontWeight: 700 }}>{r.total_score}</td>
+                  <td style={{ ...styles.td, color: getScoreCategoryColor('mini_game') }}>{r.mini_game_score}</td>
+                  <td style={{ ...styles.td, color: getScoreCategoryColor('boss') }}>{r.boss_score}</td>
+                  <td style={{ ...styles.td, color: getScoreCategoryColor('item') }}>{r.item_score}</td>
+                  <td style={{ ...styles.td, color: getScoreCategoryColor('achievement') }}>{r.achievement_score}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Detailed stats table */}
         <div style={styles.panelHeader}>
           <h2 style={styles.panelTitle}>本局统计</h2>
         </div>
-
         <div style={styles.tableWrap}>
           <table style={styles.table}>
             <thead>
@@ -199,15 +284,17 @@ export const GameOverScene: React.FC = () => {
                 <th style={styles.th}>胜场</th>
                 <th style={styles.th}>事件</th>
                 <th style={styles.th}>道具</th>
+                <th style={styles.th}>Boss伤害</th>
+                <th style={styles.th}>成就</th>
               </tr>
             </thead>
             <tbody>
-              {summaryRows.map((stat) => (
+              {enrichedStats.map((stat) => (
                 <tr
                   key={stat.player_id}
                   style={{
                     ...styles.row,
-                    ...(stat.isWinner ? styles.winnerRow : undefined),
+                    ...(stat.isChampion ? styles.winnerRow : undefined),
                   }}
                 >
                   <td style={styles.td}>
@@ -217,11 +304,50 @@ export const GameOverScene: React.FC = () => {
                   <td style={styles.td}>{stat.rounds_won}</td>
                   <td style={styles.td}>{stat.events_drawn}</td>
                   <td style={styles.td}>{stat.items_used}</td>
+                  <td style={styles.td}>{stat.boss_damage_dealt}</td>
+                  <td style={styles.td}>
+                    {stat.achievements.map((a) => {
+                      const def = getAchievementDef(a);
+                      return def ? def.name : a;
+                    }).join(', ') || '-'}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {/* Achievements display */}
+        {gameOver.rankings.some((r) => r.achievements.length > 0) && (
+          <div style={styles.achievementsSection}>
+            <h3 style={styles.achievementTitle}>成就一览</h3>
+            <div style={styles.achievementGrid}>
+              {gameOver.rankings
+                .filter((r) => r.achievements.length > 0)
+                .flatMap((r) =>
+                  r.achievements.map((a) => ({
+                    type: a,
+                    playerName: getPlayerName(r.player_id),
+                    faction: factionLookup[r.player_id] ?? '',
+                  })),
+                )
+                .map(({ type, playerName, faction }) => {
+                  const def = getAchievementDef(type);
+                  const colors = getFactionColors(faction);
+                  return (
+                    <div key={`${type}-${playerName}`} style={{ ...styles.achievementCard, borderColor: colors.primary }}>
+                      <div style={{ ...styles.achievementName, color: getScoreCategoryColor('achievement') }}>
+                        {def?.name ?? type}
+                      </div>
+                      <div style={styles.achievementDesc}>{def?.desc ?? ''}</div>
+                      <div style={styles.achievementPoints}>+{def?.points ?? 0}</div>
+                      <div style={styles.achievementPlayer}>{playerName}</div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
       </section>
 
       <div style={styles.restartAction}>
@@ -442,6 +568,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     boxShadow: '0 18px 40px rgba(0, 0, 0, 0.28)',
     backdropFilter: 'blur(2px)',
+    overflowY: 'auto',
   },
   panelHeader: {
     display: 'flex',
@@ -452,6 +579,85 @@ const styles: Record<string, React.CSSProperties> = {
   panelTitle: {
     margin: 0,
     fontSize: 'clamp(18px, 2vw, 26px)',
+  },
+  tableWrap: {
+    width: '100%',
+    overflowX: 'auto',
+    overflowY: 'auto',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    color: '#fff7d6',
+    tableLayout: 'fixed',
+  },
+  th: {
+    padding: '10px 12px',
+    fontSize: '13px',
+    color: '#f1e0ad',
+    textAlign: 'left',
+    borderBottom: '1px solid rgba(255, 232, 166, 0.24)',
+  },
+  thScore: {
+    padding: '10px 8px',
+    fontSize: '12px',
+    color: '#f1e0ad',
+    textAlign: 'center',
+    borderBottom: '1px solid rgba(255, 232, 166, 0.24)',
+  },
+  row: {
+    background: 'transparent',
+  },
+  winnerRow: {
+    background: 'rgba(116, 88, 21, 0.22)',
+  },
+  td: {
+    padding: '11px 12px',
+    fontSize: '13px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  achievementsSection: {
+    marginTop: '18px',
+  },
+  achievementTitle: {
+    margin: '0 0 12px',
+    fontSize: 'clamp(16px, 1.5vw, 22px)',
+    color: getScoreCategoryColor('achievement'),
+  },
+  achievementGrid: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '10px',
+  },
+  achievementCard: {
+    padding: '10px 14px',
+    borderRadius: '8px',
+    border: '1px solid',
+    background: 'rgba(20, 20, 40, 0.7)',
+    minWidth: '140px',
+  },
+  achievementName: {
+    fontSize: '16px',
+    fontWeight: 700,
+  },
+  achievementDesc: {
+    fontSize: '12px',
+    color: '#ccc',
+    marginTop: '4px',
+  },
+  achievementPoints: {
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#FFD700',
+    marginTop: '4px',
+  },
+  achievementPlayer: {
+    fontSize: '12px',
+    color: '#ead8a0',
+    marginTop: '4px',
   },
   restartAction: {
     position: 'absolute',
@@ -487,38 +693,6 @@ const styles: Record<string, React.CSSProperties> = {
     filter: 'grayscale(0.7)',
     opacity: 0.72,
     cursor: 'not-allowed',
-  },
-  tableWrap: {
-    width: '100%',
-    overflowX: 'auto',
-    overflowY: 'auto',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    color: '#fff7d6',
-    tableLayout: 'fixed',
-  },
-  th: {
-    padding: '10px 12px',
-    fontSize: '13px',
-    color: '#f1e0ad',
-    textAlign: 'left',
-    borderBottom: '1px solid rgba(255, 232, 166, 0.24)',
-  },
-  row: {
-    background: 'transparent',
-  },
-  winnerRow: {
-    background: 'rgba(116, 88, 21, 0.22)',
-  },
-  td: {
-    padding: '11px 12px',
-    fontSize: '13px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
   },
 };
 
