@@ -18,6 +18,7 @@ import { MathCalcMiniGame } from './MathCalcMiniGame';
 import { MiniGameLeaderboard } from './MiniGameLeaderboard';
 import { styles } from './MiniGameStyles';
 import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
+import { ScaleWrapper } from './ScaleWrapper';
 import { VernierMiniGame } from './VernierMiniGame';
 
 // ========== Game Phase ==========
@@ -158,36 +159,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         return `Mini-Game: ${gameType}`;
     }
   };
-
-  // ========== Not a participant ==========
-
-  if (hasMiniGameStart && !isParticipant) {
-    return (
-      <div style={styles.modalContainer}>
-        <h2 style={styles.title}>Mini-Game</h2>
-        <p style={styles.submittedText}>You are not participating this round. Waiting for others...</p>
-        {renderResult()}
-      </div>
-    );
-  }
-
-  // ========== No mini-game start ==========
-
-  if (!hasMiniGameStart) {
-    return (
-      <div style={styles.modalContainer}>
-        <h2 style={styles.title}>Mini-Game</h2>
-        <p style={styles.submittedText}>Waiting for mini-game start...</p>
-      </div>
-    );
-  }
-
-  // ========== Result phase ==========
-  if (gamePhase === 'result') {
-    return <div style={styles.modalContainer}>{renderResult()}</div>;
-  }
-
-  // ========== Playing phase ==========
+  // ========== Playing phase rendering ==========
 
   const renderGame = () => {
     switch (gameType) {
@@ -195,7 +167,6 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         return (
           <DiceRaceMiniGame
             isParticipant={isParticipant}
-            submitted={submitted}
             isSubmitting={isSubmitting}
             submitError={submitError}
             onSubmit={submitGameData}
@@ -205,7 +176,6 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         return (
           <CountSecondsMiniGame
             isParticipant={isParticipant}
-            submitted={submitted}
             isSubmitting={isSubmitting}
             submitError={submitError}
             onSubmit={submitGameData}
@@ -215,7 +185,6 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         return (
           <MathCalcMiniGame
             isParticipant={isParticipant}
-            submitted={submitted}
             isSubmitting={isSubmitting}
             submitError={submitError}
             onSubmit={submitGameData}
@@ -225,7 +194,6 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         return (
           <RainbowMemoryMiniGame
             isParticipant={isParticipant}
-            submitted={submitted}
             isSubmitting={isSubmitting}
             submitError={submitError}
             onSubmit={submitGameData}
@@ -235,7 +203,6 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         return (
           <VernierMiniGame
             isParticipant={isParticipant}
-            submitted={submitted}
             isSubmitting={isSubmitting}
             submitError={submitError}
             onSubmit={submitGameData}
@@ -251,11 +218,56 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         );
     }
   };
+  // ========== Main Render Logic ==========
+
+  const renderContent = () => {
+    // 1. No game start
+    if (!hasMiniGameStart) {
+      return (
+        <>
+          <h2 style={styles.title}>Mini-Game</h2>
+          <p style={styles.submittedText}>Waiting for mini-game start...</p>
+        </>
+      );
+    }
+
+    // 2. Result phase (for everyone)
+    if (gamePhase === 'result') {
+      return (
+        <>
+          <h2 style={styles.title}>{getGameTitle()} - Results</h2>
+          {renderResult()}
+        </>
+      );
+    }
+
+    // 3. Not a participant (waiting for others)
+    if (!isParticipant) {
+      return (
+        <>
+          <h2 style={styles.title}>{getGameTitle()}</h2>
+          <p style={styles.submittedText}>You are not participating this round. Waiting for others...</p>
+          {renderResult()}
+        </>
+      );
+    }
+
+    // 4. Playing phase (participants)
+    return (
+      <>
+        <h2 style={styles.title}>{getGameTitle()}</h2>
+        {renderGame()}
+      </>
+    );
+  };
 
   return (
     <div style={styles.modalContainer}>
-      <h2 style={styles.title}>{getGameTitle()}</h2>
-      {renderGame()}
+      <div style={styles.screenContent}>
+        <ScaleWrapper>
+          {renderContent()}
+        </ScaleWrapper>
+      </div>
     </div>
   );
 };

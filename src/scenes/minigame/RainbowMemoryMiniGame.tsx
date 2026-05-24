@@ -55,7 +55,6 @@ const RAINBOW_GRID_CELLS = Array.from({ length: 9 }, (_, index) => ({ id: `rainb
 
 export interface RainbowMemoryMiniGameProps {
   isParticipant: boolean;
-  submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
@@ -65,7 +64,6 @@ type Phase = 'memorize' | 'hide' | 'challenge' | 'finished';
 
 export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
   isParticipant,
-  submitted,
   isSubmitting,
   submitError,
   onSubmit,
@@ -118,7 +116,7 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
   }, [countdown, phase, isParticipant]);
 
   const handleSquareClick = (color: string) => {
-    if (phase !== 'challenge' || !isParticipant || submitted || isSubmitting) return;
+    if (phase !== 'challenge' || !isParticipant || isSubmitting) return;
 
     const endTime = Date.now();
     const duration = endTime - startTimeRef.current;

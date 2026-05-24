@@ -14,38 +14,64 @@ export const styles: Record<string, CSSProperties> = {
   modalContainer: {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
+    alignItems: 'stretch', // Changed from center to stretch to fill the screen area
     justifyContent: 'center',
-    padding: '40px',
-    gap: '24px',
-    background: 'linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 100%)',
-    backdropFilter: 'blur(24px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-    border: '1px solid rgba(255, 255, 255, 0.6)',
-    borderRadius: '24px',
-    boxShadow: '0 16px 40px 0 rgba(31, 38, 135, 0.25), inset 0 2px 0 0 rgba(255,255,255,0.8)',
-    width: '80vw',
-    height: '80vh',
-    overflowY: 'auto',
+    // Use the gamepad frame image
+    backgroundImage: 'url(/assets/ui/gamepad_frame.png)',
+    backgroundSize: '100% 100%',
+    backgroundRepeat: 'no-repeat',
+    imageRendering: 'pixelated', // Keep pixel art sharp
+    
+    // Accurate dimensions for 1760x800 image
+    width: '92vw',
+    height: 'calc(92vw * 800 / 1760)',
+    maxWidth: '1400px',
+    maxHeight: 'calc(1400px * 800 / 1760)',
+    
+    // Position relative so absolute children work
+    position: 'relative',
+    padding: '0', // Removing padding as we'll use absolute positioning
+    
+    gap: '0',
+    color: '#333',
+    fontFamily: '"Zpix", sans-serif',
+    overflow: 'hidden',
   },
   title: {
     fontSize: '24px',
     fontWeight: 'bold',
-    marginBottom: '8px',
+    marginBottom: '4px',
+    textAlign: 'center',
+    zIndex: 2, // Ensure it stays above the glass
+  },
+  screenContent: {
+    position: 'absolute',
+    // Exact coordinates: X=430, Y=70, W=900, H=630 on 1760x800 image
+    left: '24.43%',   // 430/1760
+    top: '8.75%',     // 70/800
+    width: '51.14%',  // 900/1760
+    height: '78.75%', // 630/800
+    
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backdropFilter: 'blur(20px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+    borderRadius: '4px',
+    padding: '4px',
+    overflow: 'hidden',
   },
   gameArea: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '24px',
-    padding: '32px',
-    border: '1px solid rgba(255, 255, 255, 0.4)',
-    borderRadius: '16px',
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-    minWidth: '320px',
+    justifyContent: 'center',
+    gap: '12px',
+    width: '100%',
+    height: '100%',
   },
   button: {
     padding: '14px 28px',
@@ -124,13 +150,13 @@ export const styles: Record<string, CSSProperties> = {
 
   // Count seconds styles
   timerDisplay: {
-    fontSize: '56px',
+    fontSize: '120px', // Increased significantly for the 900x630 design space
     fontWeight: '800',
     textAlign: 'center',
     fontFamily: 'inherit',
     color: '#333',
-    textShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    margin: '16px 0',
+    textShadow: '0 4px 8px rgba(0,0,0,0.15)',
+    margin: '24px 0',
   },
   resultDisplay: {
     fontSize: '16px',
@@ -188,7 +214,7 @@ export const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: '12px',
     width: '100%',
-    maxWidth: '360px',
+    maxWidth: '800px', // Increased to allow more room for ScaleWrapper
     margin: '0 auto',
   },
   questionHeader: {
@@ -284,20 +310,22 @@ export const styles: Record<string, CSSProperties> = {
   // Mini ranking styles for MathCalc finished phase
   miniRankingList: {
     width: '100%',
+    maxWidth: '500px', // Limit width so it's not "ridiculously wide"
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
-    margin: '12px 0',
+    gap: '12px',
+    margin: '16px 0',
   },
   miniRankingItem: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '8px 12px',
-    background: 'rgba(255, 255, 255, 0.25)',
+    padding: '12px 20px',
+    background: 'rgba(255, 255, 255, 0.4)',
     borderRadius: '8px',
-    fontSize: '14px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    fontSize: '18px',
+    border: '2px solid rgba(0, 0, 0, 0.1)', // More visible border
+    boxShadow: '0 4px 0 rgba(0,0,0,0.05)',
   },
   statusPlaying: {
     color: '#0056b3',
