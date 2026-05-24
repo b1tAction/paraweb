@@ -14,6 +14,7 @@ import { gameService } from '../../service/NakamaService';
 import { useGameStore } from '../../store/gameStore';
 import { CountSecondsMiniGame } from './CountSecondsMiniGame';
 import { DiceRaceMiniGame } from './DiceRaceMiniGame';
+import { DilemmaRaceMiniGame } from './DilemmaRaceMiniGame';
 import { MathCalcMiniGame } from './MathCalcMiniGame';
 import { MiniGameLeaderboard } from './MiniGameLeaderboard';
 import { styles } from './MiniGameStyles';
@@ -30,7 +31,7 @@ const RESULT_DISPLAY_DURATION_MS = 5000;
 // ========== MiniGameSubmitRankScene ==========
 
 export const MiniGameSubmitRankScene: React.FC = () => {
-  const { miniGameStart, miniGameResult, myPlayerId, session } = useGameStore();
+  const { miniGameStart, miniGameResult, myPlayerId, session, miniGameOnline } = useGameStore();
 
   // Shared submit state
   const [submitted, setSubmitted] = useState(false);
@@ -111,6 +112,9 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   const isParticipant = hasMiniGameStart && participantIds.includes(myUserId);
   const gameType = miniGameStart?.game_type || '';
 
+  // Online mode: connection info present means Colyseus-based real-time game
+  const isOnlineMode = miniGameOnline && miniGameStart?.connection != null;
+
   // ========== Submit handler (shared) ==========
 
   const submitGameData = useCallback(
@@ -144,6 +148,8 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   const getGameTitle = () => {
     switch (gameType) {
+      case 'dilemma_race':
+        return 'Dilemma Race';
       case 'dice_race':
         return 'Roll Dice';
       case 'count_seconds':
@@ -191,6 +197,17 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   const renderGame = () => {
     switch (gameType) {
+      // --- Dilemma Race: online mode (Colyseus real-time game) ---
+      case 'dilemma_race':
+        if (isOnlineMode && miniGameStart?.connection) {
+          return <DilemmaRaceMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+        }
+        // dilemma_race requires online mode; show waiting message if no connection
+        return (
+          <div style={styles.gameArea}>
+            <p style={styles.submittedText}>dilemma_race requires online mode. Waiting for server result...</p>
+          </div>
+        );
       case 'dice_race':
         return (
           <DiceRaceMiniGame

@@ -44,6 +44,12 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({ gameTy
       }
       case 'vernier':
         return `偏差: ${formatFixed(getGameDataNumber(gameData, 'deviation'), 1)}%`;
+      case 'dilemma_race': {
+        const finishPosition = getGameDataNumber(gameData, 'finish_position');
+        const roundsPlayed = getGameDataNumber(gameData, 'rounds_played');
+        const blockedCount = getGameDataNumber(gameData, 'blocked_count');
+        return `Position: ${finishPosition === 15 ? 'Finished' : (finishPosition ?? '?')} | Rounds: ${roundsPlayed ?? '?'} | Blocked: ${blockedCount ?? 0}x`;
+      }
       default:
         return null;
     }
