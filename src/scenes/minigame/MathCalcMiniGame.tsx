@@ -85,7 +85,6 @@ function generateQuestions(seed: string, questionCount: number): Question[] {
 
 export interface MathCalcMiniGameProps {
   isParticipant: boolean;
-  submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
@@ -93,7 +92,6 @@ export interface MathCalcMiniGameProps {
 
 export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
   isParticipant,
-  submitted,
   isSubmitting,
   submitError,
   onSubmit,
@@ -164,13 +162,11 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
 
           setFinalTimeMs(duration);
           setPhase('finished');
-          if (!submitted && !isSubmitting) {
-            onSubmit({ accuracy, time_ms: duration });
-          }
+          onSubmit({ accuracy, time_ms: duration });
         }
       }
     },
-    [correctCount, currentQIndex, inputValue, isParticipant, isSubmitting, onSubmit, phase, questions, submitted],
+    [correctCount, currentQIndex, inputValue, isParticipant, isSubmitting, onSubmit, phase, questions],
   );
 
   useEffect(() => {
@@ -297,7 +293,7 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
         </div>
 
         <p style={{ ...styles.gameDataDetail, fontSize: '14px', textAlign: 'center' }}>
-          {isSubmitting ? '正在同步成绩...' : submitted ? '等待其他玩家答题...' : '提交中...'}
+          {isSubmitting ? '正在同步成绩...' : '等待其他玩家答题...'}
         </p>
         {submitError && <p style={{ color: 'red', fontSize: '12px' }}>{submitError}</p>}
       </div>
