@@ -4,8 +4,7 @@
  * 根据当前场景路由到不同的组件
  */
 
-import type React from 'react';
-import { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import {
   BoardScene,
   CreateRoomScene,
@@ -22,6 +21,15 @@ import { playBoardBgm, stopBoardBgm } from './utils/boardBgm';
 import { playEndBgm, stopEndBgm } from './utils/endBgm';
 import { playMiniGameBgm, stopMiniGameBgm } from './utils/miniGameBgm';
 import { playStartBgm, stopStartBgm } from './utils/startBgm';
+
+// DEV-mode debug tools — tree-shaken in production builds
+const DevPanel = import.meta.env.DEV
+  ? React.lazy(() => import('./components/DevPanel').then((m) => ({ default: m.DevPanel })))
+  : null;
+
+if (import.meta.env.DEV) {
+  void import('./components/devConsoleApi');
+}
 
 const MINI_GAME_INTRO_DURATION_MS = 2500;
 const BOARD_BGM_FADE_OUT_MS = 800;
@@ -340,6 +348,12 @@ const App: React.FC = () => {
         <footer style={styles.footer}>
           <p>派乐代 - 回合制派对游戏</p>
         </footer>
+      )}
+
+      {import.meta.env.DEV && DevPanel && (
+        <Suspense fallback={null}>
+          <DevPanel />
+        </Suspense>
       )}
     </div>
   );
