@@ -92,9 +92,8 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
   const [roomState, setRoomState] = useState<DilemmaRaceRoomState | null>(null);
   const [error, setError] = useState<string>('');
   const [myChoice, setMyChoice] = useState<number | null>(null);
-  const [choiceLocked, setChoiceLocked] = useState(false);
 
-  // Track previous round to detect round transitions and reset choiceLocked
+  // Track previous round to detect round transitions and reset myChoice
   const prevRoundRef = useRef<number>(0);
 
   // ========== Colyseus connection lifecycle ==========
@@ -113,11 +112,9 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
           if (state.currentRound !== prevRoundRef.current) {
             prevRoundRef.current = state.currentRound;
             setMyChoice(null);
-            setChoiceLocked(false);
           }
         } else if (state.phase === 'resolving') {
           setPhase('resolving');
-          setChoiceLocked(true);
         } else if (state.phase === 'finished') {
           setPhase('finished');
         }
@@ -152,14 +149,22 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
 
   const handleChoice = useCallback(
     (step: number) => {
-      if (!choiceLocked && phase === 'choosing') {
+      if (phase === 'choosing') {
         colyseusService.sendChoice(step);
         setMyChoice(step);
-        setChoiceLocked(true);
       }
     },
-    [choiceLocked, phase],
+    [phase],
   );
+
+  // ========== Auto-submit default choice when timer is low ==========
+
+  useEffect(() => {
+    if (phase === 'choosing' && roomState && roomState.timeLeft <= 2 && myChoice === null) {
+      colyseusService.sendChoice(1);
+      setMyChoice(1);
+    }
+  }, [phase, roomState?.timeLeft, myChoice]);
 
   // ========== Player display name mapping ==========
 
@@ -216,6 +221,22 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
         {phase === 'resolving' && <span style={styles.resolvingLabel}>Resolving...</span>}
       </div>
 
+      {/* ===== Player Legend ===== */}
+      {state && (
+        <div style={styles.playerLegendArea}>
+          {state.players.map((p) => (
+            <div key={p.id} style={p.id === myPlayerId ? styles.playerLegendItemMe : styles.playerLegendItemOther}>
+              <span style={p.id === myPlayerId ? styles.playerMarkerMe : styles.playerMarkerOther}>
+                {getPlayerDisplayName(p.id).charAt(0)}
+              </span>
+              <span>{getPlayerDisplayName(p.id)}</span>
+              {p.isBlocked && <span style={styles.blockedIcon}>!</span>}
+              {p.isFinished && <span style={styles.finishedIcon}>*</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* ===== Track Visualization ===== */}
       <div style={styles.trackContainer}>
         <DilemmaRaceTrack
@@ -229,27 +250,23 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
       {/* ===== Choice Buttons (choosing phase only) ===== */}
       {phase === 'choosing' && !myPlayerState?.isFinished && (
         <div style={styles.choiceArea}>
-          <p style={styles.choicePrompt}>Choose your step size:</p>
+          <p style={styles.choicePrompt}>
+            {myChoice !== null
+              ? `Current selection: ${myChoice} steps — you can change your choice`
+              : 'Select a step size before time runs out!'}
+          </p>
           <div style={styles.choiceButtons}>
             {[1, 3, 5].map((step) => (
               <button
                 key={step}
                 type="button"
                 onClick={() => handleChoice(step)}
-                disabled={choiceLocked}
-                style={
-                  choiceLocked
-                    ? myChoice === step
-                      ? styles.choiceButtonSelected
-                      : styles.choiceButtonDisabled
-                    : styles.choiceButton
-                }
+                style={myChoice === step ? styles.choiceButtonSelected : styles.choiceButton}
               >
                 {step}
               </button>
             ))}
           </div>
-          {choiceLocked && <p style={styles.choiceConfirmed}>Choice confirmed: {myChoice} steps</p>}
         </div>
       )}
 

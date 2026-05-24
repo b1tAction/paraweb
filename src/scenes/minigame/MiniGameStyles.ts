@@ -24,8 +24,8 @@ export const styles: Record<string, CSSProperties> = {
     border: '1px solid rgba(255, 255, 255, 0.6)',
     borderRadius: '24px',
     boxShadow: '0 16px 40px 0 rgba(31, 38, 135, 0.25), inset 0 2px 0 0 rgba(255,255,255,0.8)',
-    width: '80vw',
-    height: '80vh',
+    width: '90vw',
+    height: '85vh',
     overflowY: 'auto',
   },
   title: {
@@ -45,7 +45,8 @@ export const styles: Record<string, CSSProperties> = {
     backdropFilter: 'blur(10px)',
     WebkitBackdropFilter: 'blur(10px)',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-    minWidth: '320px',
+    width: '100%',
+    maxWidth: '600px',
   },
   button: {
     padding: '14px 28px',
