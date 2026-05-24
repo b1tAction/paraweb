@@ -21,17 +21,17 @@ export const styles: Record<string, CSSProperties> = {
     backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     imageRendering: 'pixelated', // Keep pixel art sharp
-    
+
     // Accurate dimensions for 1760x800 image
     width: '92vw',
     height: 'calc(92vw * 800 / 1760)',
     maxWidth: '1400px',
     maxHeight: 'calc(1400px * 800 / 1760)',
-    
+
     // Position relative so absolute children work
     position: 'relative',
     padding: '0', // Removing padding as we'll use absolute positioning
-    
+
     gap: '0',
     color: '#333',
     fontFamily: '"Zpix", sans-serif',

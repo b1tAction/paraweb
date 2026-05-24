@@ -627,11 +627,14 @@ export class NakamaService {
     const store = useGameStore.getState();
     store.setMiniGameStart(data);
     store.setMiniGameResult(null);
+    store.setMiniGameOnline(data.connection != null);
+    store.setColyseusError('');
     store.setScene(Scene.MiniGameSubmitRank);
 
     console.log('[Nakama] 小游戏开始', {
       gameType: data.game_type,
       players: data.players.length,
+      online: data.connection != null,
     });
   }
 
@@ -749,6 +752,10 @@ export class NakamaService {
       case 'match_init':
       case 'MatchInit':
         targetScene = Scene.Loading;
+        break;
+      case 'waiting_for_host':
+      case 'WaitingForHost':
+        targetScene = Scene.Lobby;
         break;
       case 'round_mini_game':
       case 'RoundMiniGame':

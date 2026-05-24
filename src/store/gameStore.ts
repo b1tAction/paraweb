@@ -72,6 +72,7 @@ export enum Scene {
 /** 全局状态 (Layer 1) */
 export type GlobalState =
   | 'match_init'
+  | 'WaitingForHost'
   | 'round_mini_game'
   | 'round_prep'
   | 'turn_loop'
@@ -183,6 +184,10 @@ interface GameState {
   miniGameResultPending: boolean;
   /** 等待切换的目标场景 (miniGameResultPending 为 true 时暂存) */
   pendingScene: Scene | null;
+  /** 当前小游戏是否为在线模式 (connection != null) */
+  miniGameOnline: boolean;
+  /** Colyseus 连接错误信息 */
+  colyseusError: string;
 
   // ========== 状态 Actions ==========
 
@@ -239,6 +244,10 @@ interface GameState {
   setMiniGameResultPending: (pending: boolean) => void;
   /** 设置等待切换的目标场景 */
   setPendingScene: (scene: Scene | null) => void;
+  /** 设置小游戏是否为在线模式 */
+  setMiniGameOnline: (online: boolean) => void;
+  /** 设置 Colyseus 连接错误 */
+  setColyseusError: (error: string) => void;
 
   /** 将 StateSync 压入等待队列 */
   enqueueStateSync: (stateSync: StateSync) => void;
@@ -296,6 +305,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   pendingEntries: [],
   miniGameResultPending: false,
   pendingScene: null,
+  miniGameOnline: false,
+  colyseusError: '',
 
   // ========== Actions ==========
 
@@ -360,6 +371,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setMiniGameResultPending: (pending) => set({ miniGameResultPending: pending }),
   setPendingScene: (scene) => set({ pendingScene: scene }),
+  setMiniGameOnline: (online) => set({ miniGameOnline: online }),
+  setColyseusError: (error) => set({ colyseusError: error }),
 
   enqueueStateSync: (stateSync) => set((state) => ({ stateSyncQueue: [...state.stateSyncQueue, stateSync] })),
 
@@ -430,6 +443,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       definitions: null,
       miniGameResultPending: false,
       pendingScene: null,
+      miniGameOnline: false,
+      colyseusError: '',
     }),
 
   resetMatchState: () =>

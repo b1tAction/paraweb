@@ -215,12 +215,22 @@ export interface MiniGameStart {
  * MiniGameConn - 小游戏实时连接信息 (用于 Colyseus 等)
  */
 export interface MiniGameConn {
-  /** 服务器 URL */
+  /** Colyseus 服务器 WebSocket URL */
   url: string;
-  /** 房间 ID */
-  room_id: string;
-  /** 认证 Token */
-  token: string;
+  /** 房间 ID (WebSocket/matchmaker 模式下可选，join 后由 Colyseus 分配) */
+  room_id?: string;
+  /** 房间名称 (如 "dilemma_race")，客户端用于 joinOrCreate */
+  room_name: string;
+  /** Nakama runtime match ID，用于结果回调路由 */
+  nakama_match_id: string;
+  /** 小游戏实例唯一 ID，作为 filterBy key 确保 same Nakama match 的玩家进入 same room */
+  minigame_instance_id: string;
+  /** 创建者玩家 ID (第一个调用 joinOrCreate 的玩家) */
+  creator_player_id: string;
+  /** 认证 Token (deprecated，使用 player_tokens 替代) */
+  token?: string;
+  /** Per-player HMAC token map (player_id -> token) */
+  player_tokens?: Record<string, string>;
 }
 
 /**
