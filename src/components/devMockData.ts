@@ -83,12 +83,137 @@ export const MOCK_PLAYERS: protocol.Player[] = [
 // ========== Mock GameOver ==========
 
 export const MOCK_GAME_OVER: protocol.GameOver = {
-  winner_id: MOCK_UUID_QINGLONG,
+  rankings: [
+    {
+      player_id: MOCK_UUID_QINGLONG,
+      display_name: '青龙侠',
+      rank: 1,
+      total_score: 65,
+      mini_game_score: 27,
+      boss_score: 15,
+      item_score: 8,
+      achievement_score: 15,
+      achievements: ['survivor', 'boss_kill_shot', 'first_to_boss'],
+      score_reasons: [
+        { category: 'mini_game', reason: '小游戏第1名', points: 10, round: 1 },
+        { category: 'mini_game', reason: '小游戏第1名', points: 10, round: 2 },
+        { category: 'mini_game', reason: '小游戏第2名', points: 7, round: 3 },
+        { category: 'boss', reason: 'Boss伤害', points: 5, round: 0 },
+        { category: 'boss', reason: 'K头', points: 10, round: 0 },
+        { category: 'item', reason: '道具积分', points: 8, round: 0 },
+        { category: 'achievement', reason: '生存大师', points: 8, round: 0 },
+        { category: 'achievement', reason: '先行者', points: 5, round: 0 },
+        { category: 'achievement', reason: 'K头', points: 2, round: 0 },
+      ],
+    },
+    {
+      player_id: MOCK_UUID_XUANWU,
+      display_name: '玄武守',
+      rank: 2,
+      total_score: 48,
+      mini_game_score: 14,
+      boss_score: 22,
+      item_score: 5,
+      achievement_score: 7,
+      achievements: ['boss_damage_ten'],
+      score_reasons: [
+        { category: 'mini_game', reason: '小游戏第2名', points: 7, round: 1 },
+        { category: 'mini_game', reason: '小游戏第3名', points: 4, round: 2 },
+        { category: 'mini_game', reason: '小游戏第3名', points: 3, round: 3 },
+        { category: 'boss', reason: 'Boss伤害', points: 12, round: 0 },
+        { category: 'boss', reason: 'Boss暴击', points: 10, round: 0 },
+        { category: 'item', reason: '道具积分', points: 5, round: 0 },
+        { category: 'achievement', reason: '勇者之路', points: 5, round: 0 },
+        { category: 'achievement', reason: '道具收藏家', points: 2, round: 0 },
+      ],
+    },
+    {
+      player_id: MOCK_UUID_ZHUQUE,
+      display_name: '朱雀女',
+      rank: 3,
+      total_score: 35,
+      mini_game_score: 14,
+      boss_score: 10,
+      item_score: 5,
+      achievement_score: 6,
+      achievements: ['luck_master'],
+      score_reasons: [
+        { category: 'mini_game', reason: '小游戏第3名', points: 4, round: 1 },
+        { category: 'mini_game', reason: '小游戏第2名', points: 7, round: 2 },
+        { category: 'mini_game', reason: '小游戏第4名', points: 3, round: 3 },
+        { category: 'boss', reason: 'Boss伤害', points: 5, round: 0 },
+        { category: 'boss', reason: 'Boss暴击', points: 5, round: 0 },
+        { category: 'item', reason: '道具积分', points: 5, round: 0 },
+        { category: 'achievement', reason: '幸运之星', points: 5, round: 0 },
+        { category: 'achievement', reason: '道具收藏家', points: 1, round: 0 },
+      ],
+    },
+    {
+      player_id: MOCK_UUID_BAIHU,
+      display_name: '白虎将',
+      rank: 4,
+      total_score: 22,
+      mini_game_score: 7,
+      boss_score: 5,
+      item_score: 5,
+      achievement_score: 5,
+      achievements: ['item_collector'],
+      score_reasons: [
+        { category: 'mini_game', reason: '小游戏第4名', points: 3, round: 1 },
+        { category: 'mini_game', reason: '小游戏第4名', points: 2, round: 2 },
+        { category: 'mini_game', reason: '小游戏第2名', points: 2, round: 3 },
+        { category: 'boss', reason: 'Boss伤害', points: 3, round: 0 },
+        { category: 'boss', reason: 'Boss暴击', points: 2, round: 0 },
+        { category: 'item', reason: '道具积分', points: 5, round: 0 },
+        { category: 'achievement', reason: '道具收藏家', points: 5, round: 0 },
+      ],
+    },
+  ],
   stats: [
-    { player_id: MOCK_UUID_QINGLONG, rounds_won: 2, events_drawn: 3, items_used: 1 },
-    { player_id: MOCK_UUID_ZHUQUE, rounds_won: 1, events_drawn: 5, items_used: 2 },
-    { player_id: MOCK_UUID_BAIHU, rounds_won: 0, events_drawn: 4, items_used: 1 },
-    { player_id: MOCK_UUID_XUANWU, rounds_won: 1, events_drawn: 2, items_used: 3 },
+    {
+      player_id: MOCK_UUID_QINGLONG,
+      display_name: '青龙侠',
+      rounds_won: 2,
+      events_drawn: 3,
+      items_used: 1,
+      boss_damage_dealt: 15,
+      achievements: ['survivor', 'boss_kill_shot', 'first_to_boss'],
+      total_score: 65,
+      score_breakdown: { mini_game: 27, boss: 15, item: 8, achievement: 15 },
+    },
+    {
+      player_id: MOCK_UUID_XUANWU,
+      display_name: '玄武守',
+      rounds_won: 0,
+      events_drawn: 2,
+      items_used: 3,
+      boss_damage_dealt: 22,
+      achievements: ['boss_damage_ten'],
+      total_score: 48,
+      score_breakdown: { mini_game: 14, boss: 22, item: 5, achievement: 7 },
+    },
+    {
+      player_id: MOCK_UUID_ZHUQUE,
+      display_name: '朱雀女',
+      rounds_won: 1,
+      events_drawn: 5,
+      items_used: 2,
+      boss_damage_dealt: 10,
+      achievements: ['luck_master'],
+      total_score: 35,
+      score_breakdown: { mini_game: 14, boss: 10, item: 5, achievement: 6 },
+    },
+    {
+      player_id: MOCK_UUID_BAIHU,
+      display_name: '白虎将',
+      rounds_won: 0,
+      events_drawn: 4,
+      items_used: 1,
+      boss_damage_dealt: 5,
+      achievements: ['item_collector'],
+      total_score: 22,
+      score_breakdown: { mini_game: 7, boss: 5, item: 5, achievement: 5 },
+    },
   ],
 };
 
@@ -196,6 +321,18 @@ export function injectGameOver(): void {
   store.setGameOver(MOCK_GAME_OVER);
   store.setDefinitions(MOCK_DEFINITIONS);
   store.setMyPlayerId(MOCK_UUID_QINGLONG);
+  store.setGameOverAnimationComplete(false);  // Trigger animation overlay
+  store.setPendingScene(null);
+  store.setScene(Scene.GameOver);
+}
+
+export function injectGameOverSkipAni(): void {
+  const store = useGameStore.getState();
+  store.setPlayers(MOCK_PLAYERS);
+  store.setGameOver(MOCK_GAME_OVER);
+  store.setDefinitions(MOCK_DEFINITIONS);
+  store.setMyPlayerId(MOCK_UUID_QINGLONG);
+  store.setGameOverAnimationComplete(true);  // Skip animation, show final page directly
   store.setPendingScene(null);
   store.setScene(Scene.GameOver);
 }

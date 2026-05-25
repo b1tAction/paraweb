@@ -7,7 +7,7 @@
 
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { injectBoard, injectGameOver, injectMiniGame } from './devMockData';
+import { injectBoard, injectGameOver, injectGameOverSkipAni, injectMiniGame } from './devMockData';
 import { Scene, useGameStore } from '../store/gameStore';
 
 // ========== Scene list for dropdown ==========
@@ -29,7 +29,8 @@ const SCENE_OPTIONS: { value: Scene; label: string }[] = [
 // ========== Preset inject buttons ==========
 
 const PRESET_INJECTORS: { label: string; inject: () => void }[] = [
-  { label: 'GameOver + Mock', inject: injectGameOver },
+  { label: 'GameOver + Animation', inject: injectGameOver },
+  { label: 'GameOver Skip Ani', inject: injectGameOverSkipAni },
   { label: 'Board + Mock', inject: injectBoard },
   { label: 'MiniGame + Mock', inject: injectMiniGame },
 ];
@@ -51,6 +52,13 @@ export const DevPanel: React.FC = () => {
 
   const handleReset = useCallback(() => {
     useGameStore.getState().resetMatchState();
+  }, []);
+
+  const handleReplayAnimation = useCallback(() => {
+    const store = useGameStore.getState();
+    if (store.gameOver && store.currentScene === Scene.GameOver) {
+      store.setGameOverAnimationComplete(false);
+    }
   }, []);
 
   return (
@@ -125,6 +133,9 @@ export const DevPanel: React.FC = () => {
 
           {/* Quick actions */}
           <div style={styles.section}>
+            <button type="button" style={styles.replayButton} onClick={handleReplayAnimation}>
+              Replay GameOver Animation
+            </button>
             <button type="button" style={styles.resetButton} onClick={handleReset}>
               Reset Match State
             </button>
@@ -239,6 +250,18 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '3px',
     backgroundColor: 'rgba(80, 20, 20, 0.6)',
     color: '#ff8080',
+    fontSize: '11px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  replayButton: {
+    width: '100%',
+    padding: '4px',
+    margin: '2px 0',
+    border: '1px solid rgba(100, 200, 100, 0.35)',
+    borderRadius: '3px',
+    backgroundColor: 'rgba(20, 80, 20, 0.6)',
+    color: '#80ff80',
     fontSize: '11px',
     fontWeight: 600,
     cursor: 'pointer',

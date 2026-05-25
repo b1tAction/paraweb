@@ -256,12 +256,53 @@ export interface RankingEntry {
 }
 
 /**
+ * ScoreReason - 积分原因明细
+ */
+export interface ScoreReason {
+  /** 积分类别: "mini_game" | "boss" | "item" | "achievement" */
+  category: string;
+  /** 人类可读原因（中文） */
+  reason: string;
+  /** 加分值 */
+  points: number;
+  /** 轮次（0表示非轮次相关） */
+  round: number;
+}
+
+/**
+ * PlayerRanking - 玩家排名（按总积分降序）
+ */
+export interface PlayerRanking {
+  /** 玩家 UUID */
+  player_id: string;
+  /** 显示名称 */
+  display_name: string;
+  /** 排名位置（1 = 冠军） */
+  rank: number;
+  /** 总积分 */
+  total_score: number;
+  /** 小游戏类别积分 */
+  mini_game_score: number;
+  /** Boss类别积分 */
+  boss_score: number;
+  /** 道具类别积分 */
+  item_score: number;
+  /** 成就类别积分 */
+  achievement_score: number;
+  /** 已达成成就类型列表 */
+  achievements: string[];
+  /** 逐条积分明细 */
+  score_reasons: ScoreReason[];
+}
+
+/**
  * GameOver - 游戏结束通知
+ * Rankings 按总积分降序排列，rankings[0] 为冠军
  */
 export interface GameOver {
-  /** 获胜者 ID */
-  winner_id: string;
-  /** 统计数据 */
+  /** 玩家排名列表（不含Boss） */
+  rankings: PlayerRanking[];
+  /** 全玩家统计（含Boss） */
   stats: PlayerStats[];
 }
 
@@ -269,14 +310,24 @@ export interface GameOver {
  * PlayerStats - 玩家结束统计
  */
 export interface PlayerStats {
-  /** 玩家 ID */
+  /** 玩家 UUID */
   player_id: string;
-  /** 获胜轮数 */
+  /** 显示名称 */
+  display_name: string;
+  /** 小游戏第1名轮数 */
   rounds_won: number;
-  /** 抽取事件数 */
+  /** 随机事件触发次数 */
   events_drawn: number;
-  /** 使用道具数 */
+  /** 消耗道具数 */
   items_used: number;
+  /** 对Boss原始累积伤害 */
+  boss_damage_dealt: number;
+  /** 已达成成就类型列表 */
+  achievements: string[];
+  /** 总积分 */
+  total_score: number;
+  /** 类别→积分映射 */
+  score_breakdown: Record<string, number>;
 }
 
 /**
