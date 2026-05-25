@@ -303,13 +303,33 @@ export const MOCK_DEFINITIONS: protocol.DefinitionsConfig = {
     thorns: { type: 'thorns', evaluation: 50, category: 'neutral', english_name: 'Thorns', name: '反刺', desc: '收到伤害后，反伤30%给攻击者', duration: 2, is_positive: false, is_negative: false, is_hidden: false, is_boss: true, is_faction: false, is_draw: false },
     death_mark: { type: 'death_mark', evaluation: 5, category: 'bad', english_name: 'DeathMark', name: '死亡标记', desc: '死亡后阻止后续行动', duration: 1, is_positive: false, is_negative: true, is_hidden: true, is_boss: false, is_faction: false, is_draw: false },
     dominance: { type: 'dominance', evaluation: 95, category: 'good', english_name: 'Dominance', name: '威势', desc: '青龙阵营增益，增益效果翻倍', duration: 1, is_positive: true, is_negative: false, is_hidden: false, is_boss: false, is_faction: true, is_draw: false },
-    rob_luck: { type: 'rob_luck', evaluation: 40, category: 'bad', english_name: 'RobLuck', name: '劫运', desc: '白虎阵营增益，抢夺目标好运', duration: 1, is_positive: false, is_negative: true, is_hidden: false, is_boss: false, is_faction: true, is_draw: false },
+    rob_luck: { type: 'rob_luck', evaluation: 40, category: 'bad', english_name: 'RobLuck', name: '劫运', desc: '白虎阵营增益，抢夺目标好运', duration: 1, is_positive: false, is_negative: true, is_hidden: true, is_boss: false, is_faction: true, is_draw: false },
     suppress: { type: 'suppress', evaluation: 80, category: 'good', english_name: 'Suppress', name: '鎮厄', desc: '玄武阵营增益，1回合免疫恶性事件和负面Buff', duration: 1, is_positive: true, is_negative: false, is_hidden: false, is_boss: false, is_faction: true, is_draw: false },
   },
   items: {
     reverse_clock: { type: 'reverse_clock', evaluation: 75, category: 'good', english_name: 'ReverseClock', name: '反方向的钟', desc: '给予指定玩家迷途Buff' },
     any_door: { type: 'any_door', evaluation: 50, category: 'neutral', english_name: 'AnyDoor', name: '任意门', desc: '前往指定玩家身边' },
     dice_upgrade: { type: 'dice_upgrade', evaluation: 80, category: 'good', english_name: 'DiceUpgrade', name: '骰子升级卡', desc: '将当前骰子升级为更高等级' },
+  },
+  mini_games: {
+    dice_race: { type: 'dice_race', mode: 'frontend', available: true, english_name: 'DiceRace', name: '骰子竞速', desc: '掷骰子比大小，按分数排名' },
+    count_seconds: { type: 'count_seconds', mode: 'frontend', available: true, english_name: 'CountSeconds', name: '数秒', desc: '尽可能准确地数出5秒' },
+    math_calc: { type: 'math_calc', mode: 'frontend', available: true, english_name: 'MathCalc', name: '心算挑战', desc: '心算数学题，比准确率和速度' },
+    rainbow_memory: { type: 'rainbow_memory', mode: 'frontend', available: true, english_name: 'RainbowMemory', name: '彩虹记忆', desc: '记忆彩虹颜色顺序' },
+    vernier: { type: 'vernier', mode: 'frontend', available: true, english_name: 'Vernier', name: '游标卡尺', desc: '精确读取游标卡尺刻度' },
+  },
+  factions: {
+    qing_long: { type: 'qing_long', english_name: 'QingLong', name: '青龙', skill_name: '威势', skill_desc: '每2回合获得充能，使用后1回合内增益效果翻倍(威势)' },
+    zhu_que: { type: 'zhu_que', english_name: 'ZhuQue', name: '朱雀', skill_name: '离火', skill_desc: '每3回合幸运值+1，最高不超过8点' },
+    bai_hu: { type: 'bai_hu', english_name: 'BaiHu', name: '白虎', skill_name: '劫运', skill_desc: '每2回合获得充能，指定目标玩家，使其增益效果改向自身(劫运)' },
+    xuan_wu: { type: 'xuan_wu', english_name: 'XuanWu', name: '玄武', skill_name: '鎮厄', skill_desc: '每2回合获得充能，使用后1回合免疫恶性事件和负面Buff(鎮厄)' },
+  },
+  dice: {
+    gold: { type: 'gold', english_name: 'Gold', name: '金骰子', desc: '大幅提升大数概率 (1-2:10%, 3-4:20%, 5-6:70%)', rank: 1 },
+    silver: { type: 'silver', english_name: 'Silver', name: '银骰子', desc: '提升大数概率 (1-2:20%, 3-4:30%, 5-6:50%)', rank: 2 },
+    copper: { type: 'copper', english_name: 'Copper', name: '铜骰子', desc: '略微提升大数概率 (1-2:30%, 3-4:30%, 5-6:40%)', rank: 3 },
+    wood: { type: 'wood', english_name: 'Wood', name: '木骰子', desc: '均匀分布 (1-6各16.67%)', rank: 4 },
+    normal: { type: 'normal', english_name: 'Normal', name: '普通骰子', desc: '均匀分布 (1-6各16.67%)', rank: 0 },
   },
 };
 

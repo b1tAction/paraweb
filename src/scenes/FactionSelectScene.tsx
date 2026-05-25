@@ -9,32 +9,27 @@ import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
 import { assetCssUrl } from '../utils/assets';
 
-const factionOptions = [
-  {
-    value: 'qing_long',
-    label: '青龙',
-    skillName: '威势',
-    description: '每 2 回合充能，使用后获得一回合威势BUFF，良性增益效果翻倍',
-  },
-  {
-    value: 'zhu_que',
-    label: '朱雀',
-    skillName: '离火',
-    description: '每 3 回合触发，LP +1',
-  },
-  {
-    value: 'bai_hu',
-    label: '白虎',
-    skillName: '劫运',
-    description: '每 2 回合充能，使用时指定一名玩家获得一回合劫运BUFF，获取其良性增益效果',
-  },
-  {
-    value: 'xuan_wu',
-    label: '玄武',
-    skillName: '镇厄',
-    description: '每 2 回合充能，使用后获得一回合镇厄BUFF，免疫恶性事件和 debuff',
-  },
-] as const;
+import type { DefinitionsConfig } from '../types/protocol';
+
+// Fallback faction definitions for pre-game UI (before StartGameAck arrives)
+const FALLBACK_FACTION_DEFINITIONS: Record<string, { name: string; skill_name: string; skill_desc: string }> = {
+  qing_long: { name: '青龙', skill_name: '威势', skill_desc: '每2回合获得充能，使用后1回合内增益效果翻倍(威势)' },
+  zhu_que: { name: '朱雀', skill_name: '离火', skill_desc: '每3回合幸运值+1，最高不超过8点' },
+  bai_hu: { name: '白虎', skill_name: '劫运', skill_desc: '每2回合获得充能，指定目标玩家，使其增益效果改向自身(劫运)' },
+  xuan_wu: { name: '玄武', skill_name: '鎮厄', skill_desc: '每2回合获得充能，使用后1回合免疫恶性事件和负面Buff(鎮厄)' },
+};
+
+const BACKEND_FACTION_ORDER = ['qing_long', 'zhu_que', 'bai_hu', 'xuan_wu'];
+
+function getFactionOptions(definitions: DefinitionsConfig | null) {
+  const factionDefs = definitions?.factions || FALLBACK_FACTION_DEFINITIONS;
+  return BACKEND_FACTION_ORDER.map((key) => ({
+    value: key,
+    label: factionDefs[key]?.name || key,
+    skillName: factionDefs[key]?.skill_name || '',
+    description: factionDefs[key]?.skill_desc || '',
+  }));
+}
 
 async function getErrorMessage(err: unknown): Promise<string> {
   if (err instanceof Error && err.message) return err.message;
@@ -47,7 +42,8 @@ async function getErrorMessage(err: unknown): Promise<string> {
 }
 
 export const FactionSelectScene: React.FC = () => {
-  const { faction: storedFaction, match, pendingRoomAction, resetMatchState } = useGameStore();
+  const { faction: storedFaction, match, pendingRoomAction, resetMatchState, definitions } = useGameStore();
+  const factionOptions = getFactionOptions(definitions);
   const [selectedFaction, setSelectedFaction] = useState(storedFaction || 'qing_long');
   const [isConfirming, setIsConfirming] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
