@@ -34,6 +34,7 @@ import { Scene, useGameStore } from '../store/gameStore';
 import type { Available, Item, Player } from '../types/protocol';
 import { assetCssUrl, assetUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
+import { playDiceSfx } from '../utils/diceSfx';
 
 const SHOW_DEV_DEBUG_UI = import.meta.env.DEV;
 
@@ -355,9 +356,15 @@ export const BoardScene: React.FC = () => {
    * 处理掷骰子
    */
   const handleRollDice = () => {
-    console.log('[BoardScene] 掷骰子');
+    console.log('[BoardScene] 掷骰子 - 开始');
     setItemTargetSelection(null);
     setSkillTargetSelection(false);
+    
+    // 在用户手势的同步调用栈内立即播放音效，确保浏览器允许自动播放
+    console.log('[BoardScene] 准备播放骰子音效');
+    playDiceSfx();
+    console.log('[BoardScene] 骰子音效播放调用完成');
+    
     setRolledDiceTurnKey(`${storeRound}:${storeTurn}:${currentPlayerId || myPlayerId}`);
     setDiceRollView({
       status: 'awaiting_result',

@@ -2,6 +2,7 @@ import { isBossPlayer } from '../game/bossVisualConfig';
 import { dispatchDevBoardFocusCell } from '../game/devBoardEvents';
 import { Scene, useGameStore } from '../store/gameStore';
 import type { LogEntry, MapConfig, Player } from '../types/protocol';
+import { playEventSfx } from '../utils/eventSfx';
 import { injectBoard, MOCK_DEFINITIONS, MOCK_MAP_CONFIG, MOCK_PLAYERS } from './devMockData';
 
 export type DevEffectGroup = 'Action' | 'Event' | 'Buff' | 'Item' | 'Skill/Boss' | 'Dice';
@@ -554,6 +555,15 @@ export function triggerDevEffect(presetId: string, optionsOrTargetPlayerId?: str
       : preset.focus === 'source'
         ? context.sourcePlayer.position
         : context.targetPlayer.position;
+
+  // Play event sound effect if this is a draw_event action
+  entries.forEach((entry) => {
+    if (entry.action_type === 'draw_event' && entry.metadata?.event_type) {
+      const eventType = String(entry.metadata.event_type);
+      console.log('[DevEffectTriggers] 触发事件音效:', eventType);
+      playEventSfx(eventType);
+    }
+  });
 
   useGameStore.getState().addPendingEntries(entries);
   dispatchDevBoardFocusCell(focusPosition);
