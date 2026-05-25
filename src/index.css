@@ -81,6 +81,19 @@ button:disabled {
   }
 }
 
+@keyframes paradice-status-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0) scale(0.86);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-5px) scale(1.08);
+  }
+}
+
 .paradice-dice-spinning {
   animation: paradice-dice-spin 0.42s linear infinite;
 }
