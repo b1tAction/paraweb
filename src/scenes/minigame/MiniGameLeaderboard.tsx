@@ -9,6 +9,12 @@ interface MiniGameLeaderboardProps {
   result: MiniGameResult;
 }
 
+const DICE_PROBABILITY_DETAIL_PATTERN = /\s*[（(][^()（）]*[%％][^()（）]*[）)]/g;
+
+function formatDiceDescription(description?: string) {
+  return (description || '').replace(DICE_PROBABILITY_DETAIL_PATTERN, '').trim();
+}
+
 export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({ gameType, result }) => {
   const { players, myPlayerId, definitions } = useGameStore();
 
@@ -71,7 +77,7 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({ gameTy
     return {
       label: diceDef?.name || (rank === 1 ? '金骰子' : rank === 2 ? '银骰子' : rank === 3 ? '铜骰子' : '木骰子'),
       badgeStyle: BADGE_STYLES[diceKey] || styles.badgeWood,
-      desc: diceDef?.desc || '',
+      desc: formatDiceDescription(diceDef?.desc),
     };
   };
 
