@@ -9,6 +9,7 @@ import { useGameStore } from '../store/gameStore';
 import { assetCssUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 import { GameOverAnimation } from './GameOverAnimation';
+import { SceneStatusPanel } from './SceneStatusPanel';
 
 const factionMeta: Record<string, { label: string }> = {
   qing_long: { label: '青龙' },
@@ -178,7 +179,13 @@ export const GameOverScene: React.FC = () => {
   }, [setGameOverAnimationComplete]);
 
   if (!gameOver) {
-    return <div style={styles.loading}>加载中...</div>;
+    return (
+      <SceneStatusPanel
+        eyebrow="Game Over"
+        title="结算加载中..."
+        variant="loading"
+      />
+    );
   }
 
   // If animation not complete, show the animation overlay

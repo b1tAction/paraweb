@@ -15,6 +15,7 @@ import {
   LobbyScene,
   MiniGameSubmitRankScene,
 } from './scenes';
+import { SceneStatusPanel } from './scenes/SceneStatusPanel';
 import { checkForUpdate, type DesktopUpdateCheckResult, openExternalUrl } from './service/updateService';
 import { Scene, useGameStore } from './store/gameStore';
 import { playBoardBgm, stopBoardBgm } from './utils/boardBgm';
@@ -58,10 +59,10 @@ const sceneComponents: Record<Scene, React.ComponentType> = {
  */
 function LoadingScene() {
   return (
-    <div style={styles.container}>
-      <h2>加载中...</h2>
-      <p>正在初始化游戏</p>
-    </div>
+    <SceneStatusPanel
+      title="加载中..."
+      variant="loading"
+    />
   );
 }
 
@@ -98,11 +99,11 @@ function DesktopUpdateNotice({ update, onDismiss }: DesktopUpdateNoticeProps) {
  */
 function DiceAssignScene() {
   return (
-    <div style={styles.container}>
-      <h2>骰子分配</h2>
-      <p>根据小游戏排名分配骰子类型</p>
-      <p>金骰子 (第 1 名) / 银骰子 (第 2 名) / 铜骰子 (第 3 名) / 木骰子 (第 4 名)</p>
-    </div>
+    <SceneStatusPanel
+      eyebrow="Round Reward"
+      title="骰子分配中..."
+      variant="dice"
+    />
   );
 }
 
@@ -111,10 +112,12 @@ function DiceAssignScene() {
  */
 function BossBattleScene() {
   return (
-    <div style={styles.container}>
-      <h2>Boss 战斗</h2>
-      <p>挑战最终 Boss!</p>
-    </div>
+    <SceneStatusPanel
+      eyebrow="Boss Battle"
+      title="Boss 战斗中..."
+      variant="boss"
+      accent="red"
+    />
   );
 }
 

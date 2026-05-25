@@ -9,6 +9,7 @@ import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
 import { assetCssUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
+import { SceneStatusPanel } from './SceneStatusPanel';
 
 const factionMeta: Record<string, { label: string }> = {
   qing_long: { label: '青龙' },
@@ -63,10 +64,12 @@ export const LobbyScene: React.FC = () => {
 
   if (!waitingSync) {
     return (
-      <main style={styles.page}>
-        <div style={styles.cornerTitle}>LOBBY</div>
-        <div style={styles.loading}>LOADING...</div>
-      </main>
+      <SceneStatusPanel
+        eyebrow="Lobby"
+        title="房间同步中..."
+        variant="loading"
+        accent="green"
+      />
     );
   }
 
