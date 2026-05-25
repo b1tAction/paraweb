@@ -37,23 +37,11 @@ import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const SHOW_DEV_DEBUG_UI = import.meta.env.DEV;
 
-const FACTION_META: Record<string, { label: string; color: string; bgColor: string; textColor?: string }> = {
-  qing_long: { label: '青龙', color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
-  zhu_que: { label: '朱雀', color: '#e62b62', bgColor: 'rgba(253, 228, 237, 0.9)' },
-  bai_hu: { label: '白虎', color: '#e1c4ee', textColor: '#740596', bgColor: 'rgba(246, 230, 250, 0.96)' },
-  xuan_wu: { label: '玄武', color: '#113151', bgColor: 'rgba(208, 232, 255, 0.96)' },
-};
-
-const BUFF_EFFECTS: Record<string, string> = {
-  divine: '每回合 LP 加 1',
-  rain: '每两回合 HP 加 1',
-  exorcism: '免疫毒瘴事件',
-  fire: '每回合 LP 加 1',
-  curse: '每回合 LP 减 1',
-  lost: '移动方向反转',
-  corrupt: '每两回合 HP 减 1',
-  poison: '触发坏事件',
-  hidden: '免疫伤害和事件',
+const FACTION_COLORS: Record<string, { color: string; bgColor: string; textColor?: string }> = {
+  qing_long: { color: '#6ab86e', bgColor: 'rgb(220, 253, 222)' },
+  zhu_que: { color: '#e62b62', bgColor: 'rgba(253, 228, 237, 0.9)' },
+  bai_hu: { color: '#e1c4ee', textColor: '#740596', bgColor: 'rgba(246, 230, 250, 0.96)' },
+  xuan_wu: { color: '#113151', bgColor: 'rgba(208, 232, 255, 0.96)' },
 };
 
 const PLAYER_CARD_SCALE = 3;
@@ -82,7 +70,20 @@ function isBossBattleTurn(turnState: string) {
 }
 
 function getFactionMeta(faction: string) {
-  return FACTION_META[faction] ?? { label: faction || '未知', color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
+  const { definitions } = useGameStore.getState();
+  const factionDef = definitions?.factions[faction];
+  const colors = FACTION_COLORS[faction] ?? { color: '#607d8b', bgColor: 'rgba(230, 236, 240, 0.96)' };
+  return {
+    label: factionDef?.name || faction || '未知',
+    color: colors.color,
+    bgColor: colors.bgColor,
+    textColor: colors.textColor,
+  };
+}
+
+function getBuffDesc(buffType: string): string {
+  const { definitions } = useGameStore.getState();
+  return definitions?.buffs[buffType]?.desc || '暂无效果说明';
 }
 
 function getBuffIconSrc(type: string) {
@@ -980,7 +981,7 @@ export const BoardScene: React.FC = () => {
             ? bossPlayer.buffs.map((buff) => (
                 <img
                   key={buff.type}
-                  title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
+                  title={`${buff.name}\n${getBuffDesc(buff.type)}\n剩余回合: ${formatBuffDuration(buff.duration)}\n`}
                   src={getBuffIconSrc(buff.type)}
                   alt={buff.name || buff.type}
                   style={styles.buffDot}
@@ -1070,7 +1071,7 @@ export const BoardScene: React.FC = () => {
                     {player.buffs?.slice(0, 10).map((buff) => (
                       <img
                         key={buff.type}
-                        title={`${buff.name || buff.type}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
+                        title={`${buff.name || buff.type}\n${getBuffDesc(buff.type)}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
                         src={getBuffIconSrc(buff.type)}
                         alt={buff.name || buff.type}
                         style={styles.pixelBuffDot}
@@ -1099,7 +1100,7 @@ export const BoardScene: React.FC = () => {
               <div
                 key={buff.type}
                 style={styles.selfBuffFrame}
-                title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '暂无效果说明'}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
+                title={`${buff.name}\n${getBuffDesc(buff.type)}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
               >
                 <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
                 <img src={getBuffIconSrc(buff.type)} alt={buff.name} style={styles.selfBuffIcon} />
@@ -1114,7 +1115,7 @@ export const BoardScene: React.FC = () => {
               <div
                 key={buff.type}
                 style={styles.selfBuffFrame}
-                title={`${buff.name}\n${BUFF_EFFECTS[buff.type] || '鏆傛棤鏁堟灉璇存槑'}\n鍓╀綑鍥炲悎: ${formatBuffDuration(buff.duration)}`}
+                title={`${buff.name}\n${getBuffDesc(buff.type)}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
               >
                 <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
                 <img src={getBuffIconSrc(buff.type)} alt={buff.name} style={styles.selfBuffIcon} />

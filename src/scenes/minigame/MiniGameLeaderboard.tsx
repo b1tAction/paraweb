@@ -10,7 +10,7 @@ interface MiniGameLeaderboardProps {
 }
 
 export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({ gameType, result }) => {
-  const { players, myPlayerId } = useGameStore();
+  const { players, myPlayerId, definitions } = useGameStore();
 
   const allPlayersData = players.map((p) => ({
     displayName: p.display_name || p.player_id,
@@ -56,16 +56,23 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({ gameTy
   };
 
   const getDiceInfo = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return { label: '金骰子', badgeStyle: styles.badgeGold, desc: '大幅提升大数概率' };
-      case 2:
-        return { label: '银骰子', badgeStyle: styles.badgeSilver, desc: '提升大数概率' };
-      case 3:
-        return { label: '铜骰子', badgeStyle: styles.badgeCopper, desc: '略微提升概率' };
-      default:
-        return { label: '普通骰子', badgeStyle: styles.badgeWood, desc: '均衡概率' };
-    }
+    // Map rank to dice type key (matches backend RankToDiceType)
+    const RANK_TO_DICE_KEY: Record<number, string> = { 1: 'gold', 2: 'silver', 3: 'copper' };
+    const diceKey = RANK_TO_DICE_KEY[rank] || 'wood';
+    const diceDef = definitions?.dice[diceKey];
+
+    const BADGE_STYLES: Record<string, React.CSSProperties> = {
+      gold: styles.badgeGold,
+      silver: styles.badgeSilver,
+      copper: styles.badgeCopper,
+      wood: styles.badgeWood,
+    };
+
+    return {
+      label: diceDef?.name || (rank === 1 ? '金骰子' : rank === 2 ? '银骰子' : rank === 3 ? '铜骰子' : '木骰子'),
+      badgeStyle: BADGE_STYLES[diceKey] || styles.badgeWood,
+      desc: diceDef?.desc || '',
+    };
   };
 
   const getRankStyle = (rank: number) => {

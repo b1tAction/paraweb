@@ -444,6 +444,12 @@ export interface DefinitionsConfig {
   buffs: Record<string, BuffDefinitionConfig>;
   /** 道具定义 */
   items: Record<string, ItemDefinitionConfig>;
+  /** 小游戏定义 */
+  mini_games: Record<string, MiniGameDefinitionConfig>;
+  /** 阵营定义 */
+  factions: Record<string, FactionDefinitionConfig>;
+  /** 骰子定义 */
+  dice: Record<string, DiceDefinitionConfig>;
 }
 
 /**
@@ -487,6 +493,40 @@ export interface ItemDefinitionConfig {
   english_name: string;
   name: string;
   desc: string;
+}
+
+/**
+ * MiniGameDefinitionConfig - 小游戏定义配置
+ */
+export interface MiniGameDefinitionConfig {
+  type: string;
+  mode: string; // "frontend" or "online"
+  available: boolean;
+  english_name: string;
+  name: string;
+  desc: string;
+}
+
+/**
+ * FactionDefinitionConfig - 阵营定义配置
+ */
+export interface FactionDefinitionConfig {
+  type: string;
+  english_name: string;
+  name: string; // Chinese display name e.g. "青龙"
+  skill_name: string; // Faction skill Chinese name e.g. "威势"
+  skill_desc: string; // Faction skill description
+}
+
+/**
+ * DiceDefinitionConfig - 骰子定义配置
+ */
+export interface DiceDefinitionConfig {
+  type: string;
+  english_name: string;
+  name: string; // Chinese display name e.g. "金骰子"
+  desc: string;
+  rank: number; // Mini-game rank that earns this dice
 }
 
 // ========== 客户端 -> 服务端消息类型 ==========
