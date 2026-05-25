@@ -22,11 +22,11 @@ export const styles: Record<string, CSSProperties> = {
     backgroundRepeat: 'no-repeat',
     imageRendering: 'pixelated', // Keep pixel art sharp
 
-    // Accurate dimensions for 1760x800 image
-    width: '92vw',
-    height: 'calc(92vw * 800 / 1760)',
-    maxWidth: '1400px',
-    maxHeight: 'calc(1400px * 800 / 1760)',
+    // Keep the 1760x800 frame ratio while making it as large as the viewport allows.
+    width: 'min(98vw, calc(98vh * 1760 / 800))',
+    aspectRatio: '1760 / 800',
+    maxWidth: '1760px',
+    maxHeight: '98vh',
 
     // Position relative so absolute children work
     position: 'relative',
@@ -535,8 +535,9 @@ export const styles: Record<string, CSSProperties> = {
   },
   diceDesc: {
     fontSize: '11px',
-    color: '#95a5a6',
-    fontWeight: '600',
+    color: '#263238',
+    fontWeight: '800',
+    textShadow: '0 1px 0 rgba(255, 255, 255, 0.65)',
   },
   // Specific Rank Styles
   rank1: {

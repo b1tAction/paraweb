@@ -325,11 +325,11 @@ export const MOCK_DEFINITIONS: protocol.DefinitionsConfig = {
     xuan_wu: { type: 'xuan_wu', english_name: 'XuanWu', name: '玄武', skill_name: '鎮厄', skill_desc: '每2回合获得充能，使用后1回合免疫恶性事件和负面Buff(鎮厄)' },
   },
   dice: {
-    gold: { type: 'gold', english_name: 'Gold', name: '金骰子', desc: '大幅提升大数概率 (1-2:10%, 3-4:20%, 5-6:70%)', rank: 1 },
-    silver: { type: 'silver', english_name: 'Silver', name: '银骰子', desc: '提升大数概率 (1-2:20%, 3-4:30%, 5-6:50%)', rank: 2 },
-    copper: { type: 'copper', english_name: 'Copper', name: '铜骰子', desc: '略微提升大数概率 (1-2:30%, 3-4:30%, 5-6:40%)', rank: 3 },
-    wood: { type: 'wood', english_name: 'Wood', name: '木骰子', desc: '均匀分布 (1-6各16.67%)', rank: 4 },
-    normal: { type: 'normal', english_name: 'Normal', name: '普通骰子', desc: '均匀分布 (1-6各16.67%)', rank: 0 },
+    gold: { type: 'gold', english_name: 'Gold', name: '金骰子', desc: '大幅提升大数概率', rank: 1 },
+    silver: { type: 'silver', english_name: 'Silver', name: '银骰子', desc: '提升大数概率', rank: 2 },
+    copper: { type: 'copper', english_name: 'Copper', name: '铜骰子', desc: '略微提升大数概率', rank: 3 },
+    wood: { type: 'wood', english_name: 'Wood', name: '木骰子', desc: '均匀分布', rank: 4 },
+    normal: { type: 'normal', english_name: 'Normal', name: '普通骰子', desc: '均匀分布', rank: 0 },
   },
 };
 
