@@ -1,14 +1,14 @@
 import type React from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PhaserCharacterPreview } from '../components/PhaserCharacterPreview';
-import { GameOverAnimation } from './GameOverAnimation';
-import { isBossPlayer } from '../game/bossVisualConfig';
 import { getAchievementDef } from '../game/achievementDefs';
+import { isBossPlayer } from '../game/bossVisualConfig';
 import { getFactionColors, getScoreCategoryColor } from '../game/scoreCategoryColors';
 import { gameService } from '../service/NakamaService';
 import { useGameStore } from '../store/gameStore';
 import { assetCssUrl } from '../utils/assets';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
+import { GameOverAnimation } from './GameOverAnimation';
 
 const factionMeta: Record<string, { label: string }> = {
   qing_long: { label: '青龙' },
@@ -16,6 +16,13 @@ const factionMeta: Record<string, { label: string }> = {
   bai_hu: { label: '白虎' },
   xuan_wu: { label: '玄武' },
 };
+
+const ACHIEVEMENT_VISIBLE_CARD_COUNT = 4;
+const ACHIEVEMENT_CARD_HEIGHT = 116;
+const ACHIEVEMENT_CARD_GAP = 10;
+const ACHIEVEMENT_VIEWPORT_HEIGHT =
+  ACHIEVEMENT_VISIBLE_CARD_COUNT * ACHIEVEMENT_CARD_HEIGHT +
+  (ACHIEVEMENT_VISIBLE_CARD_COUNT - 1) * ACHIEVEMENT_CARD_GAP;
 
 const playerSlots = [
   {
@@ -48,8 +55,64 @@ export const GameOverScene: React.FC = () => {
   const resetMatchState = useGameStore((s) => s.resetMatchState);
   const setGameOverAnimationComplete = useGameStore((s) => s.setGameOverAnimationComplete);
 
+  const achievementViewportRef = useRef<HTMLDivElement | null>(null);
+  const achievementWheelLockedRef = useRef(false);
+  const achievementWheelUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
   const [isRestartPressed, setIsRestartPressed] = useState(false);
+
+  const scheduleAchievementWheelUnlock = useCallback(() => {
+    if (achievementWheelUnlockTimerRef.current) {
+      clearTimeout(achievementWheelUnlockTimerRef.current);
+    }
+
+    achievementWheelUnlockTimerRef.current = setTimeout(() => {
+      achievementWheelLockedRef.current = false;
+      achievementWheelUnlockTimerRef.current = null;
+    }, 220);
+  }, []);
+
+  const handleAchievementWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const viewport = achievementViewportRef.current;
+    if (!viewport || event.deltaY === 0) return;
+
+    event.preventDefault();
+
+    if (achievementWheelLockedRef.current) {
+      scheduleAchievementWheelUnlock();
+      return;
+    }
+
+    const cards = Array.from(viewport.querySelectorAll<HTMLElement>('[data-achievement-card="true"]'));
+    if (cards.length === 0) return;
+
+    const visibleCardCount = Math.max(1, cards.reduce((count, card) => {
+      const cardBottom = card.offsetTop - cards[0].offsetTop + card.offsetHeight;
+      return cardBottom <= viewport.clientHeight + 1 ? count + 1 : count;
+    }, 0));
+    const maxStartIndex = Math.max(0, cards.length - visibleCardCount);
+    const direction = event.deltaY > 0 ? 1 : -1;
+    const nearestIndex = cards.reduce((closestIndex, card, index) => {
+      const closestDistance = Math.abs(cards[closestIndex].offsetTop - viewport.scrollTop);
+      const distance = Math.abs(card.offsetTop - viewport.scrollTop);
+      return distance < closestDistance ? index : closestIndex;
+    }, 0);
+    const currentIndex = Math.min(nearestIndex, maxStartIndex);
+    const nextIndex = Math.max(0, Math.min(cards.length - 1, currentIndex + direction));
+    const clampedNextIndex = Math.min(nextIndex, maxStartIndex);
+
+    achievementWheelLockedRef.current = true;
+    viewport.scrollTo({ top: cards[clampedNextIndex].offsetTop, behavior: 'smooth' });
+    scheduleAchievementWheelUnlock();
+  }, [scheduleAchievementWheelUnlock]);
+
+  useEffect(() => {
+    return () => {
+      if (achievementWheelUnlockTimerRef.current) {
+        clearTimeout(achievementWheelUnlockTimerRef.current);
+      }
+    };
+  }, []);
 
   const visiblePlayers = useMemo(() => players.filter((player) => !isBossPlayer(player)), [players]);
   const playerMap = useMemo(
@@ -79,9 +142,9 @@ export const GameOverScene: React.FC = () => {
     return map;
   }, [visiblePlayers]);
 
-  const getPlayerName = (playerId: string): string => {
+  const getPlayerName = useCallback((playerId: string): string => {
     return disambiguatedNames[playerId] || playerId;
-  };
+  }, [disambiguatedNames]);
 
   // Champion from rankings[0]
   const champion = useMemo(() => {
@@ -89,30 +152,24 @@ export const GameOverScene: React.FC = () => {
     return gameOver.rankings[0];
   }, [gameOver]);
 
-  // Rankings enriched with faction and display info
-  const enrichedRankings = useMemo(() => {
-    if (!gameOver) return [];
-    return gameOver.rankings.map((r) => ({
-      ...r,
-      faction: factionLookup[r.player_id] ?? '',
-      displayName: getPlayerName(r.player_id),
-      isMe: r.player_id === myPlayerId,
-      isChampion: r.rank === 1,
-    }));
-  }, [gameOver, factionLookup, getPlayerName, myPlayerId]);
-
-  // Stats enriched with faction
+  // Stats enriched with faction and total score from rankings
   const enrichedStats = useMemo(() => {
     if (!gameOver) return [];
+    const rankingByPlayerId = new Map(gameOver.rankings.map((r) => [r.player_id, r]));
     return gameOver.stats
       .filter((stat) => !stat.player_id.includes('beeeeeef')) // Exclude Boss from main table
-      .map((stat) => ({
-        ...stat,
-        faction: factionLookup[stat.player_id] ?? '',
-        displayName: getPlayerName(stat.player_id),
-        isMe: stat.player_id === myPlayerId,
-        isChampion: champion?.player_id === stat.player_id,
-      }));
+      .map((stat) => {
+        const ranking = rankingByPlayerId.get(stat.player_id);
+        return {
+          ...stat,
+          faction: factionLookup[stat.player_id] ?? '',
+          displayName: getPlayerName(stat.player_id),
+          isMe: stat.player_id === myPlayerId,
+          isChampion: champion?.player_id === stat.player_id,
+          totalScore: ranking?.total_score ?? stat.total_score ?? 0,
+        };
+      })
+      .sort((a, b) => b.totalScore - a.totalScore); // Sort by total score descending
   }, [gameOver, factionLookup, getPlayerName, myPlayerId, champion]);
 
   // Handle animation completion
@@ -149,7 +206,7 @@ export const GameOverScene: React.FC = () => {
   const championFaction = championFactionKey ? (factionMeta[championFactionKey] ?? null) : null;
   const championDisplayName = champion ? getPlayerName(champion.player_id) : '-';
   const championTagLabel = championFaction?.label || championFactionKey || '-';
-  const showChampionFigure = Boolean(championPlayer);
+  const showChampionFigure = Boolean(championFactionKey);
 
   return (
     <main style={styles.page}>
@@ -165,10 +222,10 @@ export const GameOverScene: React.FC = () => {
             ...(showChampionFigure ? styles.winnerCardWithFigure : styles.winnerCardTextOnly),
           }}
         >
-          {showChampionFigure && championPlayer && (
+          {showChampionFigure && (
             <div style={styles.winnerFigureViewport} aria-hidden="true">
               <PhaserCharacterPreview
-                faction={championPlayer.faction}
+                faction={championFactionKey}
                 width={160}
                 height={160}
                 style={styles.winnerFigureCanvas}
@@ -226,61 +283,19 @@ export const GameOverScene: React.FC = () => {
         })}
       </section>
 
-      {/* Rankings + Stats panel */}
-      <section style={styles.summaryPanel} aria-label="排名与统计">
-        {/* Rankings table */}
-        <div style={styles.panelHeader}>
-          <h2 style={styles.panelTitle}>排名</h2>
-        </div>
-        <div style={styles.tableWrap}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>排名</th>
-                <th style={styles.th}>玩家</th>
-                <th style={styles.th}>阵营</th>
-                <th style={styles.thScore}>总分</th>
-                <th style={styles.thScore}>小游戏</th>
-                <th style={styles.thScore}>Boss</th>
-                <th style={styles.thScore}>道具</th>
-                <th style={styles.thScore}>成就</th>
-              </tr>
-            </thead>
-            <tbody>
-              {enrichedRankings.map((r) => (
-                <tr
-                  key={r.player_id}
-                  style={{
-                    ...styles.row,
-                    ...(r.isChampion ? styles.winnerRow : undefined),
-                  }}
-                >
-                  <td style={styles.td}>{r.rank}</td>
-                  <td style={styles.td}>
-                    {r.displayName}
-                    {r.isMe ? ' · 我' : ''}
-                  </td>
-                  <td style={styles.td}>{factionMeta[r.faction]?.label ?? r.faction}</td>
-                  <td style={{ ...styles.td, fontWeight: 700 }}>{r.total_score}</td>
-                  <td style={{ ...styles.td, color: getScoreCategoryColor('mini_game') }}>{r.mini_game_score}</td>
-                  <td style={{ ...styles.td, color: getScoreCategoryColor('boss') }}>{r.boss_score}</td>
-                  <td style={{ ...styles.td, color: getScoreCategoryColor('item') }}>{r.item_score}</td>
-                  <td style={{ ...styles.td, color: getScoreCategoryColor('achievement') }}>{r.achievement_score}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
+      
+        {/* Stats panel */}
+      <section style={styles.summaryPanel} aria-label="本局统计">
         {/* Detailed stats table */}
         <div style={styles.panelHeader}>
           <h2 style={styles.panelTitle}>本局统计</h2>
         </div>
-        <div style={styles.tableWrap}>
+        <div className="gameover-scroll" style={styles.statsTableViewport}>
           <table style={styles.table}>
             <thead>
               <tr>
                 <th style={styles.th}>玩家</th>
+                <th style={styles.thScore}>总分</th>
                 <th style={styles.th}>胜场</th>
                 <th style={styles.th}>事件</th>
                 <th style={styles.th}>道具</th>
@@ -301,26 +316,31 @@ export const GameOverScene: React.FC = () => {
                     {stat.displayName}
                     {stat.isMe ? ' · 我' : ''}
                   </td>
+                  <td style={{ ...styles.td, fontWeight: 700 }}>{stat.total_score}</td>
                   <td style={styles.td}>{stat.rounds_won}</td>
                   <td style={styles.td}>{stat.events_drawn}</td>
                   <td style={styles.td}>{stat.items_used}</td>
                   <td style={styles.td}>{stat.boss_damage_dealt}</td>
-                  <td style={styles.td}>
-                    {stat.achievements.map((a) => {
-                      const def = getAchievementDef(a);
-                      return def ? def.name : a;
-                    }).join(', ') || '-'}
-                  </td>
+                  <td style={styles.td}>{stat.achievements.length}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      </section>
 
-        {/* Achievements display */}
-        {gameOver.rankings.some((r) => r.achievements.length > 0) && (
-          <div style={styles.achievementsSection}>
-            <h3 style={styles.achievementTitle}>成就一览</h3>
+      {/* Achievement panel - right side */}
+      <section style={styles.achievementPanel} aria-label="成就一览">
+        <div style={styles.panelHeader}>
+          <h2 style={{ ...styles.panelTitle, color: getScoreCategoryColor('achievement') }}>成就一览</h2>
+        </div>
+        {gameOver.rankings.some((r) => r.achievements.length > 0) ? (
+          <div
+            ref={achievementViewportRef}
+            className="gameover-scroll"
+            style={styles.achievementViewport}
+            onWheel={handleAchievementWheel}
+          >
             <div style={styles.achievementGrid}>
               {gameOver.rankings
                 .filter((r) => r.achievements.length > 0)
@@ -335,7 +355,11 @@ export const GameOverScene: React.FC = () => {
                   const def = getAchievementDef(type);
                   const colors = getFactionColors(faction);
                   return (
-                    <div key={`${type}-${playerName}`} style={{ ...styles.achievementCard, borderColor: colors.primary }}>
+                    <div
+                      key={`${type}-${playerName}`}
+                      data-achievement-card="true"
+                      style={{ ...styles.achievementCard, borderColor: colors.primary }}
+                    >
                       <div style={{ ...styles.achievementName, color: getScoreCategoryColor('achievement') }}>
                         {def?.name ?? type}
                       </div>
@@ -347,6 +371,8 @@ export const GameOverScene: React.FC = () => {
                 })}
             </div>
           </div>
+        ) : (
+          <div style={styles.achievementEmpty}>本局暂无成就</div>
         )}
       </section>
 
@@ -558,9 +584,9 @@ const styles: Record<string, React.CSSProperties> = {
   summaryPanel: {
     position: 'absolute',
     left: '24px',
-    top: '22%',
-    width: 'min(420px, calc(100vw - 32px))',
-    maxHeight: '70vh',
+    top: '24%',
+    width: 'min(480px, calc(100vw - 32px))',
+    maxHeight: '58vh',
     padding: '18px 20px 20px',
     zIndex: 1,
     background: 'rgba(13, 20, 22, 0.8)',
@@ -568,6 +594,10 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '8px',
     boxShadow: '0 18px 40px rgba(0, 0, 0, 0.28)',
     backdropFilter: 'blur(2px)',
+    overflow: 'hidden',
+  },
+  statsTableViewport: {
+    maxHeight: '42vh',
     overflowY: 'auto',
   },
   panelHeader: {
@@ -619,25 +649,52 @@ const styles: Record<string, React.CSSProperties> = {
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
-  achievementsSection: {
-    marginTop: '18px',
+  achievementPanel: {
+    position: 'absolute',
+    right: '24px',
+    top: '24%',
+    width: 'min(280px, calc(100vw - 32px))',
+    maxHeight: '70vh',
+    padding: '18px 20px 20px',
+    zIndex: 1,
+    background: 'rgba(13, 20, 22, 0.8)',
+    border: '1px solid rgba(255, 232, 166, 0.34)',
+    borderRadius: '8px',
+    boxShadow: '0 18px 40px rgba(0, 0, 0, 0.28)',
+    backdropFilter: 'blur(2px)',
+    overflow: 'hidden',
   },
-  achievementTitle: {
-    margin: '0 0 12px',
-    fontSize: 'clamp(16px, 1.5vw, 22px)',
-    color: getScoreCategoryColor('achievement'),
+  achievementViewport: {
+    height: ACHIEVEMENT_VIEWPORT_HEIGHT,
+    maxHeight: 'calc(70vh - 64px)',
+    overflowY: 'auto',
+    paddingRight: '8px',
+    overscrollBehaviorY: 'contain',
+    scrollbarGutter: 'stable',
+    scrollSnapType: 'y mandatory',
+    scrollBehavior: 'smooth',
+  },
+  achievementEmpty: {
+    textAlign: 'center',
+    color: '#ead8a0',
+    fontSize: '14px',
+    padding: '20px 0',
   },
   achievementGrid: {
     display: 'flex',
-    flexWrap: 'wrap',
-    gap: '10px',
+    flexDirection: 'column',
+    gap: ACHIEVEMENT_CARD_GAP,
   },
   achievementCard: {
+    height: ACHIEVEMENT_CARD_HEIGHT,
+    minHeight: ACHIEVEMENT_CARD_HEIGHT,
     padding: '10px 14px',
     borderRadius: '8px',
     border: '1px solid',
     background: 'rgba(20, 20, 40, 0.7)',
-    minWidth: '140px',
+    overflow: 'hidden',
+    scrollSnapAlign: 'start',
+    scrollSnapStop: 'always',
   },
   achievementName: {
     fontSize: '16px',
