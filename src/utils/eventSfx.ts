@@ -53,11 +53,11 @@ const audioCache = new Map<string, HTMLAudioElement>();
 /**
  * Preload an event sound effect
  */
-function preloadEventSound(eventType: string): HTMLAudioElement | null {
-  if (typeof window === 'undefined' || typeof Audio === 'undefined') return null;
+function preloadEventSound(eventType: string): HTMLAudioElement | undefined {
+  if (typeof window === 'undefined' || typeof Audio === 'undefined') return undefined;
 
   const soundPath = EVENT_SOUND_MAP[eventType];
-  if (!soundPath) return null;
+  if (!soundPath) return undefined;
 
   if (audioCache.has(eventType)) {
     return audioCache.get(eventType)!;
