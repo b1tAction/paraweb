@@ -627,11 +627,14 @@ export class NakamaService {
     const store = useGameStore.getState();
     store.setMiniGameStart(data);
     store.setMiniGameResult(null);
+    store.setMiniGameOnline(data.connection != null);
+    store.setColyseusError('');
     store.setScene(Scene.MiniGameSubmitRank);
 
     console.log('[Nakama] 小游戏开始', {
       gameType: data.game_type,
       players: data.players.length,
+      online: data.connection != null,
     });
   }
 
@@ -659,7 +662,7 @@ export class NakamaService {
     const store = useGameStore.getState();
     const isWaitingRoomTermination =
       (store.currentScene === Scene.Lobby || store.currentScene === Scene.FactionSelect) &&
-      !data.winner_id &&
+      (!data.rankings || data.rankings.length === 0) &&
       (!data.stats || data.stats.length === 0);
 
     if (isWaitingRoomTermination) {
@@ -671,6 +674,7 @@ export class NakamaService {
     }
 
     store.setGameOver(data);
+    store.setGameOverAnimationComplete(false);
 
     if (
       store.currentScene === Scene.Board ||
@@ -682,8 +686,10 @@ export class NakamaService {
       store.setScene(Scene.GameOver);
     }
 
+    const champion = data.rankings[0];
     console.log('[Nakama] 游戏结束', {
-      winner: data.winner_id,
+      champion: champion?.display_name ?? champion?.player_id,
+      championScore: champion?.total_score,
     });
   }
 
@@ -749,6 +755,10 @@ export class NakamaService {
       case 'match_init':
       case 'MatchInit':
         targetScene = Scene.Loading;
+        break;
+      case 'waiting_for_host':
+      case 'WaitingForHost':
+        targetScene = Scene.Lobby;
         break;
       case 'round_mini_game':
       case 'RoundMiniGame':

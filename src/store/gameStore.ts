@@ -72,6 +72,7 @@ export enum Scene {
 /** 全局状态 (Layer 1) */
 export type GlobalState =
   | 'match_init'
+  | 'WaitingForHost'
   | 'round_mini_game'
   | 'round_prep'
   | 'turn_loop'
@@ -160,6 +161,8 @@ interface GameState {
   diceAssignments: Record<string, string>;
   /** 游戏结束信息 (如果有) */
   gameOver: GameOver | null;
+  /** 游戏结束动画是否完成 */
+  gameOverAnimationComplete: boolean;
   /** 开始游戏确认 (包含地图配置) */
   startGameAck: StartGameAck | null;
   /** 地图配置 (用于渲染地图) */
@@ -183,6 +186,10 @@ interface GameState {
   miniGameResultPending: boolean;
   /** 等待切换的目标场景 (miniGameResultPending 为 true 时暂存) */
   pendingScene: Scene | null;
+  /** 当前小游戏是否为在线模式 (connection != null) */
+  miniGameOnline: boolean;
+  /** Colyseus 连接错误信息 */
+  colyseusError: string;
 
   // ========== 状态 Actions ==========
 
@@ -222,6 +229,8 @@ interface GameState {
   setDiceAssignments: (assignments: Record<string, string>) => void;
   /** 设置游戏结束 */
   setGameOver: (gameOver: GameOver | null) => void;
+  /** 设置游戏结束动画完成状态 */
+  setGameOverAnimationComplete: (complete: boolean) => void;
   /** 将增量entries追加到播放队列 */
   addPendingEntries: (entries: LogEntry[]) => void;
   /** 从队列取第一条移到已播放列表 */
@@ -239,6 +248,10 @@ interface GameState {
   setMiniGameResultPending: (pending: boolean) => void;
   /** 设置等待切换的目标场景 */
   setPendingScene: (scene: Scene | null) => void;
+  /** 设置小游戏是否为在线模式 */
+  setMiniGameOnline: (online: boolean) => void;
+  /** 设置 Colyseus 连接错误 */
+  setColyseusError: (error: string) => void;
 
   /** 将 StateSync 压入等待队列 */
   enqueueStateSync: (stateSync: StateSync) => void;
@@ -283,6 +296,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   miniGameResult: null,
   diceAssignments: {},
   gameOver: null,
+  gameOverAnimationComplete: false,
   startGameAck: null,
   mapConfig: null,
   definitions: null,
@@ -296,6 +310,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   pendingEntries: [],
   miniGameResultPending: false,
   pendingScene: null,
+  miniGameOnline: false,
+  colyseusError: '',
 
   // ========== Actions ==========
 
@@ -344,6 +360,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setDiceAssignments: (assignments) => set({ diceAssignments: assignments }),
 
   setGameOver: (gameOver) => set({ gameOver }),
+  setGameOverAnimationComplete: (complete) => set({ gameOverAnimationComplete: complete }),
 
   addPendingEntries: (entries) => set((state) => ({ pendingEntries: [...state.pendingEntries, ...entries] })),
   playNextEntry: () =>
@@ -360,6 +377,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setMiniGameResultPending: (pending) => set({ miniGameResultPending: pending }),
   setPendingScene: (scene) => set({ pendingScene: scene }),
+  setMiniGameOnline: (online) => set({ miniGameOnline: online }),
+  setColyseusError: (error) => set({ colyseusError: error }),
 
   enqueueStateSync: (stateSync) => set((state) => ({ stateSyncQueue: [...state.stateSyncQueue, stateSync] })),
 
@@ -423,6 +442,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       miniGameResult: null,
       diceAssignments: {},
       gameOver: null,
+      gameOverAnimationComplete: false,
       playedEntries: [],
       pendingEntries: [],
       startGameAck: null,
@@ -430,6 +450,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       definitions: null,
       miniGameResultPending: false,
       pendingScene: null,
+      miniGameOnline: false,
+      colyseusError: '',
     }),
 
   resetMatchState: () =>
@@ -453,6 +475,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       miniGameResult: null,
       diceAssignments: {},
       gameOver: null,
+      gameOverAnimationComplete: false,
       playedEntries: [],
       pendingEntries: [],
       startGameAck: null,

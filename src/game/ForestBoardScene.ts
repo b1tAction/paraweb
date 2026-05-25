@@ -92,6 +92,11 @@ import {
   getCharacterRenderer,
   resolveCharacterProfile,
 } from './characterRenderConfig';
+import {
+  DEV_BOARD_FOCUS_CELL_EVENT,
+  type DevBoardFocusCellDetail,
+  getLatestDevBoardFocusCellIndex,
+} from './devBoardEvents';
 import { type LogEntryAnimationContext, shouldRenderBoardLogEntryAnimation } from './logEntryAnimationPolicy';
 import { getTiledProperty } from './tiledHelpers';
 
@@ -170,6 +175,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private lastEffectKey = '';
   private ready = false;
   private orchestrator!: AnimationOrchestrator;
+  private devFocusCellListener?: (event: Event) => void;
 
   private buildAnimationCtx(): BoardAnimationContext {
     return {
@@ -655,6 +661,8 @@ export class ForestBoardScene extends Phaser.Scene {
     this.extractPathNodes(map);
     this.rebuildCellsFromBackendConfig();
     this.renderCellMarkers();
+    this.registerDevBoardControls();
+    this.applyLatestDevBoardFocusRequest();
 
     this.orchestrator = new AnimationOrchestrator(this);
 
@@ -778,6 +786,48 @@ export class ForestBoardScene extends Phaser.Scene {
     if (!marker) return;
 
     this.cameras.main.startFollow(marker, true, 0.12, 0.12);
+  }
+
+  private registerDevBoardControls() {
+    if (typeof window === 'undefined' || this.devFocusCellListener) return;
+
+    this.devFocusCellListener = (event: Event) => {
+      const { index } = (event as CustomEvent<DevBoardFocusCellDetail>).detail ?? {};
+      if (!Number.isFinite(index)) return;
+
+      this.focusCellForDev(index);
+    };
+
+    window.addEventListener(DEV_BOARD_FOCUS_CELL_EVENT, this.devFocusCellListener);
+    this.events.once('shutdown', () => this.unregisterDevBoardControls());
+    this.events.once('destroy', () => this.unregisterDevBoardControls());
+  }
+
+  private unregisterDevBoardControls() {
+    if (typeof window === 'undefined' || !this.devFocusCellListener) return;
+
+    window.removeEventListener(DEV_BOARD_FOCUS_CELL_EVENT, this.devFocusCellListener);
+    this.devFocusCellListener = undefined;
+  }
+
+  private focusCellForDev(index: number) {
+    const cellIndex = Math.round(index);
+    const target = this.cellViews.get(cellIndex) ?? this.pathNodes.get(cellIndex);
+
+    if (!target) {
+      console.warn(`[ForestBoardScene] Dev focus skipped: cell index=${cellIndex} has no mapped path node.`);
+      return;
+    }
+
+    this.cameras.main.stopFollow();
+    this.cameras.main.pan(target.x, target.y, 180, 'Sine.easeInOut', true);
+  }
+
+  private applyLatestDevBoardFocusRequest() {
+    const latestFocusCellIndex = getLatestDevBoardFocusCellIndex();
+    if (latestFocusCellIndex === null) return;
+
+    this.time.delayedCall(0, () => this.focusCellForDev(latestFocusCellIndex));
   }
 
   private renderShrines(map: Phaser.Tilemaps.Tilemap) {

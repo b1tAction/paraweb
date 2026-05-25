@@ -26,7 +26,7 @@ function isDisabledButton(target: Element): boolean {
   return target.getAttribute('aria-disabled') === 'true';
 }
 
-function playButtonSfx(): void {
+export function playButtonSfx(): void {
   const baseAudio = getButtonSfxAudio();
   if (!baseAudio) return;
 
