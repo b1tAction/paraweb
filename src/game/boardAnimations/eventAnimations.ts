@@ -64,6 +64,7 @@ import {
 } from '../renderLayers';
 import { HIDDEN_BUFF_DISSOLVE_FRAGMENT_SOURCE, HIDDEN_BUFF_DISSOLVE_SHADER_NAME } from '../shaders/hiddenBuffDissolve';
 import { LOST_WAY_DISSOLVE_FRAGMENT_SOURCE, LOST_WAY_DISSOLVE_SHADER_NAME } from '../shaders/lostWayDissolve';
+import { playEventSfx } from '../../utils/eventSfx';
 import { type PopupContext, showCenterPopup } from './popup';
 
 type ShaderUniformValue = number | readonly number[];
@@ -106,7 +107,7 @@ export async function playDrawEventAnimation(
   // 2. Small gap after popup dismisses before starting effect
   await new Promise<void>((resolve) => ctx.scene.time.delayedCall(EFFECT_START_GAP_MS, resolve));
 
-  // 3. Play the event-specific effect animation
+  // 3. Play the event-specific effect animation (音效在各个动画函数内部播放)
   if (eventType === 'thunder') {
     playLightningStrikeAnimation(ctx, context);
   } else if (eventType === 'herb') {
@@ -136,6 +137,9 @@ export function playDivineBlessAnimation(ctx: BoardAnimationContext, context: Lo
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
+
+  // 播放神圣祝福音效
+  playEventSfx('divine_bless');
 
   const player = ctx.players.find((p) => p.player_id === entry.target);
   const order = player ? ctx.players.indexOf(player) : 0;
@@ -195,6 +199,9 @@ export function playSkullGazeBombAnimation(ctx: BoardAnimationContext, context: 
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
 
+  // 播放骷髅凝视音效（与骷髅出现同步）
+  playEventSfx('skull_gaze');
+
   const centerX = marker.x;
   // Center effects at player body mid-point instead of feet
   const bodyCenterY = marker.y;
@@ -248,6 +255,9 @@ export function playBubbleAnimation(ctx: BoardAnimationContext, context: LogEntr
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
 
+  // 播放泡泡音效
+  playEventSfx('lucky_bubble');
+
   const feetY = marker.y + CHARACTER_HALF_HEIGHT;
   const floatDistance = 80; // pixels to float upward
 
@@ -278,6 +288,9 @@ export function playGhostHitAnimation(ctx: BoardAnimationContext, context: LogEn
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
+
+  // 播放幽灵攻击音效
+  playEventSfx('ghost_hit');
 
   // Position ghost offset to the left of the player so it appears to strike toward them
   const ghostX = marker.x - 80;
@@ -314,6 +327,9 @@ export function playHerbAnimation(ctx: BoardAnimationContext, context: LogEntryA
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
 
+  // 播放草药治疗音效
+  playEventSfx('herb');
+
   const feetY = marker.y + CHARACTER_HALF_HEIGHT;
 
   const herbSprite = ctx.scene.add.sprite(marker.x, feetY, 'herb-effect');
@@ -333,6 +349,9 @@ export function playWindGustAnimation(ctx: BoardAnimationContext, context: LogEn
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
+
+  // 播放风吹音效
+  playEventSfx('wind_gust');
 
   const feetY = marker.y + CHARACTER_HALF_HEIGHT;
 
@@ -355,6 +374,9 @@ export function playLightningStrikeAnimation(ctx: BoardAnimationContext, context
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
+
+  // 播放雷击音效（与闪电动画同步）
+  playEventSfx('thunder');
 
   const landingX = marker.x;
   const landingY = marker.y + CHARACTER_HALF_HEIGHT;
@@ -414,6 +436,9 @@ export function playMosquitoAnimation(ctx: BoardAnimationContext, context: LogEn
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
 
+  // 播放蚊子攻击音效
+  playEventSfx('mosquito');
+
   // Position mosquito offset to the left of the player
   const mosquitoX = marker.x - 30;
   const bodyCenterY = marker.y;
@@ -451,6 +476,9 @@ export function playLostWayAnimation(ctx: BoardAnimationContext, context: LogEnt
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
+
+  // 播放迷路音效（在动画开始时）
+  playEventSfx('lost_way');
 
   const player = ctx.players.find((p) => p.player_id === entry.target);
   const order = player ? ctx.players.indexOf(player) : 0;
@@ -595,6 +623,9 @@ export function playHiddenBuffAnimation(ctx: BoardAnimationContext, context: Log
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
+
+  // 播放隐匿Buff音效（在动画开始时）
+  playEventSfx('hidden_buff');
 
   const player = ctx.players.find((p) => p.player_id === entry.target);
   const order = player ? ctx.players.indexOf(player) : 0;
@@ -761,6 +792,9 @@ export function playRelicAnimation(ctx: BoardAnimationContext, context: LogEntry
   const { entry } = context;
   const marker = ctx.playerMarkers.get(entry.target);
   if (!marker) return;
+
+  // 播放宝箱音效（在宝箱出现时）
+  playEventSfx('relic');
 
   // Chest lands slightly above feet level (visual centering), offset to the right
   const feetY = marker.y + CHARACTER_HALF_HEIGHT;
