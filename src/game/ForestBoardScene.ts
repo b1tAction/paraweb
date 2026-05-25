@@ -98,6 +98,7 @@ import {
   getLatestDevBoardFocusCellIndex,
 } from './devBoardEvents';
 import { type LogEntryAnimationContext, shouldRenderBoardLogEntryAnimation } from './logEntryAnimationPolicy';
+import { MAIN_MAP_TILESET_IMAGES, type TilesetImageConfig } from './mapTilesets';
 import { getTiledProperty } from './tiledHelpers';
 
 type PathNode = {
@@ -112,12 +113,6 @@ type BoardCellView = MapCellConfig & {
   y: number;
 };
 
-type TilesetImageConfig = {
-  tiledNames: string[];
-  key: string;
-  url: string;
-};
-
 type CellMarkerView = {
   sprite: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
@@ -125,28 +120,7 @@ type CellMarkerView = {
 
 type BoardAnimationRenderer = (context: LogEntryAnimationContext) => void;
 
-const TILESET_IMAGES: TilesetImageConfig[] = [
-  {
-    tiledNames: ['grass'],
-    key: 'tiles-grass',
-    url: assetUrl('assets/tilesets/forest/surface/Grass.png'),
-  },
-  {
-    tiledNames: ['Grass 2 layer'],
-    key: 'tiles-grass-2-layer',
-    url: assetUrl('assets/tilesets/forest/surface/Grass 2 layer.png'),
-  },
-  {
-    tiledNames: ['pine tree', 'assets/forest/trees/pixellab-one-tree--a-tall--green-pine-t-1776597824607.png'],
-    key: 'tiles-pine-tree',
-    url: assetUrl('assets/tilesets/forest/trees/pixellab-one-tree--a-tall--green-pine-t-1776597824607.png'),
-  },
-  {
-    tiledNames: ['Plants'],
-    key: 'tiles-plants',
-    url: assetUrl('assets/tilesets/forest/trees/Plants.png'),
-  },
-];
+const TILESET_IMAGES: TilesetImageConfig[] = MAIN_MAP_TILESET_IMAGES;
 
 const CAMERA_VIEW_TILES_X = 30;
 const CAMERA_VIEW_TILES_Y = 20;

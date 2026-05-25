@@ -45,12 +45,12 @@ export function setAssetVersion(version: string | null): void {
 
 export function assetUrl(path: string): string {
   const value = path.trim();
-  if (!value || ABSOLUTE_URL_PATTERN.test(value)) return value;
+  if (!value || ABSOLUTE_URL_PATTERN.test(value)) return encodeURI(value);
 
   const { normalizedPath, url } = normalizeAssetPath(value);
-  if (!shouldVersionAssetPath(normalizedPath)) return url;
+  if (!shouldVersionAssetPath(normalizedPath)) return encodeURI(url);
 
-  return appendAssetVersion(url);
+  return encodeURI(appendAssetVersion(url));
 }
 
 export function assetCssUrl(path: string): string {

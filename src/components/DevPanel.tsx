@@ -24,7 +24,7 @@ import {
   getNextDevDiceType,
   triggerDevEffect,
 } from './devEffectTriggers';
-import { injectBoard, injectGameOver, injectGameOverSkipAni, injectMiniGame } from './devMockData';
+import { injectBoard, injectGameOver, injectGameOverSkipAni, injectMiniGame, MOCK_MAP_CONFIG } from './devMockData';
 
 type DevPanelTab = 'state' | 'scene' | 'board' | 'effects' | 'audio';
 
@@ -121,6 +121,12 @@ function formatSceneName(scene: Scene) {
   return String(scene).replace('Scene', '');
 }
 
+function isOutdatedDevBoardMap(mapConfig: MapConfig | null) {
+  if (!mapConfig) return true;
+
+  return mapConfig.length < MOCK_MAP_CONFIG.length || mapConfig.end_index < MOCK_MAP_CONFIG.end_index;
+}
+
 export const DevPanel: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DevPanelTab>('board');
@@ -211,7 +217,7 @@ export const DevPanel: React.FC = () => {
   const handleRenderBoardMap = useCallback(() => {
     const store = useGameStore.getState();
 
-    if (!store.mapConfig || store.players.length === 0) {
+    if (isOutdatedDevBoardMap(store.mapConfig) || store.players.length === 0) {
       injectBoard();
     } else {
       store.setScene(Scene.Board);
