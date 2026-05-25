@@ -219,32 +219,56 @@ export const MOCK_GAME_OVER: protocol.GameOver = {
 
 // ========== Mock MapConfig ==========
 
+const MOCK_MAP_CELL_OVERRIDES: Record<number, Partial<protocol.MapCellConfig>> = {
+  2: { draw_type: 'event', prob_good: 40, prob_neutral: 30, prob_bad: 30 },
+  3: { cell_type: 'fragile' },
+  4: { draw_type: 'event', prob_good: 50, prob_neutral: 30, prob_bad: 20 },
+  5: { cell_type: 'fog', fog_active: true },
+  6: { draw_type: 'item' },
+  8: { cell_type: 'checkpoint' },
+  9: { draw_type: 'event', prob_good: 30, prob_neutral: 40, prob_bad: 30 },
+  10: { cell_type: 'fragile' },
+  11: { draw_type: 'buff' },
+  12: { cell_type: 'fog', fog_active: true },
+  13: { draw_type: 'event', prob_good: 40, prob_neutral: 30, prob_bad: 30 },
+  15: { cell_type: 'checkpoint' },
+  16: { draw_type: 'item' },
+  18: { draw_type: 'event', prob_good: 20, prob_neutral: 30, prob_bad: 50 },
+  22: { draw_type: 'event', prob_good: 45, prob_neutral: 30, prob_bad: 25 },
+  23: { cell_type: 'fragile' },
+  24: { draw_type: 'item' },
+  25: { cell_type: 'fog', fog_active: true },
+  27: { draw_type: 'buff' },
+  28: { cell_type: 'checkpoint' },
+  30: { cell_type: 'fragile' },
+  31: { draw_type: 'event', prob_good: 30, prob_neutral: 35, prob_bad: 35 },
+  33: { cell_type: 'fog', fog_active: true },
+  35: { cell_type: 'checkpoint' },
+  36: { draw_type: 'item' },
+  38: { draw_type: 'event', prob_good: 20, prob_neutral: 30, prob_bad: 50 },
+  39: { cell_type: 'boss' },
+};
+
+function createMockMapCell(index: number): protocol.MapCellConfig {
+  return {
+    index,
+    cell_type: 'normal',
+    is_broken: false,
+    event_id: '',
+    fog_active: false,
+    draw_type: 'none',
+    prob_good: 0,
+    prob_neutral: 0,
+    prob_bad: 0,
+    ...MOCK_MAP_CELL_OVERRIDES[index],
+  };
+}
+
 export const MOCK_MAP_CONFIG: protocol.MapConfig = {
-  length: 20,
+  length: 40,
   start_index: 0,
-  end_index: 19,
-  cells: [
-    { index: 0, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 1, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 2, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'event', prob_good: 40, prob_neutral: 30, prob_bad: 30 },
-    { index: 3, cell_type: 'fragile', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 4, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'event', prob_good: 50, prob_neutral: 30, prob_bad: 20 },
-    { index: 5, cell_type: 'fog', is_broken: false, event_id: '', fog_active: true, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 6, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'item', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 7, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 8, cell_type: 'checkpoint', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 9, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'event', prob_good: 30, prob_neutral: 40, prob_bad: 30 },
-    { index: 10, cell_type: 'fragile', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 11, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'buff', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 12, cell_type: 'fog', is_broken: false, event_id: '', fog_active: true, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 13, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'event', prob_good: 40, prob_neutral: 30, prob_bad: 30 },
-    { index: 14, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 15, cell_type: 'checkpoint', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 16, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'item', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 17, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-    { index: 18, cell_type: 'normal', is_broken: false, event_id: '', fog_active: false, draw_type: 'event', prob_good: 20, prob_neutral: 30, prob_bad: 50 },
-    { index: 19, cell_type: 'boss', is_broken: false, event_id: '', fog_active: false, draw_type: 'none', prob_good: 0, prob_neutral: 0, prob_bad: 0 },
-  ],
+  end_index: 39,
+  cells: Array.from({ length: 40 }, (_, index) => createMockMapCell(index)),
 };
 
 // ========== Mock Definitions ==========
