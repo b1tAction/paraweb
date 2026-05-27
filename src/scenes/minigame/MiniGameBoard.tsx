@@ -60,28 +60,31 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
   const isParticipant = participantIds.includes(myPlayerId);
   const gameType = miniGameStart?.game_type || '';
 
-  const viewContext = useMemo<MiniGameViewContext>(() => ({
-    matchId: quadrantMatchId,
-    round: 0,
-    miniGameStart,
-    miniGameResult,
-    myPlayerId,
-    players: participantIds.map((playerId, playerIndex) => ({
-      player_id: playerId,
-      display_name: MiniGameClient.DISPLAY_NAMES[playerIndex] || playerId,
-      faction: '',
-      position: 0,
-      hp: 0,
-      max_hp: 0,
-      lp: 0,
-      buffs: [],
-      items: [],
-      charge: 0,
-      fire_counter: 0,
-      is_dead: false,
-      skip_turn: false,
-    })),
-  }), [miniGameStart, miniGameResult, myPlayerId, participantIds, quadrantMatchId]);
+  const viewContext = useMemo<MiniGameViewContext>(
+    () => ({
+      matchId: quadrantMatchId,
+      round: 0,
+      miniGameStart,
+      miniGameResult,
+      myPlayerId,
+      players: participantIds.map((playerId, playerIndex) => ({
+        player_id: playerId,
+        display_name: MiniGameClient.DISPLAY_NAMES[playerIndex] || playerId,
+        faction: '',
+        position: 0,
+        hp: 0,
+        max_hp: 0,
+        lp: 0,
+        buffs: [],
+        items: [],
+        charge: 0,
+        fire_counter: 0,
+        is_dead: false,
+        skip_turn: false,
+      })),
+    }),
+    [miniGameStart, miniGameResult, myPlayerId, participantIds, quadrantMatchId],
+  );
 
   // Submit handler using the client's own WebSocket connection
   const submitGameData = useCallback(
@@ -109,6 +112,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
               onlineService={onlineService}
               playerId={myPlayerId}
               participantIds={participantIds}
+              participantPlayers={viewContext.players}
             />
           );
         }
@@ -171,9 +175,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
       default:
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>
-              {gameType || 'No game'} — waiting for MiniGameStart...
-            </p>
+            <p style={styles.submittedText}>{gameType || 'No game'} — waiting for MiniGameStart...</p>
           </div>
         );
     }
@@ -214,16 +216,12 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
   return (
     <div style={quadrantStyles.container}>
       <div style={quadrantStyles.header}>
-        <span style={{ color: FACTION_COLORS[index], ...quadrantStyles.headerName }}>
-          {displayName}
-        </span>
+        <span style={{ color: FACTION_COLORS[index], ...quadrantStyles.headerName }}>{displayName}</span>
         <span style={quadrantStyles.headerStatus}>
           {statusIcon} {connectionStatus}
         </span>
       </div>
-      <div style={quadrantStyles.body}>
-        {renderContent()}
-      </div>
+      <div style={quadrantStyles.body}>{renderContent()}</div>
     </div>
   );
 };

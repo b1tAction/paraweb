@@ -1,32 +1,33 @@
 /**
  * DilemmaRaceMiniGame - Real-time online mini-game component
  *
- * Renders a 15-cell track with player positions, choice buttons (1/3/5),
- * countdown timer, and round resolution display. All state comes from
- * Colyseus room state sync. Choices are sent to the Colyseus room.
- * When finished, this component shows a waiting message; the final
- * ranking + dice assignment is rendered by the unified MiniGameLeaderboard
- * after OpMiniGameResult arrives from Nakama.
- *
- * Game rules:
- * - 15-cell track, players start at position 1
- * - Each round: 10 seconds to choose step size (1/3/5)
- * - If >=2 players choose same step, they are blocked (can't move)
- * - First to reach position 15 wins
+ * Hybrid layout: Phaser canvas renders the map + characters + popup,
+ * React renders timer, legend, and dice choice buttons.
+ * All state comes from Colyseus room state sync.
  */
 
+import * as Phaser from 'phaser';
 import type React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  type ColyseusService,
-  colyseusService,
-  type DilemmaRacePlayer,
-  type DilemmaRaceRoomState,
-} from '../../service/ColyseusService';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { resolveCharacterProfile } from '../../game/characterRenderConfig';
+import { DilemmaRaceTrackScene } from '../../game/DilemmaRaceTrackScene';
+import { type ColyseusService, colyseusService, type DilemmaRaceRoomState } from '../../service/ColyseusService';
 import { useGameStore } from '../../store/gameStore';
-import type { MiniGameConn } from '../../types/protocol';
+import type { MiniGameConn, Player } from '../../types/protocol';
+import { assetUrl } from '../../utils/assets';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
+import { extractAvatarUrlFromProfile } from '../../utils/spriteAvatarExtractor';
 import { dilemmaRaceStyles as styles } from './DilemmaRaceStyles';
+
+// ========== Golden Dice Images ==========
+
+const GOLD_DICE_IMAGES: Record<number, string> = {
+  1: assetUrl('assets/dice/gold_result_1.png'),
+  3: assetUrl('assets/dice/gold_result_3.png'),
+  5: assetUrl('assets/dice/gold_result_5.png'),
+};
+
+const EMPTY_PARTICIPANT_IDS: string[] = [];
 
 // ========== Props ==========
 
@@ -36,60 +37,12 @@ export interface DilemmaRaceMiniGameProps {
   onlineService?: ColyseusService;
   playerId?: string;
   participantIds?: string[];
+  participantPlayers?: Player[];
 }
 
 // ========== Phase type ==========
 
 type LocalPhase = 'connecting' | 'choosing' | 'resolving' | 'finished' | 'error';
-
-// ========== Track Sub-Component ==========
-
-interface TrackProps {
-  players: DilemmaRacePlayer[];
-  trackLength: number;
-  myPlayerId: string;
-  getPlayerDisplayName: (id: string) => string;
-}
-
-const DilemmaRaceTrack: React.FC<TrackProps> = ({ players, trackLength, myPlayerId, getPlayerDisplayName }) => {
-  // Generate cells 1 through trackLength
-  const cells = Array.from({ length: trackLength }, (_, i) => i + 1);
-
-  // Map each cell to players at that position
-  const playersAtCell = (cellIndex: number) => players.filter((p) => p.position === cellIndex);
-
-  return (
-    <div style={styles.trackGrid}>
-      {/* Start marker */}
-      <div style={styles.startCell}>START</div>
-
-      {/* Track cells */}
-      {cells.map((cellIndex) => {
-        const playersHere = playersAtCell(cellIndex);
-        const isFinish = cellIndex === trackLength;
-
-        return (
-          <div
-            key={cellIndex}
-            style={{
-              ...styles.cell,
-              ...(isFinish ? styles.finishCell : {}),
-            }}
-          >
-            <span style={styles.cellNumber}>{cellIndex}</span>
-            {playersHere.map((p) => (
-              <span key={p.id} style={p.id === myPlayerId ? styles.playerMarkerMe : styles.playerMarkerOther}>
-                {getPlayerDisplayName(p.id).charAt(0)}
-                {p.isBlocked && <span style={styles.blockedIcon}>!</span>}
-                {p.isFinished && <span style={styles.finishedIcon}>*</span>}
-              </span>
-            ))}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
 // ========== Main Component ==========
 
@@ -99,34 +52,211 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
   onlineService,
   playerId,
   participantIds,
+  participantPlayers,
 }) => {
   const { players, myPlayerId } = useGameStore();
   const service = onlineService ?? colyseusService;
   const effectivePlayerId = playerId ?? myPlayerId ?? '';
-  const effectiveParticipantIds = participantIds ?? [];
 
-  // Local render state - bridging Colyseus callbacks to React re-renders
+  // Local render state
   const [phase, setPhase] = useState<LocalPhase>('connecting');
   const [roomState, setRoomState] = useState<DilemmaRaceRoomState | null>(null);
   const [error, setError] = useState<string>('');
   const [myChoice, setMyChoice] = useState<number | null>(null);
+  const effectiveParticipantIds = participantIds ?? roomState?.players.map((p) => p.id) ?? EMPTY_PARTICIPANT_IDS;
+  const renderPlayers = useMemo<Player[]>(() => {
+    if (participantPlayers && participantPlayers.length > 0) return participantPlayers;
+    if (players.length > 0) return players;
 
-  // Track previous round to detect round transitions and reset myChoice
+    return effectiveParticipantIds.map(
+      (id) =>
+        ({
+          player_id: id,
+          display_name: id === effectivePlayerId ? 'You' : id.slice(0, 8),
+          faction: '',
+          position: 0,
+          hp: 0,
+          max_hp: 8,
+          lp: 0,
+          buffs: [],
+          items: [],
+          charge: 0,
+          fire_counter: 0,
+          is_dead: false,
+          skip_turn: false,
+        }) as Player,
+    );
+  }, [effectiveParticipantIds, effectivePlayerId, participantPlayers, players]);
+
+  // Avatar map for React legend display
+  const [avatarMap, setAvatarMap] = useState<Record<string, string>>({});
+
+  // Phaser refs
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const gameRef = useRef<Phaser.Game | null>(null);
+  const sceneRef = useRef<DilemmaRaceTrackScene | null>(null);
+  const latestSceneDataRef = useRef({
+    roomState,
+    players: renderPlayers,
+    effectivePlayerId,
+  });
+
+  // Track previous round
   const prevRoundRef = useRef<number>(0);
+  const lastResolutionPopupRoundRef = useRef<number>(0);
+
+  latestSceneDataRef.current = {
+    roomState,
+    players: renderPlayers,
+    effectivePlayerId,
+  };
+
+  // ========== Player display name mapping ==========
+
+  const allPlayersData = useMemo(
+    () =>
+      renderPlayers.length > 0
+        ? renderPlayers.map((p) => ({
+            displayName: p.display_name || p.player_id,
+            userId: p.player_id,
+          }))
+        : effectiveParticipantIds.map((id) => ({
+            displayName: id === effectivePlayerId ? 'You' : id.slice(0, 8),
+            userId: id,
+          })),
+    [effectiveParticipantIds, effectivePlayerId, renderPlayers],
+  );
+
+  const getPlayerDisplayName = useCallback(
+    (playerId: string) => {
+      const playerInfo = renderPlayers.find((p) => p.player_id === playerId);
+      const fallbackName = playerId === effectivePlayerId ? 'You' : playerId.slice(0, 8);
+      return getDisambiguatedDisplayName(playerInfo?.display_name || fallbackName, playerId, allPlayersData);
+    },
+    [renderPlayers, effectivePlayerId, allPlayersData],
+  );
+
+  // ========== Avatar extraction (for React legend) ==========
+
+  useEffect(() => {
+    if (effectiveParticipantIds.length === 0) return;
+
+    let cancelled = false;
+
+    Promise.all(
+      effectiveParticipantIds.map(async (pid, order) => {
+        const storePlayer = renderPlayers.find((p) => p.player_id === pid);
+        if (!storePlayer) return { pid, url: '' };
+        const profile = resolveCharacterProfile(storePlayer, order);
+        const url = await extractAvatarUrlFromProfile(profile);
+        return { pid, url };
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      const map: Record<string, string> = {};
+      results.forEach(({ pid, url }) => {
+        if (url) map[pid] = url;
+      });
+      setAvatarMap(map);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveParticipantIds, renderPlayers]);
+
+  // ========== Phaser game lifecycle ==========
+
+  const mountPhaserContainer = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    if (!node || gameRef.current) return;
+
+    const latest = latestSceneDataRef.current;
+
+    const initData = {
+      storePlayers: latest.players,
+      myPlayerId: latest.effectivePlayerId,
+      trackLength: 15,
+      onReady: (scene: DilemmaRaceTrackScene) => {
+        sceneRef.current = scene;
+        const latestSceneData = latestSceneDataRef.current;
+        scene.updateFromReact(
+          latestSceneData.roomState,
+          latestSceneData.players,
+          latestSceneData.effectivePlayerId,
+          undefined,
+        );
+      },
+    };
+
+    const game = new Phaser.Game({
+      type: Phaser.WEBGL,
+      parent: node,
+      width: Math.max(1, node.clientWidth),
+      height: Math.max(1, node.clientHeight),
+      pixelArt: true,
+      antialias: false,
+      antialiasGL: false,
+      roundPixels: true,
+      scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+      transparent: false,
+      backgroundColor: '#7f9361',
+    });
+
+    game.scene.add('DilemmaRaceTrackScene', DilemmaRaceTrackScene, false, initData);
+    game.scene.start('DilemmaRaceTrackScene', initData);
+    gameRef.current = game;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      gameRef.current?.destroy(true);
+      gameRef.current = null;
+      sceneRef.current = null;
+    };
+  }, []);
+
+  // ========== Bridge React state → Phaser scene ==========
+
+  useEffect(() => {
+    const scene = gameRef.current?.scene.getScene('DilemmaRaceTrackScene') as DilemmaRaceTrackScene | undefined;
+    if (!scene) return;
+    sceneRef.current = scene;
+
+    if (roomState) {
+      scene.updateFromReact(roomState, renderPlayers, effectivePlayerId, undefined);
+    }
+  }, [roomState, renderPlayers, effectivePlayerId]);
+
+  // ========== Trigger resolution popup when phase transitions ==========
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene || !roomState) return;
+
+    if (phase === 'resolving' && roomState.currentRound !== lastResolutionPopupRoundRef.current) {
+      lastResolutionPopupRoundRef.current = roomState.currentRound;
+
+      // Tween characters to new positions
+      scene.tweenPlayersToPositions(roomState.players);
+
+      // Show resolution popup
+      scene.showResolutionPopup(roomState.players, getPlayerDisplayName).catch((e) => {
+        console.warn('[DilemmaRace] Popup error:', e);
+      });
+    }
+  }, [getPlayerDisplayName, phase, roomState]);
 
   // ========== Colyseus connection lifecycle ==========
 
   useEffect(() => {
     if (!isParticipant) return;
 
-    // Register callbacks BEFORE joining, so we don't miss initial state
     service.setCallbacks(
       (state: DilemmaRaceRoomState) => {
         setRoomState(state);
-        // Derive phase from state
         if (state.phase === 'choosing') {
           setPhase('choosing');
-          // Detect round change to reset local choice state
           if (state.currentRound !== prevRoundRef.current) {
             prevRoundRef.current = state.currentRound;
             setMyChoice(null);
@@ -145,13 +275,10 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
         }
       },
       (code: number) => {
-        // Server kicked us or connection dropped
-        // Don't change phase - the result will arrive from Nakama anyway
         console.log('[DilemmaRace] Room left with code', code);
       },
     );
 
-    // Join the room
     service
       .joinRoom(connection, {
         playerId: effectivePlayerId,
@@ -166,7 +293,6 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
         }
       });
 
-    // Cleanup: leave room on unmount
     return () => {
       void service.leaveRoom();
     };
@@ -184,7 +310,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
     [phase, service],
   );
 
-  // ========== Auto-submit default choice when timer is low ==========
+  // ========== Auto-submit default choice ==========
 
   useEffect(() => {
     if (phase === 'choosing' && roomState && roomState.timeLeft <= 2 && myChoice === null) {
@@ -192,25 +318,6 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
       setMyChoice(1);
     }
   }, [myChoice, phase, roomState, service]);
-
-  // ========== Player display name mapping ==========
-
-  const allPlayersData =
-    players.length > 0
-      ? players.map((p) => ({
-          displayName: p.display_name || p.player_id,
-          userId: p.player_id,
-        }))
-      : effectiveParticipantIds.map((id) => ({
-          displayName: id === effectivePlayerId ? 'You' : id.slice(0, 8),
-          userId: id,
-        }));
-
-  const getPlayerDisplayName = (playerId: string) => {
-    const playerInfo = players.find((p) => p.player_id === playerId);
-    const fallbackName = playerId === effectivePlayerId ? 'You' : playerId.slice(0, 8);
-    return getDisambiguatedDisplayName(playerInfo?.display_name || fallbackName, playerId, allPlayersData);
-  };
 
   // ========== Render ==========
 
@@ -239,12 +346,9 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
     );
   }
 
-  // Main game rendering (choosing / resolving / finished)
   const state = roomState;
   if (!state) return null;
 
-  
-  // Find my player state (used for choice buttons phase)
   const myPlayerState = state.players.find((p) => p.id === effectivePlayerId);
 
   return (
@@ -260,29 +364,47 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
       {/* ===== Player Legend ===== */}
       {state && (
         <div style={styles.playerLegendArea}>
-          {state.players.map((p) => (
-            <div
-              key={p.id}
-              style={p.id === effectivePlayerId ? styles.playerLegendItemMe : styles.playerLegendItemOther}
-            >
-              <span style={p.id === effectivePlayerId ? styles.playerMarkerMe : styles.playerMarkerOther}>
-                {getPlayerDisplayName(p.id).charAt(0)}
-              </span>
-              <span>{getPlayerDisplayName(p.id)}</span>
-              {p.isBlocked && <span style={styles.blockedIcon}>!</span>}
-              {p.isFinished && <span style={styles.finishedIcon}>*</span>}
-            </div>
-          ))}
+          {state.players.map((p) => {
+            const isMe = p.id === effectivePlayerId;
+            const avatarSrc = avatarMap[p.id];
+            return (
+              <div key={p.id} style={isMe ? styles.playerLegendItemMe : styles.playerLegendItemOther}>
+                {avatarSrc ? (
+                  <div style={styles.playerAvatarContainer}>
+                    <img
+                      src={avatarSrc}
+                      alt={getPlayerDisplayName(p.id)}
+                      style={isMe ? styles.playerAvatarMe : styles.playerAvatarOther}
+                    />
+                    {p.isBlocked && <span style={styles.playerAvatarBadgeBlocked}>!</span>}
+                    {p.isFinished && <span style={styles.playerAvatarBadgeFinished}>★</span>}
+                  </div>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      color: isMe ? '#3498db' : '#e74c3c',
+                      padding: '1px 4px',
+                      borderRadius: '3px',
+                      backgroundColor: isMe ? 'rgba(52, 152, 219, 0.2)' : 'rgba(231, 76, 60, 0.2)',
+                    }}
+                  >
+                    {getPlayerDisplayName(p.id).charAt(0)}
+                  </span>
+                )}
+                <span>{getPlayerDisplayName(p.id)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* ===== Track Visualization ===== */}
-      <div style={styles.trackContainer}>
-        <DilemmaRaceTrack
-          players={state.players}
-          trackLength={state.trackLength}
-          myPlayerId={effectivePlayerId}
-          getPlayerDisplayName={getPlayerDisplayName}
+      {/* ===== Phaser Canvas: Map + Characters + Popup ===== */}
+      <div style={styles.phaserContainer}>
+        <div
+          ref={mountPhaserContainer}
+          style={{ width: '100%', height: '100%', background: '#7f9361', overflow: 'hidden' }}
         />
       </div>
 
@@ -302,31 +424,18 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
                 onClick={() => handleChoice(step)}
                 style={myChoice === step ? styles.choiceButtonSelected : styles.choiceButton}
               >
-                {step}
+                <img src={GOLD_DICE_IMAGES[step]} alt={`Dice ${step}`} style={styles.choiceDiceImage} />
+                <span style={myChoice === step ? styles.choiceDiceLabelSelected : styles.choiceDiceLabel}>
+                  {step}步
+                </span>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* ===== Resolution Display ===== */}
-      {phase === 'resolving' && (
-        <div style={styles.resolutionArea}>
-          {state.players.map((p) => (
-            <div key={p.id} style={styles.resolutionRow}>
-              <span>{getPlayerDisplayName(p.id)}</span>
-              <span style={p.isBlocked ? styles.blockedText : styles.movedText}>
-                {p.isBlocked ? 'BLOCKED! (collision)' : `Moved to position ${p.position}`}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ===== Finished: wait for unified result ===== */}
-      {phase === 'finished' && (
-        <p style={styles.finishedText}>Game finished. Waiting for ranking results...</p>
-      )}
+      {/* ===== Finished ===== */}
+      {phase === 'finished' && <p style={styles.finishedText}>Game finished. Waiting for ranking results...</p>}
       {phase !== 'finished' && myPlayerState?.isFinished && (
         <p style={styles.finishedText}>You finished! Waiting for final rankings...</p>
       )}

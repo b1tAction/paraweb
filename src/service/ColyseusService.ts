@@ -172,10 +172,12 @@ export class ColyseusService {
     const playerArray: DilemmaRacePlayer[] = [];
 
     rawState.players.forEach((playerState: RawPlayerState) => {
+      const choice =
+        rawState.phase === 'resolving' || rawState.phase === 'finished' ? playerState.choice || 1 : playerState.choice;
       playerArray.push({
         id: playerState.playerId,
         position: playerState.position,
-        choice: playerState.choice,
+        choice,
         isBlocked: playerState.blocked,
         isFinished: playerState.finished,
         rank: playerState.rank,
