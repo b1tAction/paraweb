@@ -7,9 +7,9 @@
 
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { useGameStore } from '../../store/gameStore';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
 import { styles } from './MiniGameStyles';
+import { type MiniGameViewContext, useMiniGameViewContext } from './miniGameViewContext';
 
 // ========== CountSecondsMiniGame Component ==========
 
@@ -20,6 +20,7 @@ export interface CountSecondsMiniGameProps {
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
+  viewContext?: MiniGameViewContext;
 }
 
 export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
@@ -27,8 +28,9 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
   isSubmitting,
   submitError,
   onSubmit,
+  viewContext,
 }) => {
-  const { miniGameStart, miniGameResult, myPlayerId, players } = useGameStore();
+  const { miniGameStart, miniGameResult, myPlayerId, players } = useMiniGameViewContext(viewContext);
   const [phase, setPhase] = useState<CountSecondsPhase>('idle');
   const [startTime, setStartTime] = useState<number>(0);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
