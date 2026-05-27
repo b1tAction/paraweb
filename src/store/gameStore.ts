@@ -65,6 +65,8 @@ export enum Scene {
   BossBattle = 'BossBattleScene',
   /** 游戏结束 */
   GameOver = 'GameOverScene',
+  /** 小游戏四象限调试面板 (DEV only) */
+  MiniGameBoard = 'MiniGameBoardScene',
 }
 
 // ========== 全局状态枚举 ==========

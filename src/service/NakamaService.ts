@@ -1050,6 +1050,21 @@ export class NakamaService {
       game_data: gameData,
     });
   }
+
+  async sendMiniGameOnlineTrigger(matchId: string, gameType?: string): Promise<protocol.MiniGameOnlineResponse> {
+    const { session } = useGameStore.getState();
+    if (!session) throw new Error('[Nakama] 没有有效的 session');
+
+    console.log('[Nakama] MiniGameRequest RPC (online trigger)', { matchId, gameType });
+
+    const rpcResponse = await this.client.rpc(session, 'minigame_request', {
+      mode: 'online',
+      match_id: matchId,
+      game_type: gameType,
+    });
+
+    return rpcResponse.payload as unknown as protocol.MiniGameOnlineResponse;
+  }
 }
 
 // 导出单例实例
