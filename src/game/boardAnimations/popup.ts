@@ -18,10 +18,28 @@ export type PopupContext = {
   tweens: Phaser.Tweens.TweenManager;
 };
 
-// Track the active popup elements for cleanup
-let activePopupPanel: Phaser.GameObjects.Image | null = null;
-let activePopupText: Phaser.GameObjects.Text | null = null;
-let activePopupResolver: (() => void) | null = null;
+type ActivePopupState = {
+  panel: Phaser.GameObjects.Image | null;
+  text: Phaser.GameObjects.Text | null;
+  resolver: (() => void) | null;
+};
+
+const activePopupsByScene = new WeakMap<Phaser.Scene, ActivePopupState>();
+
+function getPopupState(scene: Phaser.Scene): ActivePopupState {
+  let state = activePopupsByScene.get(scene);
+  if (!state) {
+    state = { panel: null, text: null, resolver: null };
+    activePopupsByScene.set(scene, state);
+  }
+  return state;
+}
+
+function maybeDeletePopupState(scene: Phaser.Scene, state: ActivePopupState): void {
+  if (!state.panel && !state.text && !state.resolver) {
+    activePopupsByScene.delete(scene);
+  }
+}
 
 /**
  * Show a center popup with the event name, splitting background and text
@@ -98,9 +116,10 @@ export function showCenterPopup(
   text.setAlpha(0);
   text.setScale(0.5);
 
-  activePopupPanel = panel;
-  activePopupText = text;
-  activePopupResolver = resolveFunc;
+  const state = getPopupState(ctx.scene);
+  state.panel = panel;
+  state.text = text;
+  state.resolver = resolveFunc;
 
   // Entrance animation for both elements
   ctx.tweens.add({
@@ -130,12 +149,18 @@ export function showCenterPopup(
     duration: 400,
     ease: 'Power2.easeIn',
     onComplete: () => {
+      const currentState = activePopupsByScene.get(ctx.scene);
       panel.destroy();
-      if (activePopupPanel === panel) activePopupPanel = null;
+      if (currentState?.panel === panel) {
+        currentState.panel = null;
+      }
       // Resolve the popup promise once the panel has fully dismissed
-      if (activePopupResolver === resolveFunc) {
-        activePopupResolver();
-        activePopupResolver = null;
+      if (currentState?.resolver === resolveFunc) {
+        currentState.resolver();
+        currentState.resolver = null;
+      }
+      if (currentState) {
+        maybeDeletePopupState(ctx.scene, currentState);
       }
     },
   });
@@ -148,8 +173,14 @@ export function showCenterPopup(
     duration: 400,
     ease: 'Power2.easeIn',
     onComplete: () => {
+      const currentState = activePopupsByScene.get(ctx.scene);
       text.destroy();
-      if (activePopupText === text) activePopupText = null;
+      if (currentState?.text === text) {
+        currentState.text = null;
+      }
+      if (currentState) {
+        maybeDeletePopupState(ctx.scene, currentState);
+      }
     },
   });
 
@@ -161,19 +192,27 @@ export function showCenterPopup(
  * Also resolves any pending popup promise so awaiters don't hang.
  */
 export function closeCenterPopup(ctx: PopupContext): void {
-  if (activePopupPanel) {
-    ctx.tweens.killTweensOf(activePopupPanel);
-    activePopupPanel.destroy();
-    activePopupPanel = null;
+  const state = activePopupsByScene.get(ctx.scene);
+  if (!state) {
+    return;
   }
-  if (activePopupText) {
-    ctx.tweens.killTweensOf(activePopupText);
-    activePopupText.destroy();
-    activePopupText = null;
+
+  if (state.panel) {
+    ctx.tweens.killTweensOf(state.panel);
+    state.panel.destroy();
+    state.panel = null;
   }
+  if (state.text) {
+    ctx.tweens.killTweensOf(state.text);
+    state.text.destroy();
+    state.text = null;
+  }
+
   // Resolve the pending promise so awaiters don't hang
-  if (activePopupResolver) {
-    activePopupResolver();
-    activePopupResolver = null;
+  if (state.resolver) {
+    state.resolver();
+    state.resolver = null;
   }
+
+  activePopupsByScene.delete(ctx.scene);
 }
