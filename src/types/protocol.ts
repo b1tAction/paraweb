@@ -593,3 +593,15 @@ export type StartGame = EmptyPayload;
  * 客户端在 RoundEndWait 状态下，完成当前轮动画渲染后发送
  */
 export type RoundReady = EmptyPayload;
+
+/**
+ * MiniGameOnlineResponse - online trigger RPC 响应
+ */
+export interface MiniGameOnlineResponse {
+  /** 是否成功 */
+  success: boolean;
+  /** 目标 match ID */
+  match_id: string;
+  /** 连接信息 (可选) */
+  connection?: MiniGameConn;
+}

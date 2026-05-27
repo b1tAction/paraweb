@@ -4,7 +4,9 @@
  * Renders a 15-cell track with player positions, choice buttons (1/3/5),
  * countdown timer, and round resolution display. All state comes from
  * Colyseus room state sync. Choices are sent to the Colyseus room.
- * The result arrives via Nakama OpMiniGameResult (not from this component).
+ * When finished, this component shows a waiting message; the final
+ * ranking + dice assignment is rendered by the unified MiniGameLeaderboard
+ * after OpMiniGameResult arrives from Nakama.
  *
  * Game rules:
  * - 15-cell track, players start at position 1
@@ -15,8 +17,12 @@
 
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DilemmaRacePlayer, DilemmaRaceRoomState } from '../../service/ColyseusService';
-import { colyseusService } from '../../service/ColyseusService';
+import {
+  type ColyseusService,
+  colyseusService,
+  type DilemmaRacePlayer,
+  type DilemmaRaceRoomState,
+} from '../../service/ColyseusService';
 import { useGameStore } from '../../store/gameStore';
 import type { MiniGameConn } from '../../types/protocol';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
@@ -27,6 +33,9 @@ import { dilemmaRaceStyles as styles } from './DilemmaRaceStyles';
 export interface DilemmaRaceMiniGameProps {
   connection: MiniGameConn;
   isParticipant: boolean;
+  onlineService?: ColyseusService;
+  playerId?: string;
+  participantIds?: string[];
 }
 
 // ========== Phase type ==========
@@ -84,8 +93,17 @@ const DilemmaRaceTrack: React.FC<TrackProps> = ({ players, trackLength, myPlayer
 
 // ========== Main Component ==========
 
-export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connection, isParticipant }) => {
+export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
+  connection,
+  isParticipant,
+  onlineService,
+  playerId,
+  participantIds,
+}) => {
   const { players, myPlayerId } = useGameStore();
+  const service = onlineService ?? colyseusService;
+  const effectivePlayerId = playerId ?? myPlayerId ?? '';
+  const effectiveParticipantIds = participantIds ?? [];
 
   // Local render state - bridging Colyseus callbacks to React re-renders
   const [phase, setPhase] = useState<LocalPhase>('connecting');
@@ -102,7 +120,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
     if (!isParticipant) return;
 
     // Register callbacks BEFORE joining, so we don't miss initial state
-    colyseusService.setCallbacks(
+    service.setCallbacks(
       (state: DilemmaRaceRoomState) => {
         setRoomState(state);
         // Derive phase from state
@@ -122,7 +140,9 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
       (err: Error) => {
         setPhase('error');
         setError(err.message);
-        useGameStore.getState().setColyseusError(err.message);
+        if (!onlineService) {
+          useGameStore.getState().setColyseusError(err.message);
+        }
       },
       (code: number) => {
         // Server kicked us or connection dropped
@@ -132,50 +152,64 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
     );
 
     // Join the room
-    colyseusService.joinRoom(connection).catch((err) => {
-      setPhase('error');
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
-      useGameStore.getState().setColyseusError(message);
-    });
+    service
+      .joinRoom(connection, {
+        playerId: effectivePlayerId,
+        players: participantIds,
+      })
+      .catch((err) => {
+        setPhase('error');
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        if (!onlineService) {
+          useGameStore.getState().setColyseusError(message);
+        }
+      });
 
     // Cleanup: leave room on unmount
     return () => {
-      colyseusService.leaveRoom();
+      void service.leaveRoom();
     };
-  }, [connection, isParticipant]);
+  }, [connection, effectivePlayerId, isParticipant, onlineService, participantIds, service]);
 
   // ========== Choice handler ==========
 
   const handleChoice = useCallback(
     (step: number) => {
       if (phase === 'choosing') {
-        colyseusService.sendChoice(step);
+        service.sendChoice(step);
         setMyChoice(step);
       }
     },
-    [phase],
+    [phase, service],
   );
 
   // ========== Auto-submit default choice when timer is low ==========
 
   useEffect(() => {
     if (phase === 'choosing' && roomState && roomState.timeLeft <= 2 && myChoice === null) {
-      colyseusService.sendChoice(1);
+      service.sendChoice(1);
       setMyChoice(1);
     }
-  }, [phase, roomState?.timeLeft, myChoice]);
+  }, [myChoice, phase, roomState, service]);
 
   // ========== Player display name mapping ==========
 
-  const allPlayersData = players.map((p) => ({
-    displayName: p.display_name || p.player_id,
-    userId: p.player_id,
-  }));
+  const allPlayersData =
+    players.length > 0
+      ? players.map((p) => ({
+          displayName: p.display_name || p.player_id,
+          userId: p.player_id,
+        }))
+      : effectiveParticipantIds.map((id) => ({
+          displayName: id === effectivePlayerId ? 'You' : id.slice(0, 8),
+          userId: id,
+        }));
 
   const getPlayerDisplayName = (playerId: string) => {
     const playerInfo = players.find((p) => p.player_id === playerId);
-    return getDisambiguatedDisplayName(playerInfo?.display_name || playerId, playerId, allPlayersData);
+    const fallbackName = playerId === effectivePlayerId ? 'You' : playerId.slice(0, 8);
+    return getDisambiguatedDisplayName(playerInfo?.display_name || fallbackName, playerId, allPlayersData);
   };
 
   // ========== Render ==========
@@ -209,8 +243,9 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
   const state = roomState;
   if (!state) return null;
 
-  // Find my player state
-  const myPlayerState = state.players.find((p) => p.id === myPlayerId);
+  
+  // Find my player state (used for choice buttons phase)
+  const myPlayerState = state.players.find((p) => p.id === effectivePlayerId);
 
   return (
     <div style={styles.gameArea}>
@@ -219,14 +254,18 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
         <span style={styles.roundLabel}>Round {state.currentRound}</span>
         {phase === 'choosing' && <span style={styles.timerDisplay}>{state.timeLeft}s</span>}
         {phase === 'resolving' && <span style={styles.resolvingLabel}>Resolving...</span>}
+        {phase === 'finished' && <span style={styles.resolvingLabel}>Finished</span>}
       </div>
 
       {/* ===== Player Legend ===== */}
       {state && (
         <div style={styles.playerLegendArea}>
           {state.players.map((p) => (
-            <div key={p.id} style={p.id === myPlayerId ? styles.playerLegendItemMe : styles.playerLegendItemOther}>
-              <span style={p.id === myPlayerId ? styles.playerMarkerMe : styles.playerMarkerOther}>
+            <div
+              key={p.id}
+              style={p.id === effectivePlayerId ? styles.playerLegendItemMe : styles.playerLegendItemOther}
+            >
+              <span style={p.id === effectivePlayerId ? styles.playerMarkerMe : styles.playerMarkerOther}>
                 {getPlayerDisplayName(p.id).charAt(0)}
               </span>
               <span>{getPlayerDisplayName(p.id)}</span>
@@ -242,7 +281,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
         <DilemmaRaceTrack
           players={state.players}
           trackLength={state.trackLength}
-          myPlayerId={myPlayerId || ''}
+          myPlayerId={effectivePlayerId}
           getPlayerDisplayName={getPlayerDisplayName}
         />
       </div>
@@ -284,8 +323,13 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({ connec
         </div>
       )}
 
-      {/* ===== Finished Player ===== */}
-      {myPlayerState?.isFinished && <p style={styles.finishedText}>You finished! Waiting for final rankings...</p>}
+      {/* ===== Finished: wait for unified result ===== */}
+      {phase === 'finished' && (
+        <p style={styles.finishedText}>Game finished. Waiting for ranking results...</p>
+      )}
+      {phase !== 'finished' && myPlayerState?.isFinished && (
+        <p style={styles.finishedText}>You finished! Waiting for final rankings...</p>
+      )}
     </div>
   );
 };

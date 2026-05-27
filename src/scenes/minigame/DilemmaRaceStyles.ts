@@ -221,7 +221,6 @@ export const dilemmaRaceStyles: Record<string, CSSProperties> = {
     color: '#FFD700',
     textAlign: 'center',
   },
-
   // ===== Error & Connecting =====
   connectingText: {
     fontSize: '16px',

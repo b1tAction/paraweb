@@ -22,3 +22,6 @@ export const GameOverScene = React.lazy(() => import('./GameOverScene').then((m)
 export const MiniGameSubmitRankScene = React.lazy(() =>
   import('./minigame').then((m) => ({ default: m.MiniGameSubmitRankScene })),
 );
+export const MiniGameBoardScene = React.lazy(() =>
+  import('./minigame/MiniGameBoard').then((m) => ({ default: m.MiniGameBoardScene })),
+);

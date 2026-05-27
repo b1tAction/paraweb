@@ -6,8 +6,13 @@
  */
 
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { dispatchDevBoardFocusCell } from '../game/devBoardEvents';
+import {
+  MINI_GAME_BOARD_GAME_TYPES,
+  type MiniGameBoardGameType,
+  miniGameBoardDevControls,
+} from '../scenes/minigame/miniGameBoardDevControls';
 import { Scene, useGameStore } from '../store/gameStore';
 import type { MapConfig } from '../types/protocol';
 import { playBoardBgm, stopBoardBgm } from '../utils/boardBgm';
@@ -26,7 +31,7 @@ import {
 } from './devEffectTriggers';
 import { injectBoard, injectGameOver, injectGameOverSkipAni, injectMiniGame, MOCK_MAP_CONFIG } from './devMockData';
 
-type DevPanelTab = 'state' | 'scene' | 'board' | 'effects' | 'audio';
+type DevPanelTab = 'state' | 'scene' | 'board' | 'effects' | 'audio' | 'minigame';
 
 const SCENE_OPTIONS: { value: Scene; label: string }[] = [
   { value: Scene.Home, label: 'Home' },
@@ -39,6 +44,7 @@ const SCENE_OPTIONS: { value: Scene; label: string }[] = [
   { value: Scene.Board, label: 'Board' },
   { value: Scene.BossBattle, label: 'BossBattle' },
   { value: Scene.MiniGameSubmitRank, label: 'MiniGame' },
+  { value: Scene.MiniGameBoard, label: 'MiniGameBoard' },
   { value: Scene.GameOver, label: 'GameOver' },
 ];
 
@@ -55,6 +61,7 @@ const TABS: { value: DevPanelTab; label: string }[] = [
   { value: 'board', label: 'Board' },
   { value: 'effects', label: 'Effects' },
   { value: 'audio', label: 'Audio' },
+  { value: 'minigame', label: 'MiniGame' },
 ];
 
 const DEV_BOARD_FOCUS_RETRY_DELAYS_MS = [0, 80, 240];
@@ -152,6 +159,11 @@ export const DevPanel: React.FC = () => {
   const pendingEntriesCount = useGameStore((state) => state.pendingEntries.length);
   const playedEntriesCount = useGameStore((state) => state.playedEntries.length);
   const stateSyncQueueLength = useGameStore((state) => state.stateSyncQueue.length);
+  const miniGameBoardSnapshot = useSyncExternalStore(
+    miniGameBoardDevControls.subscribe,
+    miniGameBoardDevControls.getSnapshot,
+    miniGameBoardDevControls.getSnapshot,
+  );
 
   const validCellIndices = useMemo(() => getValidCellIndices(mapConfig), [mapConfig]);
   const selectedPlayer = useMemo(
@@ -661,6 +673,82 @@ export const DevPanel: React.FC = () => {
             <p style={styles.hint}>Browsers may require one user click before audio playback is allowed.</p>
           </section>
         )}
+
+        {activeTab === 'minigame' && (
+          <section style={styles.section}>
+            <div style={styles.sectionTitle}>MiniGame Board</div>
+            <button
+              type="button"
+              style={styles.warningButton}
+              onClick={() => useGameStore.getState().setScene(Scene.MiniGameBoard)}
+            >
+              {currentScene === Scene.MiniGameBoard ? 'MiniGameBoard Active' : 'Launch MiniGameBoard'}
+            </button>
+            {miniGameBoardSnapshot.isMounted && (
+              <>
+                <div style={styles.stateGrid}>
+                  <StateTile label="Clients" value={miniGameBoardSnapshot.connectionLabel} />
+                  <StateTile label="Match" value={miniGameBoardSnapshot.matchId || 'not created'} />
+                </div>
+                <label style={styles.fieldLabel}>
+                  MiniGame Type
+                  <select
+                    value={miniGameBoardSnapshot.selectedGameType}
+                    onChange={(event) => {
+                      miniGameBoardDevControls.setGameType(event.target.value as MiniGameBoardGameType);
+                    }}
+                    style={styles.select}
+                  >
+                    {MINI_GAME_BOARD_GAME_TYPES.map((gameType) => (
+                      <option key={gameType} value={gameType}>
+                        {gameType}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div style={styles.actionGridTwo}>
+                  <button
+                    type="button"
+                    style={styles.primaryButton}
+                    onClick={() => void miniGameBoardDevControls.connectAll()}
+                    disabled={miniGameBoardSnapshot.isConnecting}
+                  >
+                    {miniGameBoardSnapshot.isConnecting ? 'Connecting...' : 'Connect 4 Clients'}
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.primaryButton}
+                    onClick={() => void miniGameBoardDevControls.createAndJoin()}
+                    disabled={!miniGameBoardSnapshot.canCreateRoom || miniGameBoardSnapshot.isCreatingRoom}
+                  >
+                    {miniGameBoardSnapshot.isCreatingRoom ? 'Creating...' : 'Create & Join'}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  style={styles.warningButton}
+                  onClick={() => {
+                    void miniGameBoardDevControls.triggerMiniGame().then(() => setIsOpen(false));
+                  }}
+                  disabled={!miniGameBoardSnapshot.canTriggerMiniGame}
+                >
+                  {miniGameBoardSnapshot.isTriggering
+                    ? 'Triggering...'
+                    : `Trigger ${miniGameBoardSnapshot.selectedGameType}`}
+                </button>
+                {miniGameBoardSnapshot.statusLog.length > 0 && (
+                  <div style={styles.logArea}>
+                    {miniGameBoardSnapshot.statusLog.slice(-5).map((entry) => (
+                      <div key={entry.id} style={styles.logEntry}>
+                        {entry.message}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
       </main>
     </aside>
   );
@@ -766,7 +854,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tabBar: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(5, 1fr)',
+    gridTemplateColumns: 'repeat(6, 1fr)',
     gap: '4px',
     padding: '8px',
     borderBottom: '1px solid rgba(255, 200, 100, 0.12)',
@@ -973,6 +1061,20 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     color: '#c3ccda',
     fontSize: '11px',
+  },
+  logArea: {
+    maxHeight: '84px',
+    overflowY: 'auto',
+    padding: '6px 8px',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(0, 0, 0, 0.24)',
+  },
+  logEntry: {
+    color: '#a9b4c4',
+    fontSize: '10px',
+    lineHeight: 1.45,
+    overflowWrap: 'anywhere',
   },
   hint: {
     margin: 0,

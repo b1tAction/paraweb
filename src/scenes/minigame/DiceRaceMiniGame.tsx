@@ -6,9 +6,9 @@
  */
 
 import React, { useCallback, useRef, useState } from 'react';
-import { useGameStore } from '../../store/gameStore';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
 import { DICE_DOTS, styles } from './MiniGameStyles';
+import { type MiniGameViewContext, useMiniGameViewContext } from './miniGameViewContext';
 
 // ========== DiceFace Component ==========
 
@@ -79,6 +79,7 @@ export interface DiceRaceMiniGameProps {
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
+  viewContext?: MiniGameViewContext;
 }
 
 export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
@@ -86,8 +87,9 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
   isSubmitting,
   submitError,
   onSubmit,
+  viewContext,
 }) => {
-  const { miniGameStart, miniGameResult, myPlayerId, players } = useGameStore();
+  const { miniGameStart, miniGameResult, myPlayerId, players } = useMiniGameViewContext(viewContext);
   const [phase, setPhase] = useState<DiceRacePhase>('idle');
   const [dice1, setDice1] = useState<number>(1);
   const [dice2, setDice2] = useState<number>(1);

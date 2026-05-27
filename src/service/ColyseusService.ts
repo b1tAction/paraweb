@@ -20,8 +20,8 @@
  */
 
 import { Client, type Room } from 'colyseus.js';
-import type { MiniGameConn } from '../types/protocol';
 import { useGameStore } from '../store/gameStore';
+import type { MiniGameConn } from '../types/protocol';
 
 // ========== Client-side view types ==========
 
@@ -35,6 +35,7 @@ export interface DilemmaRacePlayer {
   choice: number; // 0=unset, 1/3/5=chosen
   isBlocked: boolean;
   isFinished: boolean;
+  rank: number;
 }
 
 /**
@@ -54,6 +55,11 @@ export interface DilemmaRaceRoomState {
   players: DilemmaRacePlayer[];
 }
 
+export interface ColyseusJoinContext {
+  playerId?: string;
+  players?: string[];
+}
+
 // ========== Raw state types (from Colyseus handshake reflection) ==========
 
 /**
@@ -66,6 +72,7 @@ interface RawPlayerState {
   choice: number;
   blocked: boolean;
   finished: boolean;
+  rank: number;
 }
 
 /**
@@ -104,7 +111,7 @@ export class ColyseusService {
    *
    * No rootSchema is provided - the client auto-decodes via handshake reflection.
    */
-  async joinRoom(conn: MiniGameConn): Promise<void> {
+  async joinRoom(conn: MiniGameConn, context?: ColyseusJoinContext): Promise<void> {
     const generation = ++this.joinGeneration;
 
     // Clean up any existing connection first
@@ -118,7 +125,7 @@ export class ColyseusService {
 
     // Get current player info for auth
     const store = useGameStore.getState();
-    const myPlayerId = store.myPlayerId || '';
+    const myPlayerId = context?.playerId ?? store.myPlayerId ?? '';
     const myToken = conn.player_tokens?.[myPlayerId] || conn.token || '';
 
     // Build join options for Colyseus onAuth verification
@@ -129,7 +136,7 @@ export class ColyseusService {
       token: myToken,
     };
 
-    options.players = store.miniGameStart?.players;
+    options.players = context?.players ?? store.miniGameStart?.players;
 
     try {
       // joinOrCreate: creates room if none exists with matching filterBy key,
@@ -171,6 +178,7 @@ export class ColyseusService {
         choice: playerState.choice,
         isBlocked: playerState.blocked,
         isFinished: playerState.finished,
+        rank: playerState.rank,
       });
     });
 

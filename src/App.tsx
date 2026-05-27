@@ -13,6 +13,7 @@ import {
   HomeScene,
   JoinRoomScene,
   LobbyScene,
+  MiniGameBoardScene,
   MiniGameSubmitRankScene,
 } from './scenes';
 import { SceneStatusPanel } from './scenes/SceneStatusPanel';
@@ -52,6 +53,7 @@ const sceneComponents: Record<Scene, React.ComponentType> = {
   [Scene.Board]: BoardScene,
   [Scene.BossBattle]: BossBattleScene,
   [Scene.GameOver]: GameOverScene,
+  [Scene.MiniGameBoard]: MiniGameBoardScene,
 };
 
 /**
@@ -306,16 +308,18 @@ const App: React.FC = () => {
     currentScene === Scene.CreateRoom ||
     currentScene === Scene.JoinRoom ||
     currentScene === Scene.FactionSelect;
+  const isStandaloneDevScene = currentScene === Scene.MiniGameBoard;
+  const shouldRenderAppChrome = !isHomeScene && !isStandaloneDevScene;
 
   return (
-    <div style={styles.app}>
+    <div style={isStandaloneDevScene ? { ...styles.app, ...styles.standaloneApp } : styles.app}>
       {desktopUpdate?.hasUpdate && !isUpdateDismissed && (
         <DesktopUpdateNotice update={desktopUpdate} onDismiss={() => setIsUpdateDismissed(true)} />
       )}
       <span className="zpix-font-loader" aria-hidden="true">
         Zpix 中文字体预加载
       </span>
-      {!isHomeScene && (
+      {shouldRenderAppChrome && (
         <header style={styles.header}>
           <h1 style={styles.logo}>ParaDiced</h1>
           <nav style={styles.nav}>
@@ -323,7 +327,15 @@ const App: React.FC = () => {
           </nav>
         </header>
       )}
-      <main style={isHomeScene ? { ...styles.main, ...styles.homeMain } : styles.main}>
+      <main
+        style={
+          isHomeScene
+            ? { ...styles.main, ...styles.homeMain }
+            : isStandaloneDevScene
+              ? { ...styles.main, ...styles.standaloneMain }
+              : styles.main
+        }
+      >
         <Suspense fallback={<LoadingScene />}>
           <SceneComponent />
         </Suspense>
@@ -347,7 +359,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {!isHomeScene && (
+      {shouldRenderAppChrome && (
         <footer style={styles.footer}>
           <p>派乐代 - 回合制派对游戏</p>
         </footer>
@@ -369,6 +381,12 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     backgroundColor: '#f5f5f5',
+  },
+  standaloneApp: {
+    height: '100dvh',
+    minHeight: 0,
+    backgroundColor: '#101216',
+    overflow: 'hidden',
   },
   header: {
     backgroundColor: '#3f51b5',
@@ -441,6 +459,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   homeMain: {
     padding: 0,
+  },
+  standaloneMain: {
+    minHeight: 0,
+    padding: 0,
+    overflow: 'hidden',
   },
   footer: {
     backgroundColor: '#333',
