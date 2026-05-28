@@ -20,6 +20,7 @@ import { MiniGameLeaderboard } from './MiniGameLeaderboard';
 import { styles } from './MiniGameStyles';
 import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
 import { ScaleWrapper } from './ScaleWrapper';
+import { TrustDilemmaMiniGame } from './TrustDilemmaMiniGame';
 import { VernierMiniGame } from './VernierMiniGame';
 
 // ========== Game Phase ==========
@@ -151,6 +152,8 @@ export const MiniGameSubmitRankScene: React.FC = () => {
     switch (gameType) {
       case 'dilemma_race':
         return 'Dilemma Race';
+      case 'trust_dilemma':
+        return '信任博弈';
       case 'dice_race':
         return 'Roll Dice';
       case 'count_seconds':
@@ -178,6 +181,15 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         return (
           <div style={styles.gameArea}>
             <p style={styles.submittedText}>dilemma_race requires online mode. Waiting for server result...</p>
+          </div>
+        );
+      case 'trust_dilemma':
+        if (isOnlineMode && miniGameStart?.connection) {
+          return <TrustDilemmaMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+        }
+        return (
+          <div style={styles.gameArea}>
+            <p style={styles.submittedText}>trust_dilemma requires online mode. Waiting for server result...</p>
           </div>
         );
       case 'dice_race':

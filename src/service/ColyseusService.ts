@@ -35,17 +35,11 @@ export interface DilemmaRacePlayer {
   choice: number; // 0=unset, 1/3/5=chosen
   isBlocked: boolean;
   isFinished: boolean;
-  rank: number;
 }
 
 /**
  * DilemmaRaceRoomState - simplified view type for React component rendering.
  * Derived from raw Colyseus state during state bridging.
- * Maps to the server-side DilemmaRaceRoom GameState schema:
- *   phase: string (choosing/resolving/finished)
- *   round: number
- *   roundTimer: number (seconds per round)
- *   players: MapSchema<PlayerState> with playerId, position, choice, blocked, finished
  */
 export interface DilemmaRaceRoomState {
   phase: 'choosing' | 'resolving' | 'finished';
@@ -55,30 +49,47 @@ export interface DilemmaRaceRoomState {
   players: DilemmaRacePlayer[];
 }
 
-export interface ColyseusJoinContext {
-  playerId?: string;
-  players?: string[];
+/**
+ * TrustDilemmaPlayer - simplified view type for React component rendering.
+ */
+export interface TrustDilemmaPlayer {
+  id: string;
+  choice: number; // 0=unset, 1=C, 2=D
+  score: number;
+  roundScore: number;
+  isReady: boolean;
+  rank: number;
+}
+
+/**
+ * TrustDilemmaRoomState - simplified view type for React component rendering.
+ */
+export interface TrustDilemmaRoomState {
+  phase: 'choosing' | 'resolving' | 'finished';
+  currentRound: number;
+  timeLeft: number;
+  players: TrustDilemmaPlayer[];
 }
 
 // ========== Raw state types (from Colyseus handshake reflection) ==========
 
 /**
  * Raw player state from Colyseus Schema deserialization.
- * Property names match server-side PlayerState schema annotations.
  */
 interface RawPlayerState {
   playerId: string;
-  position: number;
+  position?: number;
   choice: number;
-  blocked: boolean;
-  finished: boolean;
-  rank: number;
+  blocked?: boolean;
+  finished?: boolean;
+  score?: number;
+  roundScore?: number;
+  isReady?: boolean;
+  rank?: number;
 }
 
 /**
  * Raw game state from Colyseus Schema deserialization.
- * Property names match server-side GameState schema annotations.
- * players is a MapSchema-like object (iterable via forEach/entries/values).
  */
 interface RawGameState {
   phase: string;
@@ -97,21 +108,17 @@ export class ColyseusService {
   private client: Client | null = null;
   private room: Room | null = null;
   private joinGeneration = 0;
+  private roomName = '';
 
   // State change callback - set by the React component to trigger re-renders
-  private onStateChange: ((state: DilemmaRaceRoomState) => void) | null = null;
+  private onStateChange: ((state: any) => void) | null = null;
   private onError: ((error: Error) => void) | null = null;
   private onLeave: ((code: number) => void) | null = null;
 
   /**
    * Join or create a Colyseus room using connection info from MiniGameStart message.
-   * Uses joinOrCreate (WebSocket/matchmaker mode) instead of joinById (REST mode).
-   * The first client to call joinOrCreate triggers room creation on the Colyseus server.
-   * Subsequent clients with the same minigame_instance_id are routed to the same room.
-   *
-   * No rootSchema is provided - the client auto-decodes via handshake reflection.
    */
-  async joinRoom(conn: MiniGameConn, context?: ColyseusJoinContext): Promise<void> {
+  async joinRoom(conn: MiniGameConn, debugOptions?: { playerId?: string; players?: string[] }): Promise<void> {
     const generation = ++this.joinGeneration;
 
     // Clean up any existing connection first
@@ -120,12 +127,14 @@ export class ColyseusService {
       return;
     }
 
+    this.roomName = conn.room_name;
+
     // Create client pointing to the Colyseus server URL
     this.client = new Client(conn.url);
 
     // Get current player info for auth
     const store = useGameStore.getState();
-    const myPlayerId = context?.playerId ?? store.myPlayerId ?? '';
+    const myPlayerId = debugOptions?.playerId || store.myPlayerId || '';
     const myToken = conn.player_tokens?.[myPlayerId] || conn.token || '';
 
     // Build join options for Colyseus onAuth verification
@@ -136,11 +145,9 @@ export class ColyseusService {
       token: myToken,
     };
 
-    options.players = context?.players ?? store.miniGameStart?.players;
+    options.players = debugOptions?.players || store.miniGameStart?.players;
 
     try {
-      // joinOrCreate: creates room if none exists with matching filterBy key,
-      // otherwise joins the existing room. filterBy key is minigame_instance_id.
       const room = await this.client.joinOrCreate(conn.room_name, options);
       if (generation !== this.joinGeneration) {
         await room.leave().catch(() => undefined);
@@ -166,31 +173,49 @@ export class ColyseusService {
 
   /**
    * Convert raw Colyseus decoded state to simplified view type for React.
-   * Called inside onStateChange callback to provide clean data to the component.
    */
-  private bridgeState(rawState: RawGameState): DilemmaRaceRoomState {
-    const playerArray: DilemmaRacePlayer[] = [];
+  private bridgeState(rawState: RawGameState): DilemmaRaceRoomState | TrustDilemmaRoomState {
+    if (this.roomName === 'trust_dilemma') {
+      const playerArray: TrustDilemmaPlayer[] = [];
 
-    rawState.players.forEach((playerState: RawPlayerState) => {
-      const choice =
-        rawState.phase === 'resolving' || rawState.phase === 'finished' ? playerState.choice || 1 : playerState.choice;
-      playerArray.push({
-        id: playerState.playerId,
-        position: playerState.position,
-        choice,
-        isBlocked: playerState.blocked,
-        isFinished: playerState.finished,
-        rank: playerState.rank,
+      rawState.players.forEach((playerState: RawPlayerState) => {
+        playerArray.push({
+          id: playerState.playerId,
+          choice: playerState.choice,
+          score: playerState.score || 0,
+          roundScore: playerState.roundScore || 0,
+          isReady: playerState.isReady || false,
+          rank: playerState.rank || 0,
+        });
       });
-    });
 
-    return {
-      phase: rawState.phase as DilemmaRaceRoomState['phase'],
-      currentRound: rawState.round,
-      timeLeft: rawState.roundTimer,
-      trackLength: 15,
-      players: playerArray,
-    };
+      return {
+        phase: rawState.phase as TrustDilemmaRoomState['phase'],
+        currentRound: rawState.round,
+        timeLeft: rawState.roundTimer,
+        players: playerArray,
+      };
+    } else {
+      const playerArray: DilemmaRacePlayer[] = [];
+
+      rawState.players.forEach((playerState: RawPlayerState) => {
+        playerArray.push({
+          id: playerState.playerId,
+          position: playerState.position || 1,
+          choice: playerState.choice,
+          isBlocked: playerState.blocked || false,
+          isFinished: playerState.finished || false,
+        });
+      });
+
+      return {
+        phase: rawState.phase as DilemmaRaceRoomState['phase'],
+        currentRound: rawState.round,
+        timeLeft: rawState.roundTimer,
+        trackLength: 15,
+        players: playerArray,
+      };
+    }
   }
 
   private setupRoomListeners(room: Room): void {
@@ -282,7 +307,7 @@ export class ColyseusService {
    * These are set once per component mount lifecycle.
    */
   setCallbacks(
-    onStateChange: (state: DilemmaRaceRoomState) => void,
+    onStateChange: (state: any) => void,
     onError: (error: Error) => void,
     onLeave: (code: number) => void,
   ): void {
@@ -294,7 +319,7 @@ export class ColyseusService {
   /**
    * Get current room state snapshot (for initial render after joining).
    */
-  getCurrentState(): DilemmaRaceRoomState | null {
+  getCurrentState(): any {
     if (!this.room?.state) return null;
     return this.bridgeState(this.room.state as RawGameState);
   }

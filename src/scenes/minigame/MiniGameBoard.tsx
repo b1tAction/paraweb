@@ -21,6 +21,7 @@ import { styles } from './MiniGameStyles';
 import { type MiniGameBoardGameType, miniGameBoardDevControls } from './miniGameBoardDevControls';
 import type { MiniGameViewContext } from './miniGameViewContext';
 import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
+import { TrustDilemmaMiniGame } from './TrustDilemmaMiniGame';
 import { VernierMiniGame } from './VernierMiniGame';
 
 // ========== Constants ==========
@@ -106,6 +107,26 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
         if (miniGameStart?.connection) {
           return (
             <DilemmaRaceMiniGame
+              key={miniGameStart.connection.minigame_instance_id || miniGameStart.connection.room_id || gameType}
+              connection={miniGameStart.connection}
+              isParticipant={isParticipant}
+              onlineService={onlineService}
+              playerId={myPlayerId}
+              participantIds={participantIds}
+              participantPlayers={viewContext.players}
+            />
+          );
+        }
+
+        return (
+          <div style={quadrantStyles.gameArea}>
+            <p style={styles.submittedText}>Waiting for online game connection...</p>
+          </div>
+        );
+      case 'trust_dilemma':
+        if (miniGameStart?.connection) {
+          return (
+            <TrustDilemmaMiniGame
               key={miniGameStart.connection.minigame_instance_id || miniGameStart.connection.room_id || gameType}
               connection={miniGameStart.connection}
               isParticipant={isParticipant}
