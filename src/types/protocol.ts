@@ -215,12 +215,22 @@ export interface MiniGameStart {
  * MiniGameConn - 小游戏实时连接信息 (用于 Colyseus 等)
  */
 export interface MiniGameConn {
-  /** 服务器 URL */
+  /** Colyseus 服务器 WebSocket URL */
   url: string;
-  /** 房间 ID */
-  room_id: string;
-  /** 认证 Token */
-  token: string;
+  /** 房间 ID (WebSocket/matchmaker 模式下可选，join 后由 Colyseus 分配) */
+  room_id?: string;
+  /** 房间名称 (如 "dilemma_race")，客户端用于 joinOrCreate */
+  room_name: string;
+  /** Nakama runtime match ID，用于结果回调路由 */
+  nakama_match_id: string;
+  /** 小游戏实例唯一 ID，作为 filterBy key 确保 same Nakama match 的玩家进入 same room */
+  minigame_instance_id: string;
+  /** 创建者玩家 ID (第一个调用 joinOrCreate 的玩家) */
+  creator_player_id: string;
+  /** 认证 Token (deprecated，使用 player_tokens 替代) */
+  token?: string;
+  /** Per-player HMAC token map (player_id -> token) */
+  player_tokens?: Record<string, string>;
 }
 
 /**
@@ -246,12 +256,53 @@ export interface RankingEntry {
 }
 
 /**
+ * ScoreReason - 积分原因明细
+ */
+export interface ScoreReason {
+  /** 积分类别: "mini_game" | "boss" | "item" | "achievement" */
+  category: string;
+  /** 人类可读原因（中文） */
+  reason: string;
+  /** 加分值 */
+  points: number;
+  /** 轮次（0表示非轮次相关） */
+  round: number;
+}
+
+/**
+ * PlayerRanking - 玩家排名（按总积分降序）
+ */
+export interface PlayerRanking {
+  /** 玩家 UUID */
+  player_id: string;
+  /** 显示名称 */
+  display_name: string;
+  /** 排名位置（1 = 冠军） */
+  rank: number;
+  /** 总积分 */
+  total_score: number;
+  /** 小游戏类别积分 */
+  mini_game_score: number;
+  /** Boss类别积分 */
+  boss_score: number;
+  /** 道具类别积分 */
+  item_score: number;
+  /** 成就类别积分 */
+  achievement_score: number;
+  /** 已达成成就类型列表 */
+  achievements: string[];
+  /** 逐条积分明细 */
+  score_reasons: ScoreReason[];
+}
+
+/**
  * GameOver - 游戏结束通知
+ * Rankings 按总积分降序排列，rankings[0] 为冠军
  */
 export interface GameOver {
-  /** 获胜者 ID */
-  winner_id: string;
-  /** 统计数据 */
+  /** 玩家排名列表（不含Boss） */
+  rankings: PlayerRanking[];
+  /** 全玩家统计（含Boss） */
   stats: PlayerStats[];
 }
 
@@ -259,14 +310,24 @@ export interface GameOver {
  * PlayerStats - 玩家结束统计
  */
 export interface PlayerStats {
-  /** 玩家 ID */
+  /** 玩家 UUID */
   player_id: string;
-  /** 获胜轮数 */
+  /** 显示名称 */
+  display_name: string;
+  /** 小游戏第1名轮数 */
   rounds_won: number;
-  /** 抽取事件数 */
+  /** 随机事件触发次数 */
   events_drawn: number;
-  /** 使用道具数 */
+  /** 消耗道具数 */
   items_used: number;
+  /** 对Boss原始累积伤害 */
+  boss_damage_dealt: number;
+  /** 已达成成就类型列表 */
+  achievements: string[];
+  /** 总积分 */
+  total_score: number;
+  /** 类别→积分映射 */
+  score_breakdown: Record<string, number>;
 }
 
 /**
@@ -383,6 +444,12 @@ export interface DefinitionsConfig {
   buffs: Record<string, BuffDefinitionConfig>;
   /** 道具定义 */
   items: Record<string, ItemDefinitionConfig>;
+  /** 小游戏定义 */
+  mini_games: Record<string, MiniGameDefinitionConfig>;
+  /** 阵营定义 */
+  factions: Record<string, FactionDefinitionConfig>;
+  /** 骰子定义 */
+  dice: Record<string, DiceDefinitionConfig>;
 }
 
 /**
@@ -426,6 +493,40 @@ export interface ItemDefinitionConfig {
   english_name: string;
   name: string;
   desc: string;
+}
+
+/**
+ * MiniGameDefinitionConfig - 小游戏定义配置
+ */
+export interface MiniGameDefinitionConfig {
+  type: string;
+  mode: string; // "frontend" or "online"
+  available: boolean;
+  english_name: string;
+  name: string;
+  desc: string;
+}
+
+/**
+ * FactionDefinitionConfig - 阵营定义配置
+ */
+export interface FactionDefinitionConfig {
+  type: string;
+  english_name: string;
+  name: string; // Chinese display name e.g. "青龙"
+  skill_name: string; // Faction skill Chinese name e.g. "威势"
+  skill_desc: string; // Faction skill description
+}
+
+/**
+ * DiceDefinitionConfig - 骰子定义配置
+ */
+export interface DiceDefinitionConfig {
+  type: string;
+  english_name: string;
+  name: string; // Chinese display name e.g. "金骰子"
+  desc: string;
+  rank: number; // Mini-game rank that earns this dice
 }
 
 // ========== 客户端 -> 服务端消息类型 ==========
@@ -492,3 +593,15 @@ export type StartGame = EmptyPayload;
  * 客户端在 RoundEndWait 状态下，完成当前轮动画渲染后发送
  */
 export type RoundReady = EmptyPayload;
+
+/**
+ * MiniGameOnlineResponse - online trigger RPC 响应
+ */
+export interface MiniGameOnlineResponse {
+  /** 是否成功 */
+  success: boolean;
+  /** 目标 match ID */
+  match_id: string;
+  /** 连接信息 (可选) */
+  connection?: MiniGameConn;
+}

@@ -1,8 +1,8 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useGameStore } from '../../store/gameStore';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
 import { styles } from './MiniGameStyles';
+import { type MiniGameViewContext, useMiniGameViewContext } from './miniGameViewContext';
 
 // 可以在这里方便地修改速算小游戏的总题目数量
 export const TOTAL_QUESTIONS = 3;
@@ -85,20 +85,20 @@ function generateQuestions(seed: string, questionCount: number): Question[] {
 
 export interface MathCalcMiniGameProps {
   isParticipant: boolean;
-  submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
+  viewContext?: MiniGameViewContext;
 }
 
 export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
   isParticipant,
-  submitted,
   isSubmitting,
   submitError,
   onSubmit,
+  viewContext,
 }) => {
-  const { matchId, round } = useGameStore();
+  const { matchId, round, miniGameStart, miniGameResult, myPlayerId, players } = useMiniGameViewContext(viewContext);
 
   const [phase, setPhase] = useState<'countdown' | 'playing' | 'finished'>('countdown');
   const [countdown, setCountdown] = useState(3);
@@ -164,13 +164,11 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
 
           setFinalTimeMs(duration);
           setPhase('finished');
-          if (!submitted && !isSubmitting) {
-            onSubmit({ accuracy, time_ms: duration });
-          }
+          onSubmit({ accuracy, time_ms: duration });
         }
       }
     },
-    [correctCount, currentQIndex, inputValue, isParticipant, isSubmitting, onSubmit, phase, questions, submitted],
+    [correctCount, currentQIndex, inputValue, isParticipant, isSubmitting, onSubmit, phase, questions],
   );
 
   useEffect(() => {
@@ -247,7 +245,6 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
   }
 
   if (phase === 'finished') {
-    const { miniGameStart, miniGameResult, myPlayerId, players } = useGameStore.getState();
     const participants = miniGameStart?.players || [];
 
     const allPlayersData = players.map((p) => ({
@@ -297,7 +294,7 @@ export const MathCalcMiniGame: React.FC<MathCalcMiniGameProps> = ({
         </div>
 
         <p style={{ ...styles.gameDataDetail, fontSize: '14px', textAlign: 'center' }}>
-          {isSubmitting ? '正在同步成绩...' : submitted ? '等待其他玩家答题...' : '提交中...'}
+          {isSubmitting ? '正在同步成绩...' : '等待其他玩家答题...'}
         </p>
         {submitError && <p style={{ color: 'red', fontSize: '12px' }}>{submitError}</p>}
       </div>

@@ -4,8 +4,7 @@
  * 根据当前场景路由到不同的组件
  */
 
-import type React from 'react';
-import { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import {
   BoardScene,
   CreateRoomScene,
@@ -14,10 +13,30 @@ import {
   HomeScene,
   JoinRoomScene,
   LobbyScene,
+  MiniGameBoardScene,
   MiniGameSubmitRankScene,
 } from './scenes';
+import { SceneStatusPanel } from './scenes/SceneStatusPanel';
 import { checkForUpdate, type DesktopUpdateCheckResult, openExternalUrl } from './service/updateService';
 import { Scene, useGameStore } from './store/gameStore';
+import { playBoardBgm, stopBoardBgm } from './utils/boardBgm';
+import { playEndBgm, stopEndBgm } from './utils/endBgm';
+import { playMiniGameBgm, stopMiniGameBgm } from './utils/miniGameBgm';
+import { playStartBgm, stopStartBgm } from './utils/startBgm';
+
+// DEV-mode debug tools — tree-shaken in production builds
+const DevPanel = import.meta.env.DEV
+  ? React.lazy(() => import('./components/DevPanel').then((m) => ({ default: m.DevPanel })))
+  : null;
+
+if (import.meta.env.DEV) {
+  void import('./components/devConsoleApi');
+}
+
+const MINI_GAME_INTRO_DURATION_MS = 2500;
+const BOARD_BGM_FADE_OUT_MS = 800;
+const MINI_GAME_BGM_LEAD_IN_MS = 700;
+const MINI_GAME_BGM_FADE_IN_MS = 1000;
 
 /**
  * 场景路由配置
@@ -34,6 +53,7 @@ const sceneComponents: Record<Scene, React.ComponentType> = {
   [Scene.Board]: BoardScene,
   [Scene.BossBattle]: BossBattleScene,
   [Scene.GameOver]: GameOverScene,
+  [Scene.MiniGameBoard]: MiniGameBoardScene,
 };
 
 /**
@@ -41,10 +61,10 @@ const sceneComponents: Record<Scene, React.ComponentType> = {
  */
 function LoadingScene() {
   return (
-    <div style={styles.container}>
-      <h2>加载中...</h2>
-      <p>正在初始化游戏</p>
-    </div>
+    <SceneStatusPanel
+      title="加载中..."
+      variant="loading"
+    />
   );
 }
 
@@ -81,11 +101,11 @@ function DesktopUpdateNotice({ update, onDismiss }: DesktopUpdateNoticeProps) {
  */
 function DiceAssignScene() {
   return (
-    <div style={styles.container}>
-      <h2>骰子分配</h2>
-      <p>根据小游戏排名分配骰子类型</p>
-      <p>金骰子 (第 1 名) / 银骰子 (第 2 名) / 铜骰子 (第 3 名) / 木骰子 (第 4 名)</p>
-    </div>
+    <SceneStatusPanel
+      eyebrow="Round Reward"
+      title="骰子分配中..."
+      variant="dice"
+    />
   );
 }
 
@@ -94,10 +114,12 @@ function DiceAssignScene() {
  */
 function BossBattleScene() {
   return (
-    <div style={styles.container}>
-      <h2>Boss 战斗</h2>
-      <p>挑战最终 Boss!</p>
-    </div>
+    <SceneStatusPanel
+      eyebrow="Boss Battle"
+      title="Boss 战斗中..."
+      variant="boss"
+      accent="red"
+    />
   );
 }
 
@@ -108,6 +130,14 @@ const App: React.FC = () => {
   const currentScene = useGameStore((state) => state.currentScene);
   const [desktopUpdate, setDesktopUpdate] = useState<DesktopUpdateCheckResult | null>(null);
   const [isUpdateDismissed, setIsUpdateDismissed] = useState(false);
+  const [showMiniGameIntro, setShowMiniGameIntro] = useState(false);
+  const miniGameIntroTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const miniGameAudioLeadInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const miniGameTransitionRef = useRef({
+    fromBoard: false,
+    miniGameAudioStarted: false,
+  });
+  const previousSceneRef = useRef<Scene | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,23 +160,166 @@ const App: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const isMiniGameScene = currentScene === Scene.MiniGameSubmitRank;
+    const previousScene = previousSceneRef.current;
+
+    if (isMiniGameScene) {
+      const transitionFromBoard = previousScene === Scene.Board;
+      miniGameTransitionRef.current = {
+        fromBoard: transitionFromBoard,
+        miniGameAudioStarted: false,
+      };
+
+      if (miniGameIntroTimerRef.current) {
+        clearTimeout(miniGameIntroTimerRef.current);
+      }
+      if (miniGameAudioLeadInTimerRef.current) {
+        clearTimeout(miniGameAudioLeadInTimerRef.current);
+      }
+
+      if (transitionFromBoard) {
+        setShowMiniGameIntro(true);
+        stopBoardBgm(false, BOARD_BGM_FADE_OUT_MS);
+        stopMiniGameBgm(true, 0);
+
+        miniGameAudioLeadInTimerRef.current = setTimeout(() => {
+          if (
+            useGameStore.getState().currentScene === Scene.MiniGameSubmitRank &&
+            !miniGameTransitionRef.current.miniGameAudioStarted
+          ) {
+            playMiniGameBgm(MINI_GAME_BGM_FADE_IN_MS);
+            miniGameTransitionRef.current.miniGameAudioStarted = true;
+          }
+          miniGameAudioLeadInTimerRef.current = null;
+        }, Math.max(0, MINI_GAME_INTRO_DURATION_MS - MINI_GAME_BGM_LEAD_IN_MS));
+
+        miniGameIntroTimerRef.current = setTimeout(() => {
+          setShowMiniGameIntro(false);
+          miniGameIntroTimerRef.current = null;
+        }, MINI_GAME_INTRO_DURATION_MS);
+      } else {
+        setShowMiniGameIntro(false);
+        playMiniGameBgm(0);
+        miniGameTransitionRef.current.miniGameAudioStarted = true;
+      }
+
+      return;
+    }
+
+    setShowMiniGameIntro(false);
+    if (miniGameIntroTimerRef.current) {
+      clearTimeout(miniGameIntroTimerRef.current);
+      miniGameIntroTimerRef.current = null;
+    }
+    if (miniGameAudioLeadInTimerRef.current) {
+      clearTimeout(miniGameAudioLeadInTimerRef.current);
+      miniGameAudioLeadInTimerRef.current = null;
+    }
+    miniGameTransitionRef.current = {
+      fromBoard: false,
+      miniGameAudioStarted: false,
+    };
+  }, [currentScene]);
+
+  useEffect(() => {
+    return () => {
+      if (miniGameIntroTimerRef.current) {
+        clearTimeout(miniGameIntroTimerRef.current);
+        miniGameIntroTimerRef.current = null;
+      }
+      if (miniGameAudioLeadInTimerRef.current) {
+        clearTimeout(miniGameAudioLeadInTimerRef.current);
+        miniGameAudioLeadInTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const previousScene = previousSceneRef.current;
+    const isPrepScene =
+      currentScene === Scene.Home ||
+      currentScene === Scene.CreateRoom ||
+      currentScene === Scene.JoinRoom ||
+      currentScene === Scene.FactionSelect ||
+      currentScene === Scene.Lobby ||
+      currentScene === Scene.Loading ||
+      currentScene === Scene.DiceAssign;
+    const isMiniGameScene = currentScene === Scene.MiniGameSubmitRank;
+    const isBoardScene = currentScene === Scene.Board;
+    const isGameOverScene = currentScene === Scene.GameOver;
+    const transition = miniGameTransitionRef.current;
+    const isBoardMiniGameReturn = previousScene === Scene.MiniGameSubmitRank && isBoardScene;
+
+    if (isPrepScene) {
+      playStartBgm();
+      stopBoardBgm();
+      stopEndBgm();
+      stopMiniGameBgm();
+      previousSceneRef.current = currentScene;
+      return;
+    }
+
+    stopStartBgm();
+
+    if (isBoardScene) {
+      playBoardBgm(isBoardMiniGameReturn ? MINI_GAME_BGM_FADE_IN_MS : 0);
+      stopEndBgm();
+      stopMiniGameBgm(false, isBoardMiniGameReturn ? MINI_GAME_BGM_FADE_IN_MS : 0);
+      miniGameTransitionRef.current = {
+        fromBoard: false,
+        miniGameAudioStarted: false,
+      };
+      previousSceneRef.current = currentScene;
+      return;
+    }
+
+    if (isMiniGameScene) {
+      stopEndBgm();
+      stopBoardBgm(false, transition.fromBoard ? BOARD_BGM_FADE_OUT_MS : 0);
+      if (!showMiniGameIntro && !transition.miniGameAudioStarted) {
+        playMiniGameBgm(transition.fromBoard ? MINI_GAME_BGM_FADE_IN_MS : 0);
+        transition.miniGameAudioStarted = true;
+      }
+      previousSceneRef.current = currentScene;
+      return;
+    }
+
+    if (isGameOverScene) {
+      stopBoardBgm(true, 0);
+      stopMiniGameBgm(true, 0);
+      stopStartBgm(true);
+      playEndBgm();
+      previousSceneRef.current = currentScene;
+      return;
+    }
+
+    stopBoardBgm();
+    stopEndBgm();
+    stopMiniGameBgm();
+    previousSceneRef.current = currentScene;
+  }, [currentScene, showMiniGameIntro]);
+
   const isMiniGameOverlay = currentScene === Scene.MiniGameSubmitRank;
+  const shouldRenderMiniGameOverlay = isMiniGameOverlay && !showMiniGameIntro;
   const SceneComponent = isMiniGameOverlay ? BoardScene : sceneComponents[currentScene] || HomeScene;
   const isHomeScene =
     currentScene === Scene.Home ||
     currentScene === Scene.CreateRoom ||
     currentScene === Scene.JoinRoom ||
     currentScene === Scene.FactionSelect;
+  const isStandaloneDevScene = currentScene === Scene.MiniGameBoard;
+  const shouldRenderAppChrome = !isHomeScene && !isStandaloneDevScene;
 
   return (
-    <div style={styles.app}>
+    <div style={isStandaloneDevScene ? { ...styles.app, ...styles.standaloneApp } : styles.app}>
       {desktopUpdate?.hasUpdate && !isUpdateDismissed && (
         <DesktopUpdateNotice update={desktopUpdate} onDismiss={() => setIsUpdateDismissed(true)} />
       )}
       <span className="zpix-font-loader" aria-hidden="true">
         Zpix 中文字体预加载
       </span>
-      {!isHomeScene && (
+      {shouldRenderAppChrome && (
         <header style={styles.header}>
           <h1 style={styles.logo}>ParaDiced</h1>
           <nav style={styles.nav}>
@@ -154,13 +327,31 @@ const App: React.FC = () => {
           </nav>
         </header>
       )}
-      <main style={isHomeScene ? { ...styles.main, ...styles.homeMain } : styles.main}>
+      <main
+        style={
+          isHomeScene
+            ? { ...styles.main, ...styles.homeMain }
+            : isStandaloneDevScene
+              ? { ...styles.main, ...styles.standaloneMain }
+              : styles.main
+        }
+      >
         <Suspense fallback={<LoadingScene />}>
           <SceneComponent />
         </Suspense>
       </main>
 
-      {isMiniGameOverlay && (
+      {isMiniGameOverlay && showMiniGameIntro && (
+        <div style={styles.overlay}>
+          <div style={styles.miniGameIntroCard}>
+            <div style={styles.miniGameIntroEyebrow}>Mini Game</div>
+            <h2 style={styles.miniGameIntroTitle}>小游戏要开始啦</h2>
+            <p style={styles.miniGameIntroText}>准备好，马上进入轻松又刺激的小挑战。</p>
+          </div>
+        </div>
+      )}
+
+      {shouldRenderMiniGameOverlay && (
         <div style={styles.overlay}>
           <Suspense fallback={<LoadingScene />}>
             <MiniGameSubmitRankScene />
@@ -168,10 +359,16 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {!isHomeScene && (
+      {shouldRenderAppChrome && (
         <footer style={styles.footer}>
           <p>派乐代 - 回合制派对游戏</p>
         </footer>
+      )}
+
+      {import.meta.env.DEV && DevPanel && (
+        <Suspense fallback={null}>
+          <DevPanel />
+        </Suspense>
       )}
     </div>
   );
@@ -184,6 +381,12 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     backgroundColor: '#f5f5f5',
+  },
+  standaloneApp: {
+    height: '100dvh',
+    minHeight: 0,
+    backgroundColor: '#101216',
+    overflow: 'hidden',
   },
   header: {
     backgroundColor: '#3f51b5',
@@ -257,6 +460,11 @@ const styles: Record<string, React.CSSProperties> = {
   homeMain: {
     padding: 0,
   },
+  standaloneMain: {
+    minHeight: 0,
+    padding: 0,
+    overflow: 'hidden',
+  },
   footer: {
     backgroundColor: '#333',
     color: 'white',
@@ -279,6 +487,35 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
+  },
+  miniGameIntroCard: {
+    width: 'min(760px, calc(100vw - 40px))',
+    padding: '48px 42px',
+    border: '2px solid rgba(255, 236, 170, 0.62)',
+    borderRadius: '8px',
+    background: 'linear-gradient(180deg, rgba(28, 25, 18, 0.96) 0%, rgba(48, 36, 21, 0.96) 100%)',
+    color: '#fff7d6',
+    textAlign: 'center',
+    boxShadow: '0 28px 60px rgba(0, 0, 0, 0.38)',
+  },
+  miniGameIntroEyebrow: {
+    marginBottom: '14px',
+    color: '#f6df9e',
+    fontSize: '16px',
+    fontWeight: 800,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+  },
+  miniGameIntroTitle: {
+    margin: 0,
+    fontSize: '42px',
+    lineHeight: 1.2,
+  },
+  miniGameIntroText: {
+    margin: '18px 0 0',
+    color: 'rgba(255, 247, 214, 0.88)',
+    fontSize: '22px',
+    lineHeight: 1.6,
   },
 };
 

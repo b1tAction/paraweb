@@ -7,7 +7,9 @@
 
 import type React from 'react';
 import { useCallback, useState } from 'react';
+import { getDisambiguatedDisplayName } from '../../utils/displayName';
 import { styles } from './MiniGameStyles';
+import { type MiniGameViewContext, useMiniGameViewContext } from './miniGameViewContext';
 
 // ========== CountSecondsMiniGame Component ==========
 
@@ -15,19 +17,20 @@ type CountSecondsPhase = 'idle' | 'running' | 'stopped';
 
 export interface CountSecondsMiniGameProps {
   isParticipant: boolean;
-  submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
+  viewContext?: MiniGameViewContext;
 }
 
 export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
   isParticipant,
-  submitted,
   isSubmitting,
   submitError,
   onSubmit,
+  viewContext,
 }) => {
+  const { miniGameStart, miniGameResult, myPlayerId, players } = useMiniGameViewContext(viewContext);
   const [phase, setPhase] = useState<CountSecondsPhase>('idle');
   const [startTime, setStartTime] = useState<number>(0);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -41,21 +44,12 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
     const elapsed = (Date.now() - startTime) / 1000;
     setElapsedSeconds(elapsed);
     setPhase('stopped');
-  }, [startTime]);
 
-  const handleSubmit = useCallback(() => {
-    const deviation = Math.abs(elapsedSeconds - 5.0);
-    onSubmit({ elapsed: elapsedSeconds, deviation });
-  }, [elapsedSeconds, onSubmit]);
+    // Auto-submit immediately
+    const deviation = Math.abs(elapsed - 5.0);
+    onSubmit({ elapsed, deviation });
+  }, [startTime, onSubmit]);
 
-  const deviation = phase === 'stopped' ? Math.abs(elapsedSeconds - 5.0) : null;
-
-  const getDeviationColor = (dev: number | null) => {
-    if (dev === null) return '#666';
-    if (dev <= 0.2) return '#4CAF50'; // Perfect (Green)
-    if (dev <= 0.8) return '#FF9800'; // Good (Orange)
-    return '#f44336'; // Missed (Red)
-  };
 
   return (
     <div style={styles.gameArea}>
@@ -102,36 +96,49 @@ export const CountSecondsMiniGame: React.FC<CountSecondsMiniGameProps> = ({
         </>
       )}
 
-      {phase === 'stopped' && !submitted && (
-        <>
-          <p style={{ ...styles.resultDisplay, fontWeight: 'bold' }}>
-            你的估计： <span style={{ color: '#2196F3' }}>{elapsedSeconds.toFixed(2)}秒</span>
+      {phase === 'stopped' && (
+        <div style={{ ...styles.resultContainer, backgroundColor: 'transparent', padding: '16px', width: '100%' }}>
+          <p style={{ ...styles.submittedText, fontWeight: 'bold' }}>
+            {isSubmitting ? '正在提交...' : '成绩已提交！'}
           </p>
-          <p style={{ ...styles.resultDisplay, fontWeight: 'bold', color: getDeviationColor(deviation) }}>
-            偏差： {deviation?.toFixed(2) ?? '?'}秒 （目标：5.0秒）
-          </p>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            style={isSubmitting ? styles.buttonDisabled : { ...styles.button, backgroundColor: '#4CAF50' }}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? '提交中...' : '提交结果'}
-          </button>
-        </>
-      )}
 
-      {phase === 'stopped' && submitted && (
-        <div style={{ ...styles.resultContainer, backgroundColor: 'transparent', padding: '16px' }}>
-          <p style={{ ...styles.submittedText, fontWeight: 'bold' }}>已提交！</p>
-          <p style={{ fontSize: '16px', color: '#333' }}>
-            估计值： <span style={{ color: '#2196F3' }}>{elapsedSeconds.toFixed(2)}秒</span>
-          </p>
-          <p style={{ fontSize: '16px', fontWeight: 'bold', color: getDeviationColor(deviation) }}>
-            偏差： {deviation?.toFixed(2) ?? '?'}秒
+          <div style={styles.miniRankingList}>
+            {(miniGameStart?.players || []).map((pId) => {
+              const isMe = pId === myPlayerId;
+              const playerInfo = players.find((p) => p.player_id === pId);
+              const allPlayersData = players.map((p) => ({
+                displayName: p.display_name || p.player_id,
+                userId: p.player_id,
+              }));
+              const name = getDisambiguatedDisplayName(playerInfo?.display_name || pId, pId, allPlayersData);
+              const resultEntry = miniGameResult?.rankings.find((r) => r.player_id === pId);
+              const isFinished = !!resultEntry;
+              const resElapsed =
+                typeof resultEntry?.game_data?.elapsed === 'number' ? resultEntry.game_data.elapsed : null;
+
+              return (
+                <div key={pId} style={styles.miniRankingItem}>
+                  <span style={{ fontWeight: isMe ? 'bold' : 'normal' }}>
+                    {name} {isMe ? '(我)' : ''}
+                  </span>
+                  {isMe ? (
+                    <span style={styles.statusFinished}>{elapsedSeconds.toFixed(2)}s</span>
+                  ) : isFinished ? (
+                    <span style={styles.statusFinished}>{resElapsed?.toFixed(2) ?? '?'}s</span>
+                  ) : (
+                    <span style={styles.statusPlaying}>正在计时...</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <p style={{ fontSize: '14px', color: '#888', textAlign: 'center', marginTop: '8px' }}>
+            {miniGameResult ? '全员挑战结束，即将跳转...' : '等待其他玩家结束...'}
           </p>
         </div>
       )}
+
 
       {submitError && <p style={styles.errorText}>{submitError}</p>}
     </div>

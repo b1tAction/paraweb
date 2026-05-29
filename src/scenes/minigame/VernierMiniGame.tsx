@@ -1,27 +1,27 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { useGameStore } from '../../store/gameStore';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
 import { styles } from './MiniGameStyles';
+import { type MiniGameViewContext, useMiniGameViewContext } from './miniGameViewContext';
 
 export interface VernierMiniGameProps {
   isParticipant: boolean;
-  submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
+  viewContext?: MiniGameViewContext;
 }
 
 type Phase = 'countdown' | 'playing' | 'reveal' | 'finished';
 
 export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
   isParticipant,
-  submitted,
   isSubmitting,
   submitError,
   onSubmit,
+  viewContext,
 }) => {
-  const { myPlayerId, miniGameStart, miniGameResult, players } = useGameStore();
+  const { myPlayerId, miniGameStart, miniGameResult, players } = useMiniGameViewContext(viewContext);
   const [phase, setPhase] = useState<Phase>('countdown');
   const [countdown, setCountdown] = useState(3);
   const [position, setPosition] = useState(50); // 0 to 100 percentage
@@ -99,7 +99,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
   }, [countdown, phase, isParticipant]);
 
   const handleStop = () => {
-    if (phase !== 'playing' || !isParticipant || submitted || isSubmitting) return;
+    if (phase !== 'playing' || !isParticipant || isSubmitting) return;
 
     const dev = Math.abs(position - 50);
     setDeviation(dev);

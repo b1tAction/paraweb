@@ -6,7 +6,9 @@
  */
 
 import React, { useCallback, useRef, useState } from 'react';
+import { getDisambiguatedDisplayName } from '../../utils/displayName';
 import { DICE_DOTS, styles } from './MiniGameStyles';
+import { type MiniGameViewContext, useMiniGameViewContext } from './miniGameViewContext';
 
 // ========== DiceFace Component ==========
 
@@ -74,19 +76,20 @@ type DiceRacePhase = 'idle' | 'rolling' | 'result';
 
 export interface DiceRaceMiniGameProps {
   isParticipant: boolean;
-  submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
+  viewContext?: MiniGameViewContext;
 }
 
 export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
   isParticipant,
-  submitted,
   isSubmitting,
   submitError,
   onSubmit,
+  viewContext,
 }) => {
+  const { miniGameStart, miniGameResult, myPlayerId, players } = useMiniGameViewContext(viewContext);
   const [phase, setPhase] = useState<DiceRacePhase>('idle');
   const [dice1, setDice1] = useState<number>(1);
   const [dice2, setDice2] = useState<number>(1);
@@ -94,15 +97,6 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
   const [displayDice2, setDisplayDice2] = useState<number>(1);
   const rollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Reset when submitted
-  React.useEffect(() => {
-    if (submitted) {
-      if (rollTimerRef.current) {
-        clearInterval(rollTimerRef.current);
-        rollTimerRef.current = null;
-      }
-    }
-  }, [submitted]);
 
   const handleRoll = useCallback(() => {
     const finalDice1 = Math.floor(Math.random() * 6) + 1;
@@ -125,17 +119,16 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
         }
         rollTimerRef.current = null;
         setPhase('result');
+
+        // Auto-submit immediately
+        const scoreValue = finalDice1 + finalDice2;
+        onSubmit({ dice1: finalDice1, dice2: finalDice2, score: scoreValue });
         return;
       }
       setDisplayDice1(Math.floor(Math.random() * 6) + 1);
       setDisplayDice2(Math.floor(Math.random() * 6) + 1);
     }, switchInterval);
-  }, []);
-
-  const handleSubmit = useCallback(() => {
-    const score = dice1 + dice2;
-    onSubmit({ dice1, dice2, score });
-  }, [dice1, dice2, onSubmit]);
+  }, [onSubmit]);
 
   const score = dice1 + dice2;
 
@@ -165,8 +158,8 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
         </>
       )}
 
-      {phase === 'result' && !submitted && (
-        <>
+      {phase === 'result' && (
+        <div style={{ ...styles.resultContainer, backgroundColor: 'transparent', padding: '16px', width: '100%' }}>
           <div style={styles.diceRow}>
             <DiceFace value={dice1} size={90} />
             <DiceFace value={dice2} size={90} />
@@ -174,28 +167,48 @@ export const DiceRaceMiniGame: React.FC<DiceRaceMiniGameProps> = ({
           <p style={styles.scoreDisplay}>
             分数： {dice1} + {dice2} = {score}
           </p>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            style={isSubmitting ? styles.buttonDisabled : { ...styles.button, backgroundColor: '#4CAF50' }}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? '提交中...' : '提交结果'}
-          </button>
-        </>
+          <p style={{ ...styles.submittedText, fontWeight: 'bold', margin: '8px 0' }}>
+            {isSubmitting ? '正在提交...' : '成绩已提交！'}
+          </p>
+
+          <div style={styles.miniRankingList}>
+            {(miniGameStart?.players || []).map((pId) => {
+              const isMe = pId === myPlayerId;
+              const playerInfo = players.find((p) => p.player_id === pId);
+              const allPlayersData = players.map((p) => ({
+                displayName: p.display_name || p.player_id,
+                userId: p.player_id,
+              }));
+              const name = getDisambiguatedDisplayName(playerInfo?.display_name || pId, pId, allPlayersData);
+              const resultEntry = miniGameResult?.rankings.find((r) => r.player_id === pId);
+              const isFinished = !!resultEntry;
+              const resScore =
+                typeof resultEntry?.game_data?.score === 'number' ? resultEntry.game_data.score : null;
+
+              return (
+                <div key={pId} style={styles.miniRankingItem}>
+                  <span style={{ fontWeight: isMe ? 'bold' : 'normal' }}>
+                    {name} {isMe ? '(我)' : ''}
+                  </span>
+                  {isMe ? (
+                    <span style={styles.statusFinished}>{score}分</span>
+                  ) : isFinished ? (
+                    <span style={styles.statusFinished}>{resScore ?? '?'}分</span>
+                  ) : (
+                    <span style={styles.statusPlaying}>正在投骰子...</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <p style={{ fontSize: '14px', color: '#888', textAlign: 'center', marginTop: '8px' }}>
+            {miniGameResult ? '全员挑战结束，即将跳转...' : '等待其他玩家结束...'}
+          </p>
+        </div>
       )}
 
-      {phase === 'result' && submitted && (
-        <>
-          <div style={styles.diceRow}>
-            <DiceFace value={dice1} size={90} />
-            <DiceFace value={dice2} size={90} />
-          </div>
-          <p style={styles.submittedText}>
-            已提交！骰子： {dice1} + {dice2} = {score}
-          </p>
-        </>
-      )}
+
 
       {submitError && <p style={styles.errorText}>{submitError}</p>}
     </div>

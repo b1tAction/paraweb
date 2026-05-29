@@ -1,8 +1,8 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { useGameStore } from '../../store/gameStore';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
 import { styles } from './MiniGameStyles';
+import { type MiniGameViewContext, useMiniGameViewContext } from './miniGameViewContext';
 
 // Robust seeded PRNG
 function xmur3(str: string) {
@@ -55,22 +55,22 @@ const RAINBOW_GRID_CELLS = Array.from({ length: 9 }, (_, index) => ({ id: `rainb
 
 export interface RainbowMemoryMiniGameProps {
   isParticipant: boolean;
-  submitted: boolean;
   isSubmitting: boolean;
   submitError: string;
   onSubmit: (gameData: Record<string, unknown>) => void;
+  viewContext?: MiniGameViewContext;
 }
 
 type Phase = 'memorize' | 'hide' | 'challenge' | 'finished';
 
 export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
   isParticipant,
-  submitted,
   isSubmitting,
   submitError,
   onSubmit,
+  viewContext,
 }) => {
-  const { matchId, round } = useGameStore();
+  const { matchId, round, miniGameStart, miniGameResult, myPlayerId, players } = useMiniGameViewContext(viewContext);
   const [phase, setPhase] = useState<Phase>('memorize');
   const [countdown, setCountdown] = useState(6); // Memorize phase countdown in seconds
   const [gridColors, setGridColors] = useState<string[]>([]);
@@ -118,7 +118,7 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
   }, [countdown, phase, isParticipant]);
 
   const handleSquareClick = (color: string) => {
-    if (phase !== 'challenge' || !isParticipant || submitted || isSubmitting) return;
+    if (phase !== 'challenge' || !isParticipant || isSubmitting) return;
 
     const endTime = Date.now();
     const duration = endTime - startTimeRef.current;
@@ -133,7 +133,6 @@ export const RainbowMemoryMiniGame: React.FC<RainbowMemoryMiniGameProps> = ({
   };
 
   if (phase === 'finished') {
-    const { miniGameStart, miniGameResult, myPlayerId, players } = useGameStore.getState();
     const participants = miniGameStart?.players || [];
     const allPlayersData = players.map((p) => ({
       displayName: p.display_name || p.player_id,

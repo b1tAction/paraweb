@@ -1,5 +1,7 @@
 import { assetUrl, setAssetVersion } from './utils/assets';
+import { installGlobalButtonSfx } from './utils/buttonSfx';
 import { isWailsRuntime } from './utils/runtime';
+import { playStartBgm } from './utils/startBgm';
 
 interface WebVersionManifest {
   release_id: string;
@@ -37,6 +39,8 @@ const rootElement = (() => {
 
   return element;
 })();
+
+installGlobalButtonSfx();
 
 function normalizedBaseUrl(): string {
   const baseUrl = import.meta.env.BASE_URL || '/';
@@ -115,25 +119,45 @@ function ensureBootstrapStyle(): void {
       justify-content: center;
       padding: 24px;
       color: #fff7d6;
-      background: #132021;
+      background:
+        radial-gradient(circle at 50% 34%, rgba(255, 226, 157, 0.16), transparent 32%),
+        linear-gradient(180deg, rgba(8, 13, 16, 0.18), rgba(7, 10, 12, 0.74)),
+        url("${assetUrl('assets/waiting.webp')}") center / cover no-repeat;
       font-family: "Zpix", "Segoe UI", sans-serif;
       text-align: center;
+      overflow: hidden;
     }
 
     .paradice-bootstrap__panel {
-      width: min(420px, calc(100vw - 40px));
+      position: relative;
+      z-index: 1;
+      width: min(560px, calc(100vw - 40px));
+      min-height: 320px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
-      padding: 22px;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 44px 42px;
       border: 1px solid rgba(255, 233, 172, 0.38);
-      border-radius: 8px;
-      background: rgba(19, 32, 33, 0.96);
-      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(25, 34, 31, 0.68), rgba(12, 18, 20, 0.82)),
+        rgba(19, 32, 33, 0.9);
+      box-shadow: 0 22px 56px rgba(0, 0, 0, 0.38), 0 0 42px rgba(255, 219, 112, 0.28);
+      backdrop-filter: blur(2px);
+    }
+
+    .paradice-bootstrap__logo {
+      width: min(310px, 72vw);
+      max-height: 112px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.42));
     }
 
     .paradice-bootstrap__brand {
-      margin: 0 0 2px;
+      margin: 0;
       color: #f6df9e;
       font-size: 12px;
       letter-spacing: 0.18em;
@@ -143,20 +167,22 @@ function ensureBootstrapStyle(): void {
     .paradice-bootstrap__title {
       margin: 0;
       color: #fff7d6;
-      font-size: 17px;
-      line-height: 1.45;
+      font-size: clamp(22px, 4vw, 34px);
+      line-height: 1.25;
       letter-spacing: 0.04em;
+      text-shadow: 0 4px 0 rgba(54, 35, 25, 0.74), 0 14px 24px rgba(0, 0, 0, 0.38);
     }
 
     .paradice-bootstrap__message {
       min-height: 22px;
       margin: 0;
-      color: #f6df9e;
-      font-size: 13px;
+      color: #ead8a0;
+      font-size: 14px;
       line-height: 1.7;
     }
 
     .paradice-bootstrap__bar {
+      width: min(360px, 100%);
       height: 10px;
       overflow: hidden;
       border: 1px solid rgba(255, 247, 214, 0.35);
@@ -167,8 +193,54 @@ function ensureBootstrapStyle(): void {
     .paradice-bootstrap__fill {
       width: 0%;
       height: 100%;
-      background: linear-gradient(90deg, #f6df9e, #fff7d6);
+      background: linear-gradient(90deg, #d79b42, #f6df9e, #fff7d6);
+      box-shadow: 0 0 14px rgba(246, 223, 158, 0.68);
       transition: width 160ms ease;
+    }
+
+    .paradice-bootstrap__dice-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      min-height: 58px;
+    }
+
+    .paradice-bootstrap__dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #f6df9e;
+      box-shadow: 0 0 14px rgba(246, 223, 158, 0.7);
+      animation: paradice-bootstrap-dot 900ms ease-in-out infinite;
+    }
+
+    .paradice-bootstrap__dot:nth-child(2) {
+      animation-delay: 140ms;
+    }
+
+    .paradice-bootstrap__dot:nth-child(3) {
+      animation-delay: 280ms;
+    }
+
+    .paradice-bootstrap__dice {
+      width: 72px;
+      height: 58px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.38));
+    }
+
+    @keyframes paradice-bootstrap-dot {
+      0%, 100% {
+        opacity: 0.35;
+        transform: translateY(0) scale(0.86);
+      }
+
+      50% {
+        opacity: 1;
+        transform: translateY(-5px) scale(1.08);
+      }
     }
 
     .paradice-bootstrap__button {
@@ -188,13 +260,21 @@ function ensureBootstrapStyle(): void {
 
 function renderBootstrapShell(): void {
   ensureBootstrapStyle();
+  playStartBgm();
 
   rootElement.innerHTML = `
     <main class="paradice-bootstrap" aria-live="polite">
       <section class="paradice-bootstrap__panel">
+        <img class="paradice-bootstrap__logo" src="${assetUrl('assets/logo.png')}" alt="ParaDiced" />
         <p class="paradice-bootstrap__brand">ParaDiced</p>
         <h1 class="paradice-bootstrap__title">正在准备游戏资源</h1>
         <p class="paradice-bootstrap__message" data-bootstrap-message>正在初始化资源缓存...</p>
+        <div class="paradice-bootstrap__dice-row" aria-hidden="true">
+          <span class="paradice-bootstrap__dot"></span>
+          <span class="paradice-bootstrap__dot"></span>
+          <span class="paradice-bootstrap__dot"></span>
+          <img class="paradice-bootstrap__dice" src="${assetUrl('assets/dice/gold_rotate.gif')}" alt="" />
+        </div>
         <div class="paradice-bootstrap__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-bootstrap-progress>
           <div class="paradice-bootstrap__fill" data-bootstrap-fill></div>
         </div>

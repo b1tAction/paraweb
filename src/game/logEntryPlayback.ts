@@ -1,6 +1,7 @@
 import type { DefinitionsConfig, LogEntry, Player } from '../types/protocol';
 import { isBossPlayer } from './bossVisualConfig';
 import { getEventEffectConfig } from './eventAnimations';
+import { useGameStore } from '../store/gameStore';
 
 export const DICE_ROLL_MIN_MS = 1200;
 export const DICE_RESULT_DISPLAY_MS = 1200;
@@ -38,26 +39,20 @@ const ACTION_TYPE_TRANSLATIONS: Record<string, string> = {
   state: '状态切换',
 };
 
-// 用于前端展示的骰子类型汉化映射表
-const DICE_TRANSLATIONS: Record<string, string> = {
+// Fallback dice names for pre-game contexts (matches backend dice definitions)
+const FALLBACK_DICE_NAMES: Record<string, string> = {
   wood: '木骰子',
-  iron: '铁骰子',
+  copper: '铜骰子',
+  silver: '银骰子',
   gold: '金骰子',
-  diamond: '钻石骰子',
+  normal: '普通骰子',
   dice: '骰子',
 };
 
-// 用于前端展示的技能类型汉化映射表
-const SKILL_TRANSLATIONS: Record<string, string> = {
-  qinglong: '青龙',
-  xuanwu: '玄武',
-  zhuque: '朱雀',
-  baihu: '白虎',
-};
-
-function translateDice(type?: string) {
+function translateDice(type?: string, definitions?: DefinitionsConfig | null): string {
   if (!type) return '骰子';
-  return DICE_TRANSLATIONS[type.toLowerCase()] || type;
+  const lower = type.toLowerCase();
+  return definitions?.dice[lower]?.name || FALLBACK_DICE_NAMES[lower] || type;
 }
 
 export type DiceRollResult = {
@@ -208,11 +203,16 @@ export function applyLogEntryToPlayer(player: Player, entry: LogEntry): Player {
     }
     case 'add_buff': {
       if (!buffType || next.buffs.some((buff) => buff.type === buffType)) break;
+      // Filter hidden buffs from local display (backend BuildBuffs also filters them from StateSync)
+      const definitions = useGameStore.getState().definitions;
+      const buffDef = definitions?.buffs[buffType];
+      if (buffDef?.is_hidden) break;
+      const buffDisplayName = buffDef?.name || buffType;
       next.buffs = [
         ...next.buffs,
         {
           type: buffType,
-          name: buffType,
+          name: buffDisplayName,
           duration: buffDuration ?? 0,
         },
       ];
@@ -300,12 +300,12 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     case 'move':
       return { label: `移动 ${num('steps')}步`, color: 0xffa726, textColor: '#fff8e1' };
     case 'dice_roll': {
-      const diceType = translateDice(str('dice_type'));
+      const diceType = translateDice(str('dice_type'), definitions);
       return { label: `${diceType} ${num('dice_steps')}点`, color: 0xffffff, textColor: '#ffffff' };
     }
     case 'dice_upgrade': {
-      const fromDice = translateDice(str('from_dice'));
-      const toDice = translateDice(str('to_dice'));
+      const fromDice = translateDice(str('from_dice'), definitions);
+      const toDice = translateDice(str('to_dice'), definitions);
       return { label: `${fromDice} -> ${toDice}`, color: 0xfff176, textColor: '#fffde7' };
     }
     case 'respawn':
@@ -334,7 +334,9 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
       return { label: `使用 ${itemName(str('item_type'))}`, color: 0xffca28, textColor: '#fffde7' };
     case 'use_skill': {
       const rawSkill = str('skill_type');
-      const skillName = SKILL_TRANSLATIONS[rawSkill?.toLowerCase()] || rawSkill || '';
+      // Try both formats: backend uses "qing_long", old format was "qinglong"
+      const factionDef = definitions?.factions[rawSkill] || definitions?.factions[rawSkill?.replace(/_/g, '')];
+      const skillName = factionDef?.skill_name || factionDef?.name || rawSkill || '';
       return { label: `技能 ${skillName}`.trim(), color: 0xab47bc, textColor: '#f3e5f5' };
     }
     default: {
