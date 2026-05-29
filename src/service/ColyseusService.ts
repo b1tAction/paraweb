@@ -71,6 +71,30 @@ export interface TrustDilemmaRoomState {
   players: TrustDilemmaPlayer[];
 }
 
+/**
+ * CakeCuttingPlayer - simplified view type for React component rendering.
+ */
+export interface CakeCuttingPlayer {
+  id: string;
+  isReady: boolean;
+  isAlive: boolean;
+  eliminatedRound: number;
+  rank: number;
+}
+
+/**
+ * CakeCuttingRoomState - simplified view type for React component rendering.
+ */
+export interface CakeCuttingRoomState {
+  phase: 'rules' | 'playing' | 'resolving_cut' | 'finished';
+  timeLeft: number;
+  cakeStart: number;
+  cakeEnd: number;
+  activePlayerId: string;
+  cutPosition: number;
+  players: CakeCuttingPlayer[];
+}
+
 // ========== Raw state types (from Colyseus handshake reflection) ==========
 
 /**
@@ -86,6 +110,8 @@ interface RawPlayerState {
   roundScore?: number;
   isReady?: boolean;
   rank?: number;
+  isAlive?: boolean;
+  eliminatedRound?: number;
 }
 
 /**
@@ -95,6 +121,10 @@ interface RawGameState {
   phase: string;
   round: number;
   roundTimer: number;
+  cakeStart?: number;
+  cakeEnd?: number;
+  activePlayerId?: string;
+  cutPosition?: number;
   players: {
     forEach: (cb: (value: RawPlayerState, key: string) => void) => void;
     entries: () => IterableIterator<[string, RawPlayerState]>;
@@ -174,7 +204,7 @@ export class ColyseusService {
   /**
    * Convert raw Colyseus decoded state to simplified view type for React.
    */
-  private bridgeState(rawState: RawGameState): DilemmaRaceRoomState | TrustDilemmaRoomState {
+  private bridgeState(rawState: RawGameState): DilemmaRaceRoomState | TrustDilemmaRoomState | CakeCuttingRoomState {
     if (this.roomName === 'trust_dilemma') {
       const playerArray: TrustDilemmaPlayer[] = [];
 
@@ -193,6 +223,28 @@ export class ColyseusService {
         phase: rawState.phase as TrustDilemmaRoomState['phase'],
         currentRound: rawState.round,
         timeLeft: rawState.roundTimer,
+        players: playerArray,
+      };
+    } else if (this.roomName === 'cake_cutting') {
+      const playerArray: CakeCuttingPlayer[] = [];
+
+      rawState.players.forEach((playerState: RawPlayerState) => {
+        playerArray.push({
+          id: playerState.playerId,
+          isReady: playerState.isReady || false,
+          isAlive: playerState.isAlive !== false,
+          eliminatedRound: playerState.eliminatedRound || 0,
+          rank: playerState.rank || 0,
+        });
+      });
+
+      return {
+        phase: rawState.phase as CakeCuttingRoomState['phase'],
+        timeLeft: rawState.roundTimer,
+        cakeStart: rawState.cakeStart ?? 0,
+        cakeEnd: rawState.cakeEnd ?? 100,
+        activePlayerId: rawState.activePlayerId || '',
+        cutPosition: rawState.cutPosition ?? -1,
         players: playerArray,
       };
     } else {
@@ -281,6 +333,18 @@ export class ColyseusService {
     }
     this.room.send('confirm_rules');
     console.log('[Colyseus] Sent confirm_rules');
+  }
+
+  /**
+   * Send a cut cake position to the Colyseus room.
+   */
+  sendCutCake(pos: number): void {
+    if (!this.room) {
+      console.warn('[Colyseus] Cannot send cut_cake: not in a room');
+      return;
+    }
+    this.room.send('cut_cake', { pos });
+    console.log('[Colyseus] Sent cut_cake', { pos });
   }
 
   /**

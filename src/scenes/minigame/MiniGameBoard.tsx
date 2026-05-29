@@ -23,6 +23,7 @@ import type { MiniGameViewContext } from './miniGameViewContext';
 import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
 import { TrustDilemmaMiniGame } from './TrustDilemmaMiniGame';
 import { VernierMiniGame } from './VernierMiniGame';
+import { CakeCuttingMiniGame } from './CakeCuttingMiniGame';
 
 // ========== Constants ==========
 
@@ -127,6 +128,26 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
         if (miniGameStart?.connection) {
           return (
             <TrustDilemmaMiniGame
+              key={miniGameStart.connection.minigame_instance_id || miniGameStart.connection.room_id || gameType}
+              connection={miniGameStart.connection}
+              isParticipant={isParticipant}
+              onlineService={onlineService}
+              playerId={myPlayerId}
+              participantIds={participantIds}
+              participantPlayers={viewContext.players}
+            />
+          );
+        }
+
+        return (
+          <div style={quadrantStyles.gameArea}>
+            <p style={styles.submittedText}>Waiting for online game connection...</p>
+          </div>
+        );
+      case 'cake_cutting':
+        if (miniGameStart?.connection) {
+          return (
+            <CakeCuttingMiniGame
               key={miniGameStart.connection.minigame_instance_id || miniGameStart.connection.room_id || gameType}
               connection={miniGameStart.connection}
               isParticipant={isParticipant}

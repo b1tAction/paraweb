@@ -6,6 +6,7 @@ export const MINI_GAME_BOARD_GAME_TYPES = [
   'vernier',
   'dilemma_race',
   'trust_dilemma',
+  'cake_cutting',
 ] as const;
 
 export type MiniGameBoardGameType = (typeof MINI_GAME_BOARD_GAME_TYPES)[number];
