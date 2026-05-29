@@ -65,7 +65,7 @@ export interface TrustDilemmaPlayer {
  * TrustDilemmaRoomState - simplified view type for React component rendering.
  */
 export interface TrustDilemmaRoomState {
-  phase: 'choosing' | 'resolving' | 'finished';
+  phase: 'rules' | 'choosing' | 'resolving' | 'finished';
   currentRound: number;
   timeLeft: number;
   players: TrustDilemmaPlayer[];
@@ -269,6 +269,18 @@ export class ColyseusService {
     }
     this.room.send('choice', { choice: step });
     console.log('[Colyseus] Sent choice', { step });
+  }
+
+  /**
+   * Send a rules confirmation to the Colyseus room.
+   */
+  sendConfirmRules(): void {
+    if (!this.room) {
+      console.warn('[Colyseus] Cannot send confirm_rules: not in a room');
+      return;
+    }
+    this.room.send('confirm_rules');
+    console.log('[Colyseus] Sent confirm_rules');
   }
 
   /**

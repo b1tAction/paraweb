@@ -28,7 +28,7 @@ export interface TrustDilemmaMiniGameProps {
   participantPlayers?: Player[];
 }
 
-type LocalPhase = 'connecting' | 'choosing' | 'resolving' | 'finished' | 'error';
+type LocalPhase = 'connecting' | 'rules' | 'choosing' | 'resolving' | 'finished' | 'error';
 
 export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
   connection,
@@ -84,7 +84,9 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
         setRoomState(state);
 
         // Derive state phase
-        if (state.phase === 'choosing') {
+        if (state.phase === 'rules') {
+          setPhase('rules');
+        } else if (state.phase === 'choosing') {
           setPhase('choosing');
           // Reset local selection when round increments
           const myState = state.players.find((p) => p.id === effectivePlayerId);
@@ -190,6 +192,149 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
   const state = roomState;
   if (!state) return null;
 
+  if (phase === 'rules') {
+    const myPlayerState = state.players.find((p) => p.id === effectivePlayerId);
+    const isConfirmed = myPlayerState?.isReady || false;
+
+    return (
+      <div style={styles.gameArea}>
+        <div style={styles.rulesPanel}>
+          {/* Header Row: Title */}
+          <div style={styles.rulesHeader}>
+            <span style={styles.rulesTitleText}>📜 信任博弈 · 游戏规则说明</span>
+          </div>
+
+          <div style={styles.rulesContentLayout}>
+            {/* Left Column: Clear Game Rules Explanation */}
+            <div style={styles.rulesExplainCard}>
+              <h4 style={styles.rulesSectionTitle}>🔍 游戏背景与机制</h4>
+              <p style={styles.rulesDescText}>
+                信任博弈是一个经典的在线博弈论微型游戏。多名玩家将在面临自私自利与集体利益冲突时的经典困境中作出决定。
+              </p>
+
+              <h4 style={styles.rulesSectionTitle}>🎮 核心玩法规则</h4>
+              <ul style={styles.rulesBulletList}>
+                <li style={styles.rulesBulletItem}>游戏共进行 <strong>4 轮</strong>。每一轮结果实时公开。</li>
+                <li style={styles.rulesBulletItem}>每轮可秘密选择 <strong>🤝 合作 (Cooperate)</strong> 或 <strong>⚔️ 竞争 (Compete)</strong>。</li>
+                <li style={styles.rulesBulletItem}>决策限时 10 秒。若倒计时结束未选，将<strong>自动默认为“合作”</strong>。</li>
+                <li style={styles.rulesBulletItem}>当所有人都确认规则或 15 秒规则倒计时结束，游戏将立刻正式开始。</li>
+              </ul>
+
+              <h4 style={styles.rulesSectionTitle}>📊 计分结算明细 ({effectiveParticipantIds.length === 3 ? '3人局' : '4人局'})</h4>
+              {effectiveParticipantIds.length === 3 ? (
+                <div style={styles.ruleList}>
+                  <div style={styles.ruleItemHighlight}>
+                    <p style={styles.ruleItemText}>🤝 全员合作：全员选择合作 (C, C, C)</p>
+                    <div style={styles.ruleScoreRow}>
+                      <span style={styles.badgeRuleC}>合作者：各得 +4 分</span>
+                    </div>
+                  </div>
+                  <div style={styles.ruleItem}>
+                    <p style={styles.ruleItemText}>⚔️ 全员竞争：全员选择竞争 (D, D, D)</p>
+                    <div style={styles.ruleScoreRow}>
+                      <span style={styles.badgeRuleD}>竞争者：各得 +1 分</span>
+                    </div>
+                  </div>
+                  <div style={styles.ruleItem}>
+                    <p style={styles.ruleItemText}>⚔️ 1人竞争，2人合作 (D, C, C)</p>
+                    <div style={styles.ruleScoreRow}>
+                      <span style={styles.badgeRuleD}>竞争者：拿高额红利 +6 分</span>
+                      <span style={styles.badgeRuleC}>合作者：仅得被收割保底 +1 分</span>
+                    </div>
+                  </div>
+                  <div style={styles.ruleItem}>
+                    <p style={styles.ruleItemText}>⚔️ 2人竞争，1人合作 (D, D, C)</p>
+                    <div style={styles.ruleScoreRow}>
+                      <span style={styles.badgeRuleD}>竞争者：得 +0 分</span>
+                      <span style={styles.badgeRuleC}>合作者：得收割红利 +6 分</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={styles.ruleList}>
+                  <div style={styles.ruleItemHighlight}>
+                    <p style={styles.ruleItemText}>🤝 全员合作：全员选择合作 (C, C, C, C)</p>
+                    <div style={styles.ruleScoreRow}>
+                      <span style={styles.badgeRuleC}>合作者：各得 +5 分</span>
+                    </div>
+                  </div>
+                  <div style={styles.ruleItem}>
+                    <p style={styles.ruleItemText}>⚔️ 全员竞争：全员选择竞争 (D, D, D, D)</p>
+                    <div style={styles.ruleScoreRow}>
+                      <span style={styles.badgeRuleD}>竞争者：各得 +1 分</span>
+                    </div>
+                  </div>
+                  <div style={styles.ruleItem}>
+                    <p style={styles.ruleItemText}>⚔️ 1人竞争，3人合作 (D, C, C, C)</p>
+                    <div style={styles.ruleScoreRow}>
+                      <span style={styles.badgeRuleD}>竞争者：拿最高红利 +7 分</span>
+                      <span style={styles.badgeRuleC}>合作者：仅得 +2 分</span>
+                    </div>
+                  </div>
+                  <div style={styles.ruleItem}>
+                    <p style={styles.ruleItemText}>⚔️ 2人竞争，2人合作 (D, D, C, C)</p>
+                    <div style={styles.ruleScoreRow}>
+                      <span style={styles.badgeRuleD}>竞争者：各得 +0 分</span>
+                      <span style={styles.badgeRuleC}>合作者：各得 +1 分</span>
+                    </div>
+                  </div>
+                  <div style={styles.ruleItem}>
+                    <p style={styles.ruleItemText}>⚔️ 3人竞争，1人合作 (D, D, D, C)</p>
+                    <div style={styles.ruleScoreRow}>
+                      <span style={styles.badgeRuleD}>竞争者：受人防范反倒扣 -1 分</span>
+                      <span style={styles.badgeRuleC}>合作者：坚持到底反转获得 +3 分</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Player Ready List & Confirm Action */}
+            <div style={styles.rulesSideCard}>
+              <div>
+                <h4 style={styles.rulesChecklistTitle}>👥 玩家就绪状态</h4>
+                <div style={styles.rulesChecklistGrid}>
+                  {state.players.map((p) => {
+                    const isMe = p.id === effectivePlayerId;
+                    return (
+                      <div
+                        key={p.id}
+                        style={isMe ? styles.rulesChecklistItemMe : styles.rulesChecklistItem}
+                      >
+                        <span style={isMe ? styles.rulesPlayerNameMe : styles.rulesPlayerName}>
+                          {getPlayerDisplayName(p.id)} {isMe && '(我)'}
+                        </span>
+                        <span style={p.isReady ? styles.badgeReady : styles.badgeThinking}>
+                          {p.isReady ? '✅ 已确认' : '⏳ 准备中'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                {isConfirmed ? (
+                  <button type="button" disabled style={styles.rulesConfirmBtnDisabled}>
+                    <span>✅ 已确认，等待中 ({state.timeLeft}s)...</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    style={styles.rulesConfirmBtn}
+                    onClick={() => service.sendConfirmRules()}
+                  >
+                    <span>🤝 确认规则并进入游戏 ({state.timeLeft}s 后自动确认)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Sort players by rank
   const sortedPlayers = [...state.players].sort((a, b) => a.rank - b.rank);
 
@@ -254,7 +399,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
             <div style={styles.choiceArea}>
               <p style={styles.choicePrompt}>
                 {myChoice !== null
-                  ? `已选定选项！倒计时结束前可随时修改：`
+                  ? `已选定选项！`
                   : '请做出您的决定（若倒计时结束未选将自动默认为“合作”）：'}
               </p>
               <div style={styles.choiceButtons}>
@@ -292,8 +437,8 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
                     p.roundScore > 0
                       ? styles.revealScorePositive
                       : p.roundScore < 0
-                      ? styles.revealScoreNegative
-                      : styles.revealScoreNeutral;
+                        ? styles.revealScoreNegative
+                        : styles.revealScoreNeutral;
 
                   return (
                     <div key={p.id} style={rowStyle}>
