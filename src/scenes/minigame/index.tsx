@@ -153,9 +153,9 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   const getGameTitle = () => {
     switch (gameType) {
       case 'dilemma_race':
-        return 'Dilemma Race';
+        return '步步为营';
       case 'trust_dilemma':
-        return '信任博弈';
+        return '信任考验';
       case 'cake_cutting':
         return '切蛋糕';
       case 'typing_speed':

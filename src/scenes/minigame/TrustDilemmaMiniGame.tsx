@@ -175,7 +175,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
   if (phase === 'connecting') {
     return (
       <div style={styles.gameArea}>
-        <p style={styles.connectingText}>正在连接到信任博弈联机服务器...</p>
+        <p style={styles.connectingText}>正在连接到信任考验联机服务器...</p>
       </div>
     );
   }
@@ -201,7 +201,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
         <div style={styles.rulesPanel}>
           {/* Header Row: Title */}
           <div style={styles.rulesHeader}>
-            <span style={styles.rulesTitleText}>📜 信任博弈 · 游戏规则说明</span>
+            <span style={styles.rulesTitleText}>📜 信任考验 · 游戏规则说明</span>
           </div>
 
           <div style={styles.rulesContentLayout}>
@@ -209,7 +209,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
             <div style={styles.rulesExplainCard}>
               <h4 style={styles.rulesSectionTitle}>🔍 游戏背景与机制</h4>
               <p style={styles.rulesDescText}>
-                信任博弈是一个经典的在线博弈论微型游戏。多名玩家将在面临自私自利与集体利益冲突时的经典困境中作出决定。
+                信任考验是一个经典的在线博弈论微型游戏。多名玩家将在面临自私自利与集体利益冲突时的经典困境中作出决定。
               </p>
 
               <h4 style={styles.rulesSectionTitle}>🎮 核心玩法规则</h4>
@@ -342,7 +342,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
     <div style={styles.gameArea}>
       {/* ===== Header Row: Round & Timer ===== */}
       <div style={styles.headerRow}>
-        <span style={styles.roundLabel}>信任博弈 · Round {state.currentRound} / 4</span>
+        <span style={styles.roundLabel}>信任考验 · Round {state.currentRound} / 4</span>
         {phase === 'choosing' && <span style={styles.timerDisplay}>{state.timeLeft} 秒</span>}
         {phase === 'resolving' && <span style={styles.resolvingLabel}>结算亮牌中...</span>}
         {phase === 'finished' && <span style={styles.resolvingLabel}>对局结束</span>}
