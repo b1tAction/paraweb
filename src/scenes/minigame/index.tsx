@@ -22,6 +22,7 @@ import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
 import { ScaleWrapper } from './ScaleWrapper';
 import { TrustDilemmaMiniGame } from './TrustDilemmaMiniGame';
 import { CakeCuttingMiniGame } from './CakeCuttingMiniGame';
+import { TypingSpeedMiniGame } from './TypingSpeedMiniGame';
 import { VernierMiniGame } from './VernierMiniGame';
 
 // ========== Game Phase ==========
@@ -157,6 +158,8 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         return '信任博弈';
       case 'cake_cutting':
         return '切蛋糕';
+      case 'typing_speed':
+        return '打字速度';
       case 'dice_race':
         return 'Roll Dice';
       case 'count_seconds':
@@ -202,6 +205,15 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         return (
           <div style={styles.gameArea}>
             <p style={styles.submittedText}>cake_cutting requires online mode. Waiting for server result...</p>
+          </div>
+        );
+      case 'typing_speed':
+        if (isOnlineMode && miniGameStart?.connection) {
+          return <TypingSpeedMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+        }
+        return (
+          <div style={styles.gameArea}>
+            <p style={styles.submittedText}>typing_speed requires online mode. Waiting for server result...</p>
           </div>
         );
       case 'dice_race':

@@ -95,6 +95,27 @@ export interface CakeCuttingRoomState {
   players: CakeCuttingPlayer[];
 }
 
+/**
+ * TypingSpeedPlayer - simplified view type for React component rendering.
+ */
+export interface TypingSpeedPlayer {
+  id: string;
+  typedCount: number;
+  progressPercent: number;
+  finishTimeMs: number;
+  rank: number;
+}
+
+/**
+ * TypingSpeedRoomState - simplified view type for React component rendering.
+ */
+export interface TypingSpeedRoomState {
+  phase: 'rules' | 'countdown' | 'playing' | 'finished';
+  timeLeft: number;
+  targetText: string;
+  players: TypingSpeedPlayer[];
+}
+
 // ========== Raw state types (from Colyseus handshake reflection) ==========
 
 /**
@@ -112,6 +133,9 @@ interface RawPlayerState {
   rank?: number;
   isAlive?: boolean;
   eliminatedRound?: number;
+  typedCount?: number;
+  progressPercent?: number;
+  finishTimeMs?: number;
 }
 
 /**
@@ -125,6 +149,7 @@ interface RawGameState {
   cakeEnd?: number;
   activePlayerId?: string;
   cutPosition?: number;
+  targetText?: string;
   players: {
     forEach: (cb: (value: RawPlayerState, key: string) => void) => void;
     entries: () => IterableIterator<[string, RawPlayerState]>;
@@ -204,7 +229,7 @@ export class ColyseusService {
   /**
    * Convert raw Colyseus decoded state to simplified view type for React.
    */
-  private bridgeState(rawState: RawGameState): DilemmaRaceRoomState | TrustDilemmaRoomState | CakeCuttingRoomState {
+  private bridgeState(rawState: RawGameState): DilemmaRaceRoomState | TrustDilemmaRoomState | CakeCuttingRoomState | TypingSpeedRoomState {
     if (this.roomName === 'trust_dilemma') {
       const playerArray: TrustDilemmaPlayer[] = [];
 
@@ -245,6 +270,25 @@ export class ColyseusService {
         cakeEnd: rawState.cakeEnd ?? 100,
         activePlayerId: rawState.activePlayerId || '',
         cutPosition: rawState.cutPosition ?? -1,
+        players: playerArray,
+      };
+    } else if (this.roomName === 'typing_speed') {
+      const playerArray: TypingSpeedPlayer[] = [];
+
+      rawState.players.forEach((playerState: RawPlayerState) => {
+        playerArray.push({
+          id: playerState.playerId,
+          typedCount: playerState.typedCount || 0,
+          progressPercent: playerState.progressPercent || 0,
+          finishTimeMs: playerState.finishTimeMs || 0,
+          rank: playerState.rank || 0,
+        });
+      });
+
+      return {
+        phase: rawState.phase as TypingSpeedRoomState['phase'],
+        timeLeft: rawState.roundTimer,
+        targetText: rawState.targetText || '',
         players: playerArray,
       };
     } else {
@@ -345,6 +389,17 @@ export class ColyseusService {
     }
     this.room.send('cut_cake', { pos });
     console.log('[Colyseus] Sent cut_cake', { pos });
+  }
+
+  /**
+   * Send typed character count progress to the Colyseus room.
+   */
+  sendTypingProgress(typedCount: number): void {
+    if (!this.room) {
+      console.warn('[Colyseus] Cannot send submit_progress: not in a room');
+      return;
+    }
+    this.room.send('submit_progress', { typedCount });
   }
 
   /**
