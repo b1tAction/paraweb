@@ -67,6 +67,17 @@ button:disabled {
   box-shadow: none;
 }
 
+.paradice-item-guide-got-it:hover,
+.paradice-item-guide-got-it:focus,
+.paradice-item-guide-got-it:focus-visible,
+.paradice-item-guide-got-it:active {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  outline: none;
+  transform: none;
+}
+
 @keyframes paradice-dice-spin {
   0% {
     transform: rotate(0deg) scale(1);

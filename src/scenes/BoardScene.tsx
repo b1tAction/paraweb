@@ -284,6 +284,7 @@ export const BoardScene: React.FC = () => {
     diceAssignments,
     gameOver,
     pendingScene,
+    itemActionGuideSeen,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
   const [diceUpgradeView, setDiceUpgradeView] = useState<DiceUpgradeView>({ status: 'idle' });
@@ -327,6 +328,7 @@ export const BoardScene: React.FC = () => {
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [itemTargetSelection, setItemTargetSelection] = useState<Item | null>(null);
   const [skillTargetSelection, setSkillTargetSelection] = useState(false);
+  const [showItemActionGuide, setShowItemActionGuide] = useState(false);
   // 2. 新增：监听 Phaser 发过来的头像事件
   useEffect(() => {
     const handleAvatarUpdate = (event: Event) => {
@@ -357,6 +359,7 @@ export const BoardScene: React.FC = () => {
    */
   const handleRollDice = () => {
     console.log('[BoardScene] 掷骰子 - 开始');
+    setShowItemActionGuide(false);
     setItemTargetSelection(null);
     setSkillTargetSelection(false);
     
@@ -395,6 +398,7 @@ export const BoardScene: React.FC = () => {
    * 处理使用道具
    */
   const handleUseItem = (item: Item) => {
+    setShowItemActionGuide(false);
     if (TARGET_PLAYER_ITEM_TYPES.has(item.type) || item.targetable) {
       setItemTargetSelection(item);
       return;
@@ -466,6 +470,16 @@ export const BoardScene: React.FC = () => {
   const canInteractWithActions = isMyTurn && Boolean(availableActions);
   const actionTurnKey = isMainAction && currentPlayerId ? `${storeRound}:${storeTurn}:${currentPlayerId}` : '';
   const currentDicePreviewType = isMyTurn ? availableActions?.dice_type || miniGameDiceType : miniGameDiceType;
+  const canShowItemActionGuide =
+    currentScene === Scene.Board &&
+    isMainAction &&
+    isMyTurn &&
+    Boolean(availableActions) &&
+    Boolean(actionView?.items.length) &&
+    diceRollView.status === 'idle' &&
+    diceUpgradeView.status === 'idle' &&
+    pendingEntries.length === 0 &&
+    !decisionRequest;
   const shouldShowActionPanel =
     Boolean(actionView) &&
     isMainAction &&
@@ -520,6 +534,18 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === settlementPlayerId) ||
       null
     : null;
+
+  useEffect(() => {
+    if (!canShowItemActionGuide) {
+      setShowItemActionGuide(false);
+      return;
+    }
+
+    if (!itemActionGuideSeen) {
+      useGameStore.getState().setItemActionGuideSeen(true);
+      setShowItemActionGuide(true);
+    }
+  }, [canShowItemActionGuide, itemActionGuideSeen]);
 
   useEffect(() => {
     if (
@@ -1153,7 +1179,7 @@ export const BoardScene: React.FC = () => {
         )}
 
         {shouldShowActionPanel && actionView && (
-          <div style={styles.mapActionPanel}>
+          <div style={{ ...styles.mapActionPanel, ...(showItemActionGuide ? styles.itemActionGuideActionPanel : null) }}>
             {!isMyTurn && <div style={styles.waitingActionText}>等待玩家 {getPlayerName(currentPlayerId)} 操作</div>}
             <button
               type="button"
@@ -1182,6 +1208,7 @@ export const BoardScene: React.FC = () => {
                 style={{
                   ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                  ...(showItemActionGuide ? styles.itemActionGuideHighlight : null),
                 }}
                 title={item.name}
                 aria-label={item.name}
@@ -1198,6 +1225,7 @@ export const BoardScene: React.FC = () => {
                 style={{
                   ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                  ...(showItemActionGuide ? styles.itemActionGuideMutedOption : null),
                 }}
                 title="使用阵营技能"
                 aria-label="使用阵营技能"
@@ -1292,6 +1320,24 @@ export const BoardScene: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {showItemActionGuide && (
+          <>
+            <div style={styles.itemActionGuideBackdrop} onClick={() => setShowItemActionGuide(false)} />
+            <div style={styles.itemActionGuideCallout}>
+              <div style={styles.itemActionGuideText}>你可以先使用道具，也可以直接投骰子前进</div>
+              <div style={styles.itemActionGuidePointer} aria-hidden="true" />
+              <button
+                type="button"
+                className="paradice-item-guide-got-it"
+                onClick={() => setShowItemActionGuide(false)}
+                style={styles.itemActionGuideGotIt}
+              >
+                Got it
+              </button>
+            </div>
+          </>
         )}
 
         {currentScene === Scene.Board && itemTargetSelection && (
@@ -1870,6 +1916,85 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'auto',
+  },
+  itemActionGuideBackdrop: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 30,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    pointerEvents: 'auto',
+  },
+  itemActionGuideActionPanel: {
+    zIndex: 42,
+  },
+  itemActionGuideCallout: {
+    position: 'absolute',
+    zIndex: 46,
+    left: '50%',
+    bottom: '166px',
+    transform: 'translateX(-8%)',
+    width: 'min(480px, calc(100vw - 44px))',
+    padding: '18px 22px 34px',
+    border: '4px solid #5c3a1c',
+    borderRadius: '2px',
+    backgroundColor: '#fff0b8',
+    color: '#5b3614',
+    textAlign: 'center',
+    pointerEvents: 'auto',
+    boxShadow:
+      '0 0 0 4px #f6c96e, 0 0 0 8px rgba(58, 34, 14, 0.82), 0 0 22px rgba(255, 231, 143, 0.76), 0 20px 34px rgba(255, 225, 124, 0.46), 0 42px 48px rgba(255, 203, 72, 0.30), 0 12px 0 rgba(0, 0, 0, 0.28)',
+  },
+  itemActionGuideHighlight: {
+    position: 'relative',
+    zIndex: 44,
+    filter:
+      'brightness(1.12) saturate(1.06) drop-shadow(0 0 10px rgba(255, 239, 184, 0.78)) drop-shadow(0 0 24px rgba(255, 206, 76, 0.58)) drop-shadow(0 -22px 30px rgba(255, 225, 124, 0.34)) drop-shadow(0 -42px 44px rgba(255, 203, 72, 0.24)) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.32))',
+  },
+  itemActionGuideMutedOption: {
+    position: 'relative',
+    zIndex: 42,
+    opacity: 0.42,
+    filter: 'brightness(0.62) saturate(0.72) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.32))',
+  },
+  itemActionGuideText: {
+    color: '#5b3614',
+    fontSize: '21px',
+    fontWeight: 800,
+    lineHeight: 1.45,
+    textAlign: 'center',
+    textShadow: '0 1px 0 rgba(255, 255, 255, 0.65)',
+  },
+  itemActionGuidePointer: {
+    position: 'absolute',
+    left: '62%',
+    bottom: '-29px',
+    width: 0,
+    height: 0,
+    borderLeft: '18px solid transparent',
+    borderRight: '18px solid transparent',
+    borderTop: '26px solid #5c3a1c',
+    filter:
+      'drop-shadow(0 7px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 12px 16px rgba(255, 225, 124, 0.46)) drop-shadow(0 26px 24px rgba(255, 203, 72, 0.22))',
+  },
+  itemActionGuideGotIt: {
+    position: 'absolute',
+    right: '18px',
+    bottom: '10px',
+    padding: 0,
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: '#7b4b20',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '15px',
+    fontWeight: 900,
+    lineHeight: 1,
+    textDecoration: 'underline',
+    textUnderlineOffset: '3px',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    outline: 'none',
+    boxShadow: 'none',
   },
   decisionOptions: {
     display: 'flex',

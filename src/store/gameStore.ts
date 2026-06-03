@@ -192,6 +192,8 @@ interface GameState {
   miniGameOnline: boolean;
   /** 本局是否已经展示过小游戏新手引导 */
   miniGameGuideSeen: boolean;
+  /** 本局是否已经展示过道具行动引导 */
+  itemActionGuideSeen: boolean;
   /** Colyseus 连接错误信息 */
   colyseusError: string;
 
@@ -256,6 +258,8 @@ interface GameState {
   setMiniGameOnline: (online: boolean) => void;
   /** 设置小游戏新手引导是否已展示 */
   setMiniGameGuideSeen: (seen: boolean) => void;
+  /** 设置道具行动引导是否已展示 */
+  setItemActionGuideSeen: (seen: boolean) => void;
   /** 设置 Colyseus 连接错误 */
   setColyseusError: (error: string) => void;
 
@@ -318,6 +322,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   pendingScene: null,
   miniGameOnline: false,
   miniGameGuideSeen: false,
+  itemActionGuideSeen: false,
   colyseusError: '',
 
   // ========== Actions ==========
@@ -386,6 +391,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setPendingScene: (scene) => set({ pendingScene: scene }),
   setMiniGameOnline: (online) => set({ miniGameOnline: online }),
   setMiniGameGuideSeen: (seen) => set({ miniGameGuideSeen: seen }),
+  setItemActionGuideSeen: (seen) => set({ itemActionGuideSeen: seen }),
   setColyseusError: (error) => set({ colyseusError: error }),
 
   enqueueStateSync: (stateSync) => set((state) => ({ stateSyncQueue: [...state.stateSyncQueue, stateSync] })),
@@ -460,6 +466,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingScene: null,
       miniGameOnline: false,
       miniGameGuideSeen: false,
+      itemActionGuideSeen: false,
       colyseusError: '',
     }),
 
@@ -493,6 +500,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       miniGameResultPending: false,
       pendingScene: null,
       miniGameGuideSeen: false,
+      itemActionGuideSeen: false,
       faction: state.faction,
     })),
 }));
