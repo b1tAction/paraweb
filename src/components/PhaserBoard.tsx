@@ -16,6 +16,8 @@ type PhaserBoardProps = {
   activeAnimationContext?: LogEntryAnimationContext | null;
   /** TurnEnd 结算目标，用于抑制当前玩家附近的 HP/LP/Buff 提示。 */
   settlementPlayer?: Player | null;
+  /** 需要向 React 回传屏幕坐标的棋盘格。 */
+  guideCellIndex?: number | null;
   characterRenderOptions?: CharacterRenderOptions;
 };
 
@@ -26,6 +28,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
   selfPlayerId,
   activeAnimationContext,
   settlementPlayer,
+  guideCellIndex,
   characterRenderOptions,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -37,6 +40,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
     selfPlayerId,
     activeAnimationContext,
     settlementPlayer,
+    guideCellIndex,
     characterRenderOptions,
   });
 
@@ -75,6 +79,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
       selfPlayerId,
       activeAnimationContext,
       settlementPlayer,
+      guideCellIndex,
       characterRenderOptions,
     );
   }, [
@@ -84,6 +89,7 @@ export const PhaserBoard: React.FC<PhaserBoardProps> = ({
     selfPlayerId,
     activeAnimationContext,
     settlementPlayer,
+    guideCellIndex,
     characterRenderOptions,
   ]);
 

@@ -78,6 +78,21 @@ button:disabled {
   transform: none;
 }
 
+@keyframes paradice-checkpoint-guide-pointer-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+
+  50% {
+    translate: 0 6px;
+  }
+}
+
+.paradice-checkpoint-guide-pointer-float {
+  animation: paradice-checkpoint-guide-pointer-float 1.2s ease-in-out infinite;
+}
+
 @keyframes paradice-dice-spin {
   0% {
     transform: rotate(0deg) scale(1);
