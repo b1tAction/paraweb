@@ -1,6 +1,7 @@
 import type * as Phaser from 'phaser';
 import { useGameStore } from '../../store/gameStore';
 import type { Player } from '../../types/protocol';
+import { playEventSfx } from '../../utils/eventSfx';
 import type { AnimationOrchestrator } from '../animationOrchestrator';
 import {
   CHARACTER_HALF_HEIGHT,
@@ -64,7 +65,6 @@ import {
 } from '../renderLayers';
 import { HIDDEN_BUFF_DISSOLVE_FRAGMENT_SOURCE, HIDDEN_BUFF_DISSOLVE_SHADER_NAME } from '../shaders/hiddenBuffDissolve';
 import { LOST_WAY_DISSOLVE_FRAGMENT_SOURCE, LOST_WAY_DISSOLVE_SHADER_NAME } from '../shaders/lostWayDissolve';
-import { playEventSfx } from '../../utils/eventSfx';
 import { type PopupContext, showCenterPopup } from './popup';
 
 type ShaderUniformValue = number | readonly number[];
@@ -76,6 +76,7 @@ export type BoardAnimationContext = {
   orchestrator: AnimationOrchestrator;
   tweens: Phaser.Tweens.TweenManager;
   playerMarkers: Map<string, Phaser.GameObjects.Sprite>;
+  playerNames?: Map<string, Phaser.GameObjects.Text>;
   players: Player[];
   logDrivenPositions: Map<string, number>;
   cellViews: Map<number, { x: number; y: number; index: number }>;

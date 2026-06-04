@@ -7,11 +7,13 @@ import {
   DICE_ROLL_MIN_MS,
   DICE_UPGRADE_FLASH_MS,
   DICE_UPGRADE_RESULT_MS,
+  FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS,
   getMetadataBoolean,
   getMetadataNumber,
   getMetadataNumberArray,
   getMetadataString,
   MOVE_STEP_MS,
+  shouldShowFirstItemDescription,
 } from './logEntryPlayback';
 
 export type LogEntryAnimationContext = {
@@ -96,6 +98,16 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
       const eventType = getMetadataString(entry.metadata, 'event_type');
       const config = getEventEffectConfig(eventType);
       return (config.duration || DEFAULT_ACTION_ANIMATION_DELAY_MS) + EFFECT_START_GAP_MS + DRAW_EVENT_EFFECT_EXTRA_MS;
+    },
+  },
+  draw_item: {
+    renderOnBoard: true,
+    delayMs: ({ entry }) => {
+      const itemType = getMetadataString(entry.metadata, 'item_type');
+      return (
+        DEFAULT_ACTION_ANIMATION_DELAY_MS +
+        (shouldShowFirstItemDescription(itemType, entry.target) ? FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS : 0)
+      );
     },
   },
   add_buff: {
