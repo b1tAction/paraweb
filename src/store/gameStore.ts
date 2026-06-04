@@ -190,6 +190,14 @@ interface GameState {
   pendingScene: Scene | null;
   /** 当前小游戏是否为在线模式 (connection != null) */
   miniGameOnline: boolean;
+  /** 本局是否已经展示过小游戏新手引导 */
+  miniGameGuideSeen: boolean;
+  /** 本局是否已经展示过道具行动引导 */
+  itemActionGuideSeen: boolean;
+  /** 本局是否已经展示过经过检查点引导 */
+  checkpointDrawGuideSeen: boolean;
+  /** 本局是否已经展示过退回检查点引导 */
+  checkpointRespawnGuideSeen: boolean;
   /** Colyseus 连接错误信息 */
   colyseusError: string;
 
@@ -252,6 +260,14 @@ interface GameState {
   setPendingScene: (scene: Scene | null) => void;
   /** 设置小游戏是否为在线模式 */
   setMiniGameOnline: (online: boolean) => void;
+  /** 设置小游戏新手引导是否已展示 */
+  setMiniGameGuideSeen: (seen: boolean) => void;
+  /** 设置道具行动引导是否已展示 */
+  setItemActionGuideSeen: (seen: boolean) => void;
+  /** 设置经过检查点引导是否已展示 */
+  setCheckpointDrawGuideSeen: (seen: boolean) => void;
+  /** 设置退回检查点引导是否已展示 */
+  setCheckpointRespawnGuideSeen: (seen: boolean) => void;
   /** 设置 Colyseus 连接错误 */
   setColyseusError: (error: string) => void;
 
@@ -313,6 +329,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   miniGameResultPending: false,
   pendingScene: null,
   miniGameOnline: false,
+  miniGameGuideSeen: false,
+  itemActionGuideSeen: false,
+  checkpointDrawGuideSeen: false,
+  checkpointRespawnGuideSeen: false,
   colyseusError: '',
 
   // ========== Actions ==========
@@ -380,6 +400,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   setMiniGameResultPending: (pending) => set({ miniGameResultPending: pending }),
   setPendingScene: (scene) => set({ pendingScene: scene }),
   setMiniGameOnline: (online) => set({ miniGameOnline: online }),
+  setMiniGameGuideSeen: (seen) => set({ miniGameGuideSeen: seen }),
+  setItemActionGuideSeen: (seen) => set({ itemActionGuideSeen: seen }),
+  setCheckpointDrawGuideSeen: (seen) => set({ checkpointDrawGuideSeen: seen }),
+  setCheckpointRespawnGuideSeen: (seen) => set({ checkpointRespawnGuideSeen: seen }),
   setColyseusError: (error) => set({ colyseusError: error }),
 
   enqueueStateSync: (stateSync) => set((state) => ({ stateSyncQueue: [...state.stateSyncQueue, stateSync] })),
@@ -453,6 +477,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       miniGameResultPending: false,
       pendingScene: null,
       miniGameOnline: false,
+      miniGameGuideSeen: false,
+      itemActionGuideSeen: false,
+      checkpointDrawGuideSeen: false,
+      checkpointRespawnGuideSeen: false,
       colyseusError: '',
     }),
 
@@ -485,6 +513,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       definitions: null,
       miniGameResultPending: false,
       pendingScene: null,
+      miniGameGuideSeen: false,
+      itemActionGuideSeen: false,
+      checkpointDrawGuideSeen: false,
+      checkpointRespawnGuideSeen: false,
       faction: state.faction,
     })),
 }));

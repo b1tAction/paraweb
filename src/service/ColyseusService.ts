@@ -189,8 +189,23 @@ export class ColyseusService {
 
     // Get current player info for auth
     const store = useGameStore.getState();
-    const myPlayerId = debugOptions?.playerId || store.myPlayerId || '';
+    const myPlayerId = debugOptions?.playerId || store.myPlayerId || store.session?.user_id || '';
     const myToken = conn.player_tokens?.[myPlayerId] || conn.token || '';
+
+    if (!myPlayerId || !myToken || !conn.minigame_instance_id) {
+      const error = new Error('[Colyseus] Missing mini-game auth fields');
+      console.error('[Colyseus] Cannot join room: missing auth fields', {
+        roomName: conn.room_name,
+        hasPlayerId: Boolean(myPlayerId),
+        hasToken: Boolean(myToken),
+        hasMiniGameInstanceId: Boolean(conn.minigame_instance_id),
+        tokenPlayerIds: Object.keys(conn.player_tokens || {}),
+      });
+      if (this.onError) {
+        this.onError(error);
+      }
+      return;
+    }
 
     // Build join options for Colyseus onAuth verification
     const options: Record<string, unknown> = {
@@ -200,7 +215,11 @@ export class ColyseusService {
       token: myToken,
     };
 
-    options.players = debugOptions?.players || store.miniGameStart?.players;
+    const playerList =
+      debugOptions?.players && debugOptions.players.length > 0 ? debugOptions.players : store.miniGameStart?.players;
+    if (playerList && playerList.length > 0) {
+      options.players = playerList;
+    }
 
     try {
       const room = await this.client.joinOrCreate(conn.room_name, options);

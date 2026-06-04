@@ -33,8 +33,8 @@ import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
 import type { Available, Item, Player } from '../types/protocol';
 import { assetCssUrl, assetUrl } from '../utils/assets';
-import { getDisambiguatedDisplayName } from '../utils/displayName';
 import { playDiceSfx } from '../utils/diceSfx';
+import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const SHOW_DEV_DEBUG_UI = import.meta.env.DEV;
 
@@ -264,6 +264,33 @@ const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door']);
 
 // Factions whose skill requires selecting a target player before activation
 const SKILL_TARGET_FACTIONS = new Set(['bai_hu']);
+const CHECKPOINT_GUIDE_DURATION_MS = 4500;
+const CHECKPOINT_DRAW_ITEM_SOURCES = new Set(['system_checkpoint_treasure', 'CheckpointTreasure']);
+const CHECKPOINT_RESPAWN_SOURCES = new Set([
+  'system_turn_end_respawn',
+  'system_boss_attack_respawn',
+  'system_boss_skill_respawn',
+  'death_respawn',
+  'TurnEndRespawn',
+]);
+
+type CheckpointGuide = 'draw' | 'respawn';
+type BoardGuideAnchor = {
+  cellIndex: number;
+  x: number;
+  y: number;
+};
+
+function getCheckpointGuideForEntry(entry: { action_type: string; source: string } | null): CheckpointGuide | null {
+  if (!entry) return null;
+  if (entry.action_type === 'draw_item' && CHECKPOINT_DRAW_ITEM_SOURCES.has(entry.source)) return 'draw';
+  if (entry.action_type === 'respawn' && CHECKPOINT_RESPAWN_SOURCES.has(entry.source)) return 'respawn';
+  return null;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
 
 export const BoardScene: React.FC = () => {
   const {
@@ -284,6 +311,9 @@ export const BoardScene: React.FC = () => {
     diceAssignments,
     gameOver,
     pendingScene,
+    itemActionGuideSeen,
+    checkpointDrawGuideSeen,
+    checkpointRespawnGuideSeen,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
   const [diceUpgradeView, setDiceUpgradeView] = useState<DiceUpgradeView>({ status: 'idle' });
@@ -327,6 +357,10 @@ export const BoardScene: React.FC = () => {
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [itemTargetSelection, setItemTargetSelection] = useState<Item | null>(null);
   const [skillTargetSelection, setSkillTargetSelection] = useState(false);
+  const [showItemActionGuide, setShowItemActionGuide] = useState(false);
+  const [checkpointGuide, setCheckpointGuide] = useState<CheckpointGuide | null>(null);
+  const [checkpointGuideCellIndex, setCheckpointGuideCellIndex] = useState<number | null>(null);
+  const [checkpointGuideAnchor, setCheckpointGuideAnchor] = useState<BoardGuideAnchor | null>(null);
   // 2. 新增：监听 Phaser 发过来的头像事件
   useEffect(() => {
     const handleAvatarUpdate = (event: Event) => {
@@ -337,6 +371,21 @@ export const BoardScene: React.FC = () => {
     window.addEventListener('ui-player-avatar', handleAvatarUpdate);
     return () => {
       window.removeEventListener('ui-player-avatar', handleAvatarUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleGuideAnchorUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<BoardGuideAnchor>).detail;
+      if (!detail || !Number.isFinite(detail.cellIndex) || !Number.isFinite(detail.x) || !Number.isFinite(detail.y)) {
+        return;
+      }
+      setCheckpointGuideAnchor(detail);
+    };
+
+    window.addEventListener('ui-board-guide-anchor', handleGuideAnchorUpdate);
+    return () => {
+      window.removeEventListener('ui-board-guide-anchor', handleGuideAnchorUpdate);
     };
   }, []);
 
@@ -357,14 +406,15 @@ export const BoardScene: React.FC = () => {
    */
   const handleRollDice = () => {
     console.log('[BoardScene] 掷骰子 - 开始');
+    setShowItemActionGuide(false);
     setItemTargetSelection(null);
     setSkillTargetSelection(false);
-    
+
     // 在用户手势的同步调用栈内立即播放音效，确保浏览器允许自动播放
     console.log('[BoardScene] 准备播放骰子音效');
     playDiceSfx();
     console.log('[BoardScene] 骰子音效播放调用完成');
-    
+
     setRolledDiceTurnKey(`${storeRound}:${storeTurn}:${currentPlayerId || myPlayerId}`);
     setDiceRollView({
       status: 'awaiting_result',
@@ -395,6 +445,7 @@ export const BoardScene: React.FC = () => {
    * 处理使用道具
    */
   const handleUseItem = (item: Item) => {
+    setShowItemActionGuide(false);
     if (TARGET_PLAYER_ITEM_TYPES.has(item.type) || item.targetable) {
       setItemTargetSelection(item);
       return;
@@ -466,6 +517,16 @@ export const BoardScene: React.FC = () => {
   const canInteractWithActions = isMyTurn && Boolean(availableActions);
   const actionTurnKey = isMainAction && currentPlayerId ? `${storeRound}:${storeTurn}:${currentPlayerId}` : '';
   const currentDicePreviewType = isMyTurn ? availableActions?.dice_type || miniGameDiceType : miniGameDiceType;
+  const canShowItemActionGuide =
+    currentScene === Scene.Board &&
+    isMainAction &&
+    isMyTurn &&
+    Boolean(availableActions) &&
+    Boolean(actionView?.items.length) &&
+    diceRollView.status === 'idle' &&
+    diceUpgradeView.status === 'idle' &&
+    pendingEntries.length === 0 &&
+    !decisionRequest;
   const shouldShowActionPanel =
     Boolean(actionView) &&
     isMainAction &&
@@ -511,7 +572,10 @@ export const BoardScene: React.FC = () => {
     activeAnimationContext && isLogEntryAnimationCandidate(activeAnimationContext.entry)
       ? activeAnimationContext.entry
       : null;
-  const boardAnimationContext = shouldRenderBoardLogEntryAnimation(activeAnimationContext)
+  const pendingCheckpointGuide = getCheckpointGuideForEntry(activeAnimationContext?.entry ?? null);
+  const shouldHoldCheckpointDraw =
+    pendingCheckpointGuide === 'draw' && (!checkpointDrawGuideSeen || checkpointGuide === 'draw');
+  const boardAnimationContext = !shouldHoldCheckpointDraw && shouldRenderBoardLogEntryAnimation(activeAnimationContext)
     ? activeAnimationContext
     : null;
   const settlementPlayer = settlementPlayerId
@@ -520,6 +584,62 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === settlementPlayerId) ||
       null
     : null;
+
+  useEffect(() => {
+    if (!canShowItemActionGuide) {
+      setShowItemActionGuide(false);
+      return;
+    }
+
+    if (!itemActionGuideSeen) {
+      useGameStore.getState().setItemActionGuideSeen(true);
+      setShowItemActionGuide(true);
+    }
+  }, [canShowItemActionGuide, itemActionGuideSeen]);
+
+  useEffect(() => {
+    if (pendingCheckpointGuide !== 'draw') return;
+    if (checkpointDrawGuideSeen) return;
+
+    const targetPlayer =
+      renderedPlayers.find((player) => player.player_id === activeAnimationContext?.entry.target) ||
+      players.find((player) => player.player_id === activeAnimationContext?.entry.target);
+
+    setShowItemActionGuide(false);
+    setItemTargetSelection(null);
+    setSkillTargetSelection(false);
+    setCheckpointGuideCellIndex(targetPlayer?.position ?? null);
+    setCheckpointGuide('draw');
+  }, [activeAnimationContext, checkpointDrawGuideSeen, pendingCheckpointGuide, players, renderedPlayers]);
+
+  useEffect(() => {
+    const nextGuide = getCheckpointGuideForEntry(activeLogEntry);
+    if (nextGuide !== 'respawn') return;
+    if (checkpointRespawnGuideSeen) return;
+
+    useGameStore.getState().setCheckpointRespawnGuideSeen(true);
+    setShowItemActionGuide(false);
+    setItemTargetSelection(null);
+    setSkillTargetSelection(false);
+    setCheckpointGuideCellIndex(null);
+    setCheckpointGuide('respawn');
+  }, [activeLogEntry, checkpointRespawnGuideSeen]);
+
+  useEffect(() => {
+    if (!checkpointGuide) return;
+
+    const timeoutId = window.setTimeout(() => {
+      const finishedGuide = checkpointGuide;
+      setCheckpointGuide(null);
+      setCheckpointGuideCellIndex(null);
+      setCheckpointGuideAnchor(null);
+      if (finishedGuide === 'draw') {
+        useGameStore.getState().setCheckpointDrawGuideSeen(true);
+      }
+    }, CHECKPOINT_GUIDE_DURATION_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [checkpointGuide]);
 
   useEffect(() => {
     if (
@@ -779,6 +899,7 @@ export const BoardScene: React.FC = () => {
   // Action-type entries get animation delay, others skip immediately
   useEffect(() => {
     if (pendingEntries.length === 0) return;
+    if (shouldHoldCheckpointDraw) return;
 
     const delay = getLogEntryAnimationDelay(activeAnimationContext);
 
@@ -787,7 +908,7 @@ export const BoardScene: React.FC = () => {
     }, delay);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeAnimationContext, pendingEntries.length]);
+  }, [activeAnimationContext, pendingEntries.length, shouldHoldCheckpointDraw]);
 
   // Auto-scroll debug log when new entries appear
   const playedEntryCount = playedEntries.length;
@@ -1011,6 +1132,7 @@ export const BoardScene: React.FC = () => {
             selfPlayerId={myPlayerId}
             activeAnimationContext={boardAnimationContext}
             settlementPlayer={settlementPlayer}
+            guideCellIndex={checkpointGuide === 'draw' ? checkpointGuideCellIndex : null}
           />
         ) : (
           <div style={styles.mapMissing}>地图未加载 (mapConfig is null)</div>
@@ -1153,7 +1275,9 @@ export const BoardScene: React.FC = () => {
         )}
 
         {shouldShowActionPanel && actionView && (
-          <div style={styles.mapActionPanel}>
+          <div
+            style={{ ...styles.mapActionPanel, ...(showItemActionGuide ? styles.itemActionGuideActionPanel : null) }}
+          >
             {!isMyTurn && <div style={styles.waitingActionText}>等待玩家 {getPlayerName(currentPlayerId)} 操作</div>}
             <button
               type="button"
@@ -1182,6 +1306,7 @@ export const BoardScene: React.FC = () => {
                 style={{
                   ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                  ...(showItemActionGuide ? styles.itemActionGuideHighlight : null),
                 }}
                 title={item.name}
                 aria-label={item.name}
@@ -1198,6 +1323,7 @@ export const BoardScene: React.FC = () => {
                 style={{
                   ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                  ...(showItemActionGuide ? styles.itemActionGuideMutedOption : null),
                 }}
                 title="使用阵营技能"
                 aria-label="使用阵营技能"
@@ -1291,6 +1417,58 @@ export const BoardScene: React.FC = () => {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {showItemActionGuide && (
+          <>
+            <button
+              type="button"
+              aria-label="关闭道具引导"
+              style={styles.itemActionGuideBackdrop}
+              onClick={() => setShowItemActionGuide(false)}
+            />
+            <div style={styles.itemActionGuideCallout}>
+              <div style={styles.itemActionGuideText}>可以先使用道具，也可以直接投骰子前进</div>
+              <div style={styles.itemActionGuidePointer} aria-hidden="true" />
+              <button
+                type="button"
+                className="paradice-item-guide-got-it"
+                onClick={() => setShowItemActionGuide(false)}
+                style={styles.itemActionGuideGotIt}
+              >
+                Got it
+              </button>
+            </div>
+          </>
+        )}
+
+        {checkpointGuide && (
+          <div
+            style={
+              checkpointGuide === 'draw' && checkpointGuideAnchor?.cellIndex === checkpointGuideCellIndex
+                ? {
+                    ...styles.checkpointGuideCard,
+                    left: `${clamp(checkpointGuideAnchor.x, 260, window.innerWidth - 260)}px`,
+                    top: `${clamp(checkpointGuideAnchor.y - 70, 130, window.innerHeight - 170)}px`,
+                    transform: 'translate(-50%, -100%)',
+                  }
+                : styles.checkpointGuideCard
+            }
+            role="status"
+            aria-live="polite"
+          >
+            {checkpointGuide === 'draw' ? (
+              <div style={styles.checkpointGuideTextGroup}>
+                <p style={styles.checkpointGuideText}>每 10 格设有【检查点】</p>
+                <p style={styles.checkpointGuideText}>经过检查点时可以「抽取道具」</p>
+              </div>
+            ) : (
+              <p style={styles.checkpointGuideText}>HP 降至 0！已退回最近的【检查点】</p>
+            )}
+            {checkpointGuide === 'draw' && (
+              <div className="paradice-checkpoint-guide-pointer-float" style={styles.checkpointGuidePointer} aria-hidden="true" />
+            )}
           </div>
         )}
 
@@ -1870,6 +2048,132 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'auto',
+  },
+  itemActionGuideBackdrop: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 30,
+    padding: 0,
+    border: 'none',
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    cursor: 'pointer',
+    pointerEvents: 'auto',
+  },
+  itemActionGuideActionPanel: {
+    zIndex: 42,
+  },
+  itemActionGuideCallout: {
+    position: 'absolute',
+    zIndex: 46,
+    left: '50%',
+    bottom: '166px',
+    transform: 'translateX(-8%)',
+    width: 'min(480px, calc(100vw - 44px))',
+    padding: '18px 22px 34px',
+    border: '4px solid #5c3a1c',
+    borderRadius: '2px',
+    backgroundColor: '#fff0b8',
+    color: '#5b3614',
+    textAlign: 'center',
+    pointerEvents: 'auto',
+    boxShadow:
+      '0 0 0 4px #f6c96e, 0 0 0 8px rgba(58, 34, 14, 0.82), 0 0 22px rgba(255, 231, 143, 0.76), 0 20px 34px rgba(255, 225, 124, 0.46), 0 42px 48px rgba(255, 203, 72, 0.30), 0 12px 0 rgba(0, 0, 0, 0.28)',
+  },
+  itemActionGuideHighlight: {
+    position: 'relative',
+    zIndex: 44,
+    filter:
+      'brightness(1.12) saturate(1.06) drop-shadow(0 0 10px rgba(255, 239, 184, 0.78)) drop-shadow(0 0 24px rgba(255, 206, 76, 0.58)) drop-shadow(0 -22px 30px rgba(255, 225, 124, 0.34)) drop-shadow(0 -42px 44px rgba(255, 203, 72, 0.24)) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.32))',
+  },
+  itemActionGuideMutedOption: {
+    position: 'relative',
+    zIndex: 42,
+    opacity: 0.42,
+    filter: 'brightness(0.62) saturate(0.72) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.32))',
+  },
+  itemActionGuideText: {
+    color: '#5b3614',
+    fontSize: '21px',
+    fontWeight: 800,
+    lineHeight: 1.45,
+    textAlign: 'center',
+    textShadow: '0 1px 0 rgba(255, 255, 255, 0.65)',
+  },
+  itemActionGuidePointer: {
+    position: 'absolute',
+    left: '62%',
+    bottom: '-29px',
+    width: 0,
+    height: 0,
+    borderLeft: '18px solid transparent',
+    borderRight: '18px solid transparent',
+    borderTop: '26px solid #5c3a1c',
+    filter:
+      'drop-shadow(0 7px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 12px 16px rgba(255, 225, 124, 0.46)) drop-shadow(0 26px 24px rgba(255, 203, 72, 0.22))',
+  },
+  itemActionGuideGotIt: {
+    position: 'absolute',
+    right: '18px',
+    bottom: '10px',
+    padding: 0,
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: '#7b4b20',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '15px',
+    fontWeight: 900,
+    lineHeight: 1,
+    textDecoration: 'underline',
+    textUnderlineOffset: '3px',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    outline: 'none',
+    boxShadow: 'none',
+  },
+  checkpointGuideCard: {
+    position: 'absolute',
+    zIndex: 60,
+    left: '50%',
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 'min(500px, calc(100vw - 44px))',
+    padding: '18px 22px 34px',
+    border: '4px solid #5c3a1c',
+    borderRadius: '2px',
+    backgroundColor: '#fff0b8',
+    color: '#5b3614',
+    textAlign: 'center',
+    pointerEvents: 'auto',
+    overflow: 'visible',
+    boxShadow: '0 0 0 4px #f6c96e, 0 0 0 8px rgba(58, 34, 14, 0.82), 0 12px 0 rgba(0, 0, 0, 0.28)',
+  },
+  checkpointGuideTextGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  checkpointGuideText: {
+    margin: 0,
+    color: '#5b3614',
+    fontSize: '21px',
+    fontWeight: 800,
+    lineHeight: 1.45,
+    textAlign: 'center',
+    textShadow: '0 1px 0 rgba(255, 255, 255, 0.65)',
+  },
+  checkpointGuidePointer: {
+    position: 'absolute',
+    zIndex: -1,
+    left: '56%',
+    bottom: '-29px',
+    width: 0,
+    height: 0,
+    pointerEvents: 'none',
+    borderLeft: '18px solid transparent',
+    borderRight: '18px solid transparent',
+    borderTop: '26px solid #5c3a1c',
+    filter: 'drop-shadow(0 7px 0 rgba(0, 0, 0, 0.26))',
   },
   decisionOptions: {
     display: 'flex',

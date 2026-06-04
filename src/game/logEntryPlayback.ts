@@ -1,7 +1,7 @@
+import { useGameStore } from '../store/gameStore';
 import type { DefinitionsConfig, LogEntry, Player } from '../types/protocol';
 import { isBossPlayer } from './bossVisualConfig';
 import { getEventEffectConfig } from './eventAnimations';
-import { useGameStore } from '../store/gameStore';
 
 export const DICE_ROLL_MIN_MS = 1200;
 export const DICE_RESULT_DISPLAY_MS = 1200;
@@ -413,6 +413,14 @@ export function formatChangeReason(entry: LogEntry, definitions?: DefinitionsCon
     TurnEndRespawn: '回合结束复活',
     FragileCell: '脆弱格',
     DiceRollFellDown: '移动跌落',
+    system_turn_end_respawn: '回合结束复活',
+    system_boss_attack_respawn: 'Boss 攻击复活',
+    system_boss_skill_respawn: 'Boss 技能复活',
+    system_checkpoint_treasure: '检查点宝箱',
+    system_dice_roll_checkpoint: '经过检查点',
+    system_dice_roll_fell_down: '移动跌落',
+    fragile_cell: '脆弱格',
+    death_respawn: '死亡复活',
     system: '系统',
     System: '系统',
     normal: '普通格',

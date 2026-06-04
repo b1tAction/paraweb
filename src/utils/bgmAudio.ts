@@ -10,6 +10,11 @@ const DEFAULT_VOLUME = 1;
 const managedBgms = new Set<ManagedBgm>();
 let listenersInstalled = false;
 
+function clampVolume(volume: number): number {
+  if (!Number.isFinite(volume)) return DEFAULT_VOLUME;
+  return Math.max(0, Math.min(1, volume));
+}
+
 export function createManagedBgm(src: string): ManagedBgm {
   if (typeof window === 'undefined' || typeof Audio === 'undefined') {
     return { audio: null, fadeFrame: null, fadeToken: 0, shouldResume: false };
@@ -18,7 +23,7 @@ export function createManagedBgm(src: string): ManagedBgm {
   const audio = new Audio(src);
   audio.loop = true;
   audio.preload = 'auto';
-  audio.volume = DEFAULT_VOLUME;
+  audio.volume = clampVolume(DEFAULT_VOLUME);
 
   const managed = {
     audio,
@@ -78,11 +83,12 @@ function fadeVolume(managed: ManagedBgm, targetVolume: number, durationMs: numbe
   cancelFade(managed);
   managed.fadeToken += 1;
   const token = managed.fadeToken;
+  const clampedTargetVolume = clampVolume(targetVolume);
   const startVolume = audio.volume;
-  const delta = targetVolume - startVolume;
+  const delta = clampedTargetVolume - startVolume;
 
   if (durationMs <= 0 || Math.abs(delta) < 0.001) {
-    audio.volume = targetVolume;
+    audio.volume = clampedTargetVolume;
     onDone?.();
     return;
   }
@@ -94,7 +100,7 @@ function fadeVolume(managed: ManagedBgm, targetVolume: number, durationMs: numbe
 
     const elapsed = now - startTime;
     const progress = Math.min(1, elapsed / durationMs);
-    audio.volume = startVolume + delta * progress;
+    audio.volume = clampVolume(startVolume + delta * progress);
 
     if (progress >= 1) {
       managed.fadeFrame = null;
@@ -115,7 +121,7 @@ export function playManagedBgm(managed: ManagedBgm, fadeMs = DEFAULT_FADE_MS): v
   managed.shouldResume = true;
   cancelFade(managed);
   managed.fadeToken += 1;
-  audio.volume = fadeMs > 0 ? 0 : DEFAULT_VOLUME;
+  audio.volume = fadeMs > 0 ? 0 : clampVolume(DEFAULT_VOLUME);
   void audio.play().catch(() => {
     // Autoplay may be blocked until the user interacts with the page.
     // Global resume listeners will retry once interaction/focus happens.
@@ -133,6 +139,6 @@ export function pauseManagedBgm(managed: ManagedBgm, reset = true, fadeMs = DEFA
     if (reset) {
       audio.currentTime = 0;
     }
-    audio.volume = DEFAULT_VOLUME;
+    audio.volume = clampVolume(DEFAULT_VOLUME);
   });
 }

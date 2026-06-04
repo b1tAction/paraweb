@@ -132,6 +132,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private selfPlayerId?: string | null;
   private activeAnimationContext?: LogEntryAnimationContext | null;
   private settlementPlayer?: Player | null;
+  private guideCellIndex?: number | null;
   private characterRenderOptions?: CharacterRenderOptions;
   private mapTileWidth = 32;
   private mapTileHeight = 32;
@@ -227,6 +228,7 @@ export class ForestBoardScene extends Phaser.Scene {
     selfPlayerId?: string | null;
     activeAnimationContext?: LogEntryAnimationContext | null;
     settlementPlayer?: Player | null;
+    guideCellIndex?: number | null;
     characterRenderOptions?: CharacterRenderOptions;
   }) {
     this.mapConfig = data.mapConfig;
@@ -235,6 +237,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.selfPlayerId = data.selfPlayerId;
     this.activeAnimationContext = data.activeAnimationContext;
     this.settlementPlayer = data.settlementPlayer;
+    this.guideCellIndex = data.guideCellIndex;
     this.characterRenderOptions = data.characterRenderOptions;
   }
 
@@ -659,6 +662,7 @@ export class ForestBoardScene extends Phaser.Scene {
         this.playerNames.delete(playerId);
       }
     });
+    this.dispatchGuideCellAnchor();
   }
 
   updateFromReact(
@@ -668,6 +672,7 @@ export class ForestBoardScene extends Phaser.Scene {
     selfPlayerId?: string | null,
     activeAnimationContext?: LogEntryAnimationContext | null,
     settlementPlayer?: Player | null,
+    guideCellIndex?: number | null,
     characterRenderOptions?: CharacterRenderOptions,
   ) {
     const mapChanged = this.mapConfig !== mapConfig;
@@ -680,6 +685,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.selfPlayerId = selfPlayerId;
     this.activeAnimationContext = activeAnimationContext;
     this.settlementPlayer = settlementPlayer;
+    this.guideCellIndex = guideCellIndex;
     this.characterRenderOptions = characterRenderOptions;
 
     if (!this.ready) return;
@@ -725,6 +731,29 @@ export class ForestBoardScene extends Phaser.Scene {
 
   private getTextTextureResolution() {
     return Math.max(PLAYER_NAME_TEXTURE_RESOLUTION, Math.ceil(this.getCameraZoom() * PLAYER_NAME_TEXTURE_RESOLUTION));
+  }
+
+  private dispatchGuideCellAnchor() {
+    if (typeof window === 'undefined' || this.guideCellIndex === null || this.guideCellIndex === undefined) return;
+
+    const cell = this.cellViews.get(this.guideCellIndex);
+    const canvas = this.game.canvas;
+    if (!cell || !canvas) return;
+
+    const camera = this.cameras.main;
+    const rect = canvas.getBoundingClientRect();
+    const screenX = (cell.x - camera.worldView.x) * camera.zoom;
+    const screenY = (cell.y - camera.worldView.y) * camera.zoom;
+
+    window.dispatchEvent(
+      new CustomEvent('ui-board-guide-anchor', {
+        detail: {
+          cellIndex: this.guideCellIndex,
+          x: rect.left + (screenX / camera.width) * rect.width,
+          y: rect.top + (screenY / camera.height) * rect.height,
+        },
+      }),
+    );
   }
 
   private configurePlayerNameText(text: Phaser.GameObjects.Text) {
