@@ -61,6 +61,11 @@ const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
   dice_upgrade: 'dice_upgrade.png',
   reverse_clock: 'reverse_clock.png',
 };
+const ITEM_TOOLTIPS: Record<string, string> = {
+  reverse_clock: '【反方向的钟】\n给目标玩家添加「迷途」Buff，使其下次移动时朝反方向前进',
+  any_door: '【任意门】\n传送至目标玩家所在的位置',
+  dice_upgrade: '【骰子升级卡】\n将当前骰子提升一级：木 → 铜 → 银 → 金',
+};
 const FACTION_SKILL_ICONS: Record<string, string> = {
   qing_long: assetUrl('assets/buff/dominance.png'),
   bai_hu: assetUrl('assets/buff/rob_luck.png'),
@@ -125,6 +130,10 @@ function getBottomBarItemIcon(type: string) {
   return assetUrl(`assets/bottom_bar/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`);
 }
 
+function getItemTooltip(item: Item) {
+  return ITEM_TOOLTIPS[item.type] ?? item.name;
+}
+
 function getFactionSkillIconSrc(faction: string) {
   return FACTION_SKILL_ICONS[faction];
 }
@@ -151,6 +160,16 @@ function getDiceAssetType(diceType: string) {
   return diceType === 'gold' || diceType === 'silver' || diceType === 'copper' || diceType === 'wood'
     ? diceType
     : 'wood';
+}
+
+function getDiceActionLabel(diceType: string) {
+  const diceNames: Record<string, string> = {
+    gold: '金',
+    silver: '银',
+    copper: '铜',
+    wood: '木',
+  };
+  return `投「${diceNames[getDiceAssetType(diceType)] ?? diceType}」骰子`;
 }
 
 function getDiceRotateSrc(diceType: string) {
@@ -547,7 +566,8 @@ export const BoardScene: React.FC = () => {
       : null;
   const factionSkillIconSrc = myPlayer ? getFactionSkillIconSrc(myPlayer.faction) : '';
   const factionSkillGuide = myPlayer ? getFactionSkillGuide(myPlayer.faction) : null;
-  const canInteractWithActions = isMyTurn && Boolean(availableActions);
+  const isActionAnimationBlocking = diceUpgradeView.status !== 'idle' || pendingEntries.length > 0;
+  const canInteractWithActions = isMyTurn && Boolean(availableActions) && !isActionAnimationBlocking;
   const isAnyActionGuideVisible = showItemActionGuide || showSkillActionGuide;
   const actionTurnKey = isMainAction && currentPlayerId ? `${storeRound}:${storeTurn}:${currentPlayerId}` : '';
   const currentDicePreviewType = isMyTurn ? availableActions?.dice_type || miniGameDiceType : miniGameDiceType;
@@ -584,8 +604,7 @@ export const BoardScene: React.FC = () => {
     Boolean(actionView) &&
     isMainAction &&
     diceRollView.status !== 'awaiting_result' &&
-    diceRollView.status !== 'rolling' &&
-    diceUpgradeView.status === 'idle';
+    diceRollView.status !== 'rolling';
   const shouldShowIdleDicePreview =
     Boolean(idleDicePreview) &&
     Boolean(currentDicePreviewType) &&
@@ -1386,8 +1405,8 @@ export const BoardScene: React.FC = () => {
                 ...(!canInteractWithActions ? styles.disabledActionTile : null),
                 ...(showSkillActionGuide ? styles.itemActionGuideMutedOption : null),
               }}
-              title={`投 ${actionView.dice_type} 骰子`}
-              aria-label={`投骰子 ${actionView.dice_type}`}
+              title={getDiceActionLabel(actionView.dice_type)}
+              aria-label={getDiceActionLabel(actionView.dice_type)}
               disabled={!canInteractWithActions}
             >
               <img
@@ -1409,7 +1428,7 @@ export const BoardScene: React.FC = () => {
                   ...(showItemActionGuide ? styles.itemActionGuideHighlight : null),
                   ...(showSkillActionGuide ? styles.itemActionGuideMutedOption : null),
                 }}
-                title={item.name}
+                title={getItemTooltip(item)}
                 aria-label={item.name}
                 disabled={!canInteractWithActions}
               >

@@ -200,6 +200,8 @@ interface GameState {
   checkpointDrawGuideSeen: boolean;
   /** 本局是否已经展示过退回检查点引导 */
   checkpointRespawnGuideSeen: boolean;
+  /** 本局已展示过首次获得说明的道具范围 key */
+  seenItemDescriptionTypes: string[];
   /** Colyseus 连接错误信息 */
   colyseusError: string;
 
@@ -272,6 +274,8 @@ interface GameState {
   setCheckpointDrawGuideSeen: (seen: boolean) => void;
   /** 设置退回检查点引导是否已展示 */
   setCheckpointRespawnGuideSeen: (seen: boolean) => void;
+  /** 标记某个道具说明范围已展示 */
+  markItemDescriptionSeen: (seenKey: string) => void;
   /** 设置 Colyseus 连接错误 */
   setColyseusError: (error: string) => void;
 
@@ -338,6 +342,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   skillActionGuideSeen: false,
   checkpointDrawGuideSeen: false,
   checkpointRespawnGuideSeen: false,
+  seenItemDescriptionTypes: [],
   colyseusError: '',
 
   // ========== Actions ==========
@@ -410,6 +415,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   setSkillActionGuideSeen: (seen) => set({ skillActionGuideSeen: seen }),
   setCheckpointDrawGuideSeen: (seen) => set({ checkpointDrawGuideSeen: seen }),
   setCheckpointRespawnGuideSeen: (seen) => set({ checkpointRespawnGuideSeen: seen }),
+  markItemDescriptionSeen: (seenKey) =>
+    set((state) =>
+      state.seenItemDescriptionTypes.includes(seenKey)
+        ? state
+        : { seenItemDescriptionTypes: [...state.seenItemDescriptionTypes, seenKey] },
+    ),
   setColyseusError: (error) => set({ colyseusError: error }),
 
   enqueueStateSync: (stateSync) => set((state) => ({ stateSyncQueue: [...state.stateSyncQueue, stateSync] })),
@@ -488,6 +499,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       skillActionGuideSeen: false,
       checkpointDrawGuideSeen: false,
       checkpointRespawnGuideSeen: false,
+      seenItemDescriptionTypes: [],
       colyseusError: '',
     }),
 
@@ -525,6 +537,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       skillActionGuideSeen: false,
       checkpointDrawGuideSeen: false,
       checkpointRespawnGuideSeen: false,
+      seenItemDescriptionTypes: [],
       faction: state.faction,
     })),
 }));

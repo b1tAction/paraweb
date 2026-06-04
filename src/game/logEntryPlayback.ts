@@ -8,6 +8,7 @@ export const DICE_RESULT_DISPLAY_MS = 1200;
 export const DICE_UPGRADE_FLASH_MS = 720;
 export const DICE_UPGRADE_RESULT_MS = 980;
 export const DEFAULT_ACTION_ANIMATION_DELAY_MS = 2000;
+export const FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS = 1800;
 export const MOVE_STEP_MS = 220;
 export const PLAYER_STAT_MAX = 8;
 
@@ -64,10 +65,47 @@ export type DiceRollResult = {
 
 export type EffectDescriptor = {
   label: string;
+  description?: string;
   color: number;
   textColor: string;
   iconEmoji?: string;
 };
+
+const ITEM_EFFECT_DESCRIPTIONS: Record<string, string> = {
+  reverse_clock: '让目标玩家朝反方向移动',
+  any_door: '传送至目标玩家所在的位置',
+  dice_upgrade: '提升骰子的品质',
+};
+
+export function getItemEffectDescription(itemType: string) {
+  return ITEM_EFFECT_DESCRIPTIONS[itemType] ?? '';
+}
+
+function itemDescriptionSeenKey(scope: 'global' | 'self', itemType: string) {
+  return `${scope}:${itemType}`;
+}
+
+function isSelfTarget(targetPlayerId: string) {
+  const myPlayerId = useGameStore.getState().myPlayerId;
+  return Boolean(myPlayerId && targetPlayerId === myPlayerId);
+}
+
+export function shouldShowFirstItemDescription(itemType: string, targetPlayerId: string) {
+  if (!itemType || !getItemEffectDescription(itemType)) return false;
+  const { seenItemDescriptionTypes } = useGameStore.getState();
+  const scope = isSelfTarget(targetPlayerId) ? 'self' : 'global';
+  return !seenItemDescriptionTypes.includes(itemDescriptionSeenKey(scope, itemType));
+}
+
+export function markItemDescriptionSeen(itemType: string, targetPlayerId: string) {
+  if (!itemType) return;
+  const isSelf = isSelfTarget(targetPlayerId);
+  const keys = [itemDescriptionSeenKey(isSelf ? 'self' : 'global', itemType)];
+  if (isSelf) keys.push(itemDescriptionSeenKey('global', itemType));
+  keys.forEach((key) => {
+    useGameStore.getState().markItemDescriptionSeen(key);
+  });
+}
 
 export function getMetadataNumber(metadata: Record<string, unknown> | undefined, key: string) {
   const value = metadata?.[key];
@@ -287,7 +325,12 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     }
     case 'draw_item': {
       const itemType = str('item_type');
-      return { label: `获得 ${itemName(itemType)}`, color: 0xffca28, textColor: '#fffde7' };
+      return {
+        label: `获得道具「${itemName(itemType)}」`,
+        description: shouldShowFirstItemDescription(itemType, entry.target) ? getItemEffectDescription(itemType) : undefined,
+        color: 0xffca28,
+        textColor: '#fffde7',
+      };
     }
     case 'draw_buff': {
       const buffType = str('buff_type');

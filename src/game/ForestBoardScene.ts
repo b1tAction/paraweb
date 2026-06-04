@@ -158,6 +158,7 @@ export class ForestBoardScene extends Phaser.Scene {
       orchestrator: this.orchestrator,
       tweens: this.tweens,
       playerMarkers: this.playerMarkers,
+      playerNames: this.playerNames,
       players: this.players,
       logDrivenPositions: this.logDrivenPositions,
       cellViews: this.cellViews as Map<number, { x: number; y: number; index: number }>,
