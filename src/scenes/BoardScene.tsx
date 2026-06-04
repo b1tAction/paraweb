@@ -66,6 +66,24 @@ const FACTION_SKILL_ICONS: Record<string, string> = {
   bai_hu: assetUrl('assets/buff/rob_luck.png'),
   xuan_wu: assetUrl('assets/buff/suppress.png'),
 };
+const FACTION_SKILL_GUIDES: Record<string, { skillName: string; effect: string; tooltip: string }> = {
+  qing_long: {
+    skillName: '威势',
+    effect: '使有益效果翻倍',
+    tooltip: '【威势】\n每 2 回合充能\n发动期间对 Boss 的伤害、受到的治疗、LP 增益都会「翻倍」',
+  },
+  bai_hu: {
+    skillName: '劫运',
+    effect: '夺走其他玩家获得的好运',
+    tooltip:
+      '【劫运】\n每 2 回合充能\n选择一名目标玩家，在接下来的一回合内\n其获得的道具、正面 Buff、受到的治疗、LP 增益都会「转移给你」',
+  },
+  xuan_wu: {
+    skillName: '镇厄',
+    effect: '可以阻止坏事件和负面 Buff',
+    tooltip: '【镇厄】\n每 2 回合充能\n发动后阻挡坏事件和负面 Buff',
+  },
+};
 function isBossBattleTurn(turnState: string) {
   return turnState === 'turn_boss_battle' || turnState === 'TurnBossBattle';
 }
@@ -109,6 +127,10 @@ function getBottomBarItemIcon(type: string) {
 
 function getFactionSkillIconSrc(faction: string) {
   return FACTION_SKILL_ICONS[faction];
+}
+
+function getFactionSkillGuide(faction: string) {
+  return FACTION_SKILL_GUIDES[faction] ?? null;
 }
 
 function getLogEntryKey(entry: { timestamp: string; action_type: string; target: string; source: string }) {
@@ -312,6 +334,7 @@ export const BoardScene: React.FC = () => {
     gameOver,
     pendingScene,
     itemActionGuideSeen,
+    skillActionGuideSeen,
     checkpointDrawGuideSeen,
     checkpointRespawnGuideSeen,
   } = useGameStore();
@@ -351,6 +374,7 @@ export const BoardScene: React.FC = () => {
   const debugLogContentRef = useRef<HTMLDivElement>(null);
   const playerCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const handledReverseClockFlightKeyRef = useRef('');
+  const wasShowingItemActionGuideRef = useRef(false);
   const [reverseClockBuffFlight, setReverseClockBuffFlight] = useState<ReverseClockBuffFlight | null>(null);
 
   // 1. 新增：存储所有玩家的头像 Base64 (以 playerId 为 key)
@@ -358,6 +382,8 @@ export const BoardScene: React.FC = () => {
   const [itemTargetSelection, setItemTargetSelection] = useState<Item | null>(null);
   const [skillTargetSelection, setSkillTargetSelection] = useState(false);
   const [showItemActionGuide, setShowItemActionGuide] = useState(false);
+  const [showSkillActionGuide, setShowSkillActionGuide] = useState(false);
+  const [pendingSkillActionGuide, setPendingSkillActionGuide] = useState(false);
   const [checkpointGuide, setCheckpointGuide] = useState<CheckpointGuide | null>(null);
   const [checkpointGuideCellIndex, setCheckpointGuideCellIndex] = useState<number | null>(null);
   const [checkpointGuideAnchor, setCheckpointGuideAnchor] = useState<BoardGuideAnchor | null>(null);
@@ -407,6 +433,8 @@ export const BoardScene: React.FC = () => {
   const handleRollDice = () => {
     console.log('[BoardScene] 掷骰子 - 开始');
     setShowItemActionGuide(false);
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
     setItemTargetSelection(null);
     setSkillTargetSelection(false);
 
@@ -434,6 +462,8 @@ export const BoardScene: React.FC = () => {
    */
   const handleUseSkill = () => {
     console.log('[BoardScene] 使用技能');
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
     if (SKILL_TARGET_FACTIONS.has(myPlayer?.faction || '')) {
       setSkillTargetSelection(true);
       return;
@@ -446,6 +476,8 @@ export const BoardScene: React.FC = () => {
    */
   const handleUseItem = (item: Item) => {
     setShowItemActionGuide(false);
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
     if (TARGET_PLAYER_ITEM_TYPES.has(item.type) || item.targetable) {
       setItemTargetSelection(item);
       return;
@@ -514,7 +546,9 @@ export const BoardScene: React.FC = () => {
         }
       : null;
   const factionSkillIconSrc = myPlayer ? getFactionSkillIconSrc(myPlayer.faction) : '';
+  const factionSkillGuide = myPlayer ? getFactionSkillGuide(myPlayer.faction) : null;
   const canInteractWithActions = isMyTurn && Boolean(availableActions);
+  const isAnyActionGuideVisible = showItemActionGuide || showSkillActionGuide;
   const actionTurnKey = isMainAction && currentPlayerId ? `${storeRound}:${storeTurn}:${currentPlayerId}` : '';
   const currentDicePreviewType = isMyTurn ? availableActions?.dice_type || miniGameDiceType : miniGameDiceType;
   const canShowItemActionGuide =
@@ -527,6 +561,25 @@ export const BoardScene: React.FC = () => {
     diceUpgradeView.status === 'idle' &&
     pendingEntries.length === 0 &&
     !decisionRequest;
+  const canShowSkillActionGuide =
+    currentScene === Scene.Board &&
+    isMainAction &&
+    isMyTurn &&
+    Boolean(availableActions) &&
+    Boolean(actionView?.can_use_skill) &&
+    Boolean(factionSkillGuide) &&
+    diceRollView.status === 'idle' &&
+    diceUpgradeView.status === 'idle' &&
+    pendingEntries.length === 0 &&
+    !decisionRequest;
+  const dismissItemActionGuide = () => {
+    setShowItemActionGuide(false);
+    if ((pendingSkillActionGuide || canShowSkillActionGuide) && !skillActionGuideSeen) {
+      setPendingSkillActionGuide(false);
+      useGameStore.getState().setSkillActionGuideSeen(true);
+      setShowSkillActionGuide(true);
+    }
+  };
   const shouldShowActionPanel =
     Boolean(actionView) &&
     isMainAction &&
@@ -592,10 +645,52 @@ export const BoardScene: React.FC = () => {
     }
 
     if (!itemActionGuideSeen) {
+      if (canShowSkillActionGuide && !skillActionGuideSeen) {
+        setPendingSkillActionGuide(true);
+      }
       useGameStore.getState().setItemActionGuideSeen(true);
       setShowItemActionGuide(true);
     }
-  }, [canShowItemActionGuide, itemActionGuideSeen]);
+  }, [canShowItemActionGuide, canShowSkillActionGuide, itemActionGuideSeen, skillActionGuideSeen]);
+
+  useEffect(() => {
+    if (!canShowSkillActionGuide) {
+      setShowSkillActionGuide(false);
+      return;
+    }
+
+    const itemGuidePending = canShowItemActionGuide && (!itemActionGuideSeen || showItemActionGuide);
+    if (itemGuidePending) {
+      if (!skillActionGuideSeen) {
+        setPendingSkillActionGuide(true);
+      }
+      setShowSkillActionGuide(false);
+      return;
+    }
+
+    if (!skillActionGuideSeen) {
+      setPendingSkillActionGuide(false);
+      useGameStore.getState().setSkillActionGuideSeen(true);
+      setShowSkillActionGuide(true);
+    }
+  }, [
+    canShowItemActionGuide,
+    canShowSkillActionGuide,
+    itemActionGuideSeen,
+    showItemActionGuide,
+    skillActionGuideSeen,
+  ]);
+
+  useEffect(() => {
+    const wasShowing = wasShowingItemActionGuideRef.current;
+    wasShowingItemActionGuideRef.current = showItemActionGuide;
+
+    if (wasShowing && !showItemActionGuide && pendingSkillActionGuide && !skillActionGuideSeen) {
+      setPendingSkillActionGuide(false);
+      useGameStore.getState().setSkillActionGuideSeen(true);
+      setShowSkillActionGuide(true);
+    }
+  }, [pendingSkillActionGuide, showItemActionGuide, skillActionGuideSeen]);
 
   useEffect(() => {
     if (pendingCheckpointGuide !== 'draw') return;
@@ -606,6 +701,8 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === activeAnimationContext?.entry.target);
 
     setShowItemActionGuide(false);
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
     setItemTargetSelection(null);
     setSkillTargetSelection(false);
     setCheckpointGuideCellIndex(targetPlayer?.position ?? null);
@@ -619,6 +716,8 @@ export const BoardScene: React.FC = () => {
 
     useGameStore.getState().setCheckpointRespawnGuideSeen(true);
     setShowItemActionGuide(false);
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
     setItemTargetSelection(null);
     setSkillTargetSelection(false);
     setCheckpointGuideCellIndex(null);
@@ -1276,7 +1375,7 @@ export const BoardScene: React.FC = () => {
 
         {shouldShowActionPanel && actionView && (
           <div
-            style={{ ...styles.mapActionPanel, ...(showItemActionGuide ? styles.itemActionGuideActionPanel : null) }}
+            style={{ ...styles.mapActionPanel, ...(isAnyActionGuideVisible ? styles.itemActionGuideActionPanel : null) }}
           >
             {!isMyTurn && <div style={styles.waitingActionText}>等待玩家 {getPlayerName(currentPlayerId)} 操作</div>}
             <button
@@ -1285,6 +1384,7 @@ export const BoardScene: React.FC = () => {
               style={{
                 ...styles.bottomBarButton,
                 ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                ...(showSkillActionGuide ? styles.itemActionGuideMutedOption : null),
               }}
               title={`投 ${actionView.dice_type} 骰子`}
               aria-label={`投骰子 ${actionView.dice_type}`}
@@ -1307,6 +1407,7 @@ export const BoardScene: React.FC = () => {
                   ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
                   ...(showItemActionGuide ? styles.itemActionGuideHighlight : null),
+                  ...(showSkillActionGuide ? styles.itemActionGuideMutedOption : null),
                 }}
                 title={item.name}
                 aria-label={item.name}
@@ -1324,8 +1425,9 @@ export const BoardScene: React.FC = () => {
                   ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
                   ...(showItemActionGuide ? styles.itemActionGuideMutedOption : null),
+                  ...(showSkillActionGuide ? styles.itemActionGuideHighlight : null),
                 }}
-                title="使用阵营技能"
+                title={factionSkillGuide?.tooltip ?? '使用阵营技能'}
                 aria-label="使用阵营技能"
                 disabled={!canInteractWithActions}
               >
@@ -1426,7 +1528,7 @@ export const BoardScene: React.FC = () => {
               type="button"
               aria-label="关闭道具引导"
               style={styles.itemActionGuideBackdrop}
-              onClick={() => setShowItemActionGuide(false)}
+              onClick={dismissItemActionGuide}
             />
             <div style={styles.itemActionGuideCallout}>
               <div style={styles.itemActionGuideText}>可以先使用道具，也可以直接投骰子前进</div>
@@ -1434,7 +1536,36 @@ export const BoardScene: React.FC = () => {
               <button
                 type="button"
                 className="paradice-item-guide-got-it"
-                onClick={() => setShowItemActionGuide(false)}
+                onClick={dismissItemActionGuide}
+                style={styles.itemActionGuideGotIt}
+              >
+                Got it
+              </button>
+            </div>
+          </>
+        )}
+
+        {showSkillActionGuide && factionSkillGuide && (
+          <>
+            <button
+              type="button"
+              aria-label="关闭阵营技能引导"
+              style={styles.itemActionGuideBackdrop}
+              onClick={() => setShowSkillActionGuide(false)}
+            />
+            <div style={styles.itemActionGuideCallout}>
+              <div style={styles.itemActionGuideText}>
+                <div style={styles.skillActionGuideTitle}>【阵营技能 - {factionSkillGuide.skillName}】已准备就绪！</div>
+                <div>
+                  发动后「{factionSkillGuide.effect}」
+                </div>
+                <div>可以先发动技能，或者直接投骰子前进</div>
+              </div>
+              <div style={styles.itemActionGuidePointer} aria-hidden="true" />
+              <button
+                type="button"
+                className="paradice-item-guide-got-it"
+                onClick={() => setShowSkillActionGuide(false)}
                 style={styles.itemActionGuideGotIt}
               >
                 Got it
@@ -2098,6 +2229,15 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.45,
     textAlign: 'center',
     textShadow: '0 1px 0 rgba(255, 255, 255, 0.65)',
+  },
+  skillActionGuideTitle: {
+    display: 'inline-block',
+    marginBottom: '6px',
+    padding: '0 10px 2px',
+    color: '#6a451d',
+    fontSize: '23px',
+    fontWeight: 900,
+    textShadow: '0 1px 0 rgba(255, 255, 255, 0.78), 0 2px 0 rgba(246, 201, 110, 0.62)',
   },
   itemActionGuidePointer: {
     position: 'absolute',

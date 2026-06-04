@@ -194,6 +194,8 @@ interface GameState {
   miniGameGuideSeen: boolean;
   /** 本局是否已经展示过道具行动引导 */
   itemActionGuideSeen: boolean;
+  /** 本局是否已经展示过阵营技能行动引导 */
+  skillActionGuideSeen: boolean;
   /** 本局是否已经展示过经过检查点引导 */
   checkpointDrawGuideSeen: boolean;
   /** 本局是否已经展示过退回检查点引导 */
@@ -264,6 +266,8 @@ interface GameState {
   setMiniGameGuideSeen: (seen: boolean) => void;
   /** 设置道具行动引导是否已展示 */
   setItemActionGuideSeen: (seen: boolean) => void;
+  /** 设置阵营技能行动引导是否已展示 */
+  setSkillActionGuideSeen: (seen: boolean) => void;
   /** 设置经过检查点引导是否已展示 */
   setCheckpointDrawGuideSeen: (seen: boolean) => void;
   /** 设置退回检查点引导是否已展示 */
@@ -331,6 +335,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   miniGameOnline: false,
   miniGameGuideSeen: false,
   itemActionGuideSeen: false,
+  skillActionGuideSeen: false,
   checkpointDrawGuideSeen: false,
   checkpointRespawnGuideSeen: false,
   colyseusError: '',
@@ -402,6 +407,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setMiniGameOnline: (online) => set({ miniGameOnline: online }),
   setMiniGameGuideSeen: (seen) => set({ miniGameGuideSeen: seen }),
   setItemActionGuideSeen: (seen) => set({ itemActionGuideSeen: seen }),
+  setSkillActionGuideSeen: (seen) => set({ skillActionGuideSeen: seen }),
   setCheckpointDrawGuideSeen: (seen) => set({ checkpointDrawGuideSeen: seen }),
   setCheckpointRespawnGuideSeen: (seen) => set({ checkpointRespawnGuideSeen: seen }),
   setColyseusError: (error) => set({ colyseusError: error }),
@@ -479,6 +485,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       miniGameOnline: false,
       miniGameGuideSeen: false,
       itemActionGuideSeen: false,
+      skillActionGuideSeen: false,
       checkpointDrawGuideSeen: false,
       checkpointRespawnGuideSeen: false,
       colyseusError: '',
@@ -515,6 +522,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingScene: null,
       miniGameGuideSeen: false,
       itemActionGuideSeen: false,
+      skillActionGuideSeen: false,
       checkpointDrawGuideSeen: false,
       checkpointRespawnGuideSeen: false,
       faction: state.faction,
