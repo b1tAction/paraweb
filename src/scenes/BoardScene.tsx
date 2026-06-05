@@ -306,6 +306,7 @@ const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door']);
 // Factions whose skill requires selecting a target player before activation
 const SKILL_TARGET_FACTIONS = new Set(['bai_hu']);
 const CHECKPOINT_GUIDE_DURATION_MS = 4500;
+const BUFF_GUIDE_DURATION_MS = 3600;
 const CHECKPOINT_DRAW_ITEM_SOURCES = new Set(['system_checkpoint_treasure', 'CheckpointTreasure']);
 const CHECKPOINT_RESPAWN_SOURCES = new Set([
   'system_turn_end_respawn',
@@ -327,6 +328,22 @@ function getCheckpointGuideForEntry(entry: { action_type: string; source: string
   if (entry.action_type === 'draw_item' && CHECKPOINT_DRAW_ITEM_SOURCES.has(entry.source)) return 'draw';
   if (entry.action_type === 'respawn' && CHECKPOINT_RESPAWN_SOURCES.has(entry.source)) return 'respawn';
   return null;
+}
+
+function shouldTriggerFirstBuffGuide(
+  entry: { action_type: string; source: string; target: string; metadata?: Record<string, unknown> } | null,
+  myPlayerId: string,
+  buffGuideSeen: boolean,
+): boolean {
+  if (!entry || buffGuideSeen || !myPlayerId) return false;
+  if (entry.action_type !== 'add_buff' || entry.target !== myPlayerId) return false;
+
+  const buffType = getMetadataString(entry.metadata, 'buff_type');
+  if (!buffType) return false;
+  if (entry.source === 'item_reverse_clock_buff' && buffType === 'lost') return false;
+
+  const definitions = useGameStore.getState().definitions;
+  return definitions?.buffs[buffType]?.is_hidden !== true;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -356,6 +373,7 @@ export const BoardScene: React.FC = () => {
     skillActionGuideSeen,
     checkpointDrawGuideSeen,
     checkpointRespawnGuideSeen,
+    buffGuideSeen,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
   const [diceUpgradeView, setDiceUpgradeView] = useState<DiceUpgradeView>({ status: 'idle' });
@@ -406,6 +424,7 @@ export const BoardScene: React.FC = () => {
   const [checkpointGuide, setCheckpointGuide] = useState<CheckpointGuide | null>(null);
   const [checkpointGuideCellIndex, setCheckpointGuideCellIndex] = useState<number | null>(null);
   const [checkpointGuideAnchor, setCheckpointGuideAnchor] = useState<BoardGuideAnchor | null>(null);
+  const [showBuffGuide, setShowBuffGuide] = useState(false);
   // 2. 新增：监听 Phaser 发过来的头像事件
   useEffect(() => {
     const handleAvatarUpdate = (event: Event) => {
@@ -647,6 +666,12 @@ export const BoardScene: React.FC = () => {
   const pendingCheckpointGuide = getCheckpointGuideForEntry(activeAnimationContext?.entry ?? null);
   const shouldHoldCheckpointDraw =
     pendingCheckpointGuide === 'draw' && (!checkpointDrawGuideSeen || checkpointGuide === 'draw');
+  const pendingFirstBuffGuide = shouldTriggerFirstBuffGuide(
+    activeAnimationContext?.entry ?? null,
+    myPlayerId,
+    buffGuideSeen,
+  );
+  const shouldHoldBuffGuide = showBuffGuide;
   const boardAnimationContext = !shouldHoldCheckpointDraw && shouldRenderBoardLogEntryAnimation(activeAnimationContext)
     ? activeAnimationContext
     : null;
@@ -729,6 +754,7 @@ export const BoardScene: React.FC = () => {
   }, [activeAnimationContext, checkpointDrawGuideSeen, pendingCheckpointGuide, players, renderedPlayers]);
 
   useEffect(() => {
+    if (!activeLogEntry) return;
     const nextGuide = getCheckpointGuideForEntry(activeLogEntry);
     if (nextGuide !== 'respawn') return;
     if (checkpointRespawnGuideSeen) return;
@@ -739,7 +765,7 @@ export const BoardScene: React.FC = () => {
     setPendingSkillActionGuide(false);
     setItemTargetSelection(null);
     setSkillTargetSelection(false);
-    setCheckpointGuideCellIndex(null);
+    setCheckpointGuideCellIndex(getMetadataNumber(activeLogEntry.metadata, 'checkpoint_pos'));
     setCheckpointGuide('respawn');
   }, [activeLogEntry, checkpointRespawnGuideSeen]);
 
@@ -758,6 +784,17 @@ export const BoardScene: React.FC = () => {
 
     return () => window.clearTimeout(timeoutId);
   }, [checkpointGuide]);
+
+  useEffect(() => {
+    if (!showBuffGuide) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setShowBuffGuide(false);
+      useGameStore.getState().playNextEntry();
+    }, BUFF_GUIDE_DURATION_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [showBuffGuide]);
 
   useEffect(() => {
     if (
@@ -1018,15 +1055,31 @@ export const BoardScene: React.FC = () => {
   useEffect(() => {
     if (pendingEntries.length === 0) return;
     if (shouldHoldCheckpointDraw) return;
+    if (shouldHoldBuffGuide) return;
 
     const delay = getLogEntryAnimationDelay(activeAnimationContext);
 
     const timeoutId = window.setTimeout(() => {
+      if (pendingFirstBuffGuide) {
+        useGameStore.getState().setBuffGuideSeen(true);
+        if (activeAnimationContext?.entry) {
+          setRenderedPlayers((current) =>
+            current.map((player) => applyLogEntryToPlayer(player, activeAnimationContext.entry)),
+          );
+        }
+        setShowItemActionGuide(false);
+        setShowSkillActionGuide(false);
+        setPendingSkillActionGuide(false);
+        setItemTargetSelection(null);
+        setSkillTargetSelection(false);
+        setShowBuffGuide(true);
+        return;
+      }
       useGameStore.getState().playNextEntry();
     }, delay);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeAnimationContext, pendingEntries.length, shouldHoldCheckpointDraw]);
+  }, [activeAnimationContext, pendingEntries.length, pendingFirstBuffGuide, shouldHoldBuffGuide, shouldHoldCheckpointDraw]);
 
   // Auto-scroll debug log when new entries appear
   const playedEntryCount = playedEntries.length;
@@ -1250,7 +1303,7 @@ export const BoardScene: React.FC = () => {
             selfPlayerId={myPlayerId}
             activeAnimationContext={boardAnimationContext}
             settlementPlayer={settlementPlayer}
-            guideCellIndex={checkpointGuide === 'draw' ? checkpointGuideCellIndex : null}
+            guideCellIndex={checkpointGuide ? checkpointGuideCellIndex : null}
           />
         ) : (
           <div style={styles.mapMissing}>地图未加载 (mapConfig is null)</div>
@@ -1342,11 +1395,15 @@ export const BoardScene: React.FC = () => {
         {SHOW_DEV_DEBUG_UI && bossStatusPanel && <div style={styles.sidePanels}>{bossStatusPanel}</div>}
 
         {myBuffs.length > 0 && (
-          <div style={styles.selfBuffPanel}>
+          <div className="paradice-hidden-scrollbar" style={styles.selfBuffPanel}>
             {myBuffs.map((buff) => (
               <div
                 key={buff.type}
-                style={styles.selfBuffFrame}
+                className={showBuffGuide ? 'paradice-buff-guide-glow' : undefined}
+                style={{
+                  ...styles.selfBuffFrame,
+                  ...(showBuffGuide ? styles.selfBuffFrameGuideGlow : null),
+                }}
                 title={`${buff.name}\n${getBuffDesc(buff.type)}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
               >
                 <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
@@ -1596,7 +1653,7 @@ export const BoardScene: React.FC = () => {
         {checkpointGuide && (
           <div
             style={
-              checkpointGuide === 'draw' && checkpointGuideAnchor?.cellIndex === checkpointGuideCellIndex
+              checkpointGuideAnchor?.cellIndex === checkpointGuideCellIndex
                 ? {
                     ...styles.checkpointGuideCard,
                     left: `${clamp(checkpointGuideAnchor.x, 260, window.innerWidth - 260)}px`,
@@ -1616,9 +1673,18 @@ export const BoardScene: React.FC = () => {
             ) : (
               <p style={styles.checkpointGuideText}>HP 降至 0！已退回最近的【检查点】</p>
             )}
-            {checkpointGuide === 'draw' && (
+            {checkpointGuide && (
               <div className="paradice-checkpoint-guide-pointer-float" style={styles.checkpointGuidePointer} aria-hidden="true" />
             )}
+          </div>
+        )}
+
+        {showBuffGuide && (
+          <div style={{ ...styles.checkpointGuideCard, ...styles.buffGuideCard }} role="status" aria-live="polite">
+            <div style={styles.checkpointGuideTextGroup}>
+              <p style={styles.checkpointGuideText}>Buff 会持续若干回合</p>
+              <p style={styles.checkpointGuideText}>影响你的属性和行动</p>
+            </div>
           </div>
         )}
 
@@ -1970,7 +2036,8 @@ const styles: Record<string, React.CSSProperties> = {
     left: '14px',
     top: '130px',
     maxHeight: 'calc(100vh - 340px)',
-    overflowY: 'auto',
+    overflowY: 'scroll',
+    scrollbarWidth: 'none',
     display: 'flex',
     flexDirection: 'column',
     gap: '10px',
@@ -2002,6 +2069,10 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundPosition: 'center',
     filter: 'drop-shadow(0 5px 10px rgba(0, 0, 0, 0.36))',
     boxSizing: 'border-box',
+  },
+  selfBuffFrameGuideGlow: {
+    filter:
+      'drop-shadow(0 5px 10px rgba(0, 0, 0, 0.36)) drop-shadow(0 0 10px rgba(255, 226, 132, 0.95)) drop-shadow(0 0 18px rgba(126, 87, 194, 0.78))',
   },
   selfBuffDuration: {
     minWidth: '34px',
@@ -2297,11 +2368,15 @@ const styles: Record<string, React.CSSProperties> = {
     top: '50%',
     transform: 'translate(-50%, -50%)',
     width: 'min(500px, calc(100vw - 44px))',
+    minHeight: '65px',
     padding: '18px 22px 34px',
     border: '4px solid #5c3a1c',
     borderRadius: '2px',
     backgroundColor: '#fff0b8',
     color: '#5b3614',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
     textAlign: 'center',
     pointerEvents: 'auto',
     overflow: 'visible',
@@ -2333,6 +2408,14 @@ const styles: Record<string, React.CSSProperties> = {
     borderRight: '18px solid transparent',
     borderTop: '26px solid #5c3a1c',
     filter: 'drop-shadow(0 7px 0 rgba(0, 0, 0, 0.26))',
+  },
+  buffGuideCard: {
+    left: '188px',
+    top: '156px',
+    transform: 'none',
+    width: 'min(430px, calc(100vw - 220px))',
+    padding: '16px 20px 22px',
+    textAlign: 'left',
   },
   decisionOptions: {
     display: 'flex',

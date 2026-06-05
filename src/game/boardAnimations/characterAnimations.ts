@@ -22,9 +22,11 @@ import {
 import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
 import {
   describeLogEntryEffect,
+  FIRST_BUFF_DESCRIPTION_EXTRA_DELAY_MS,
   FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS,
   getMetadataNumber,
   getMetadataString,
+  markBuffDescriptionSeen,
   markItemDescriptionSeen,
 } from '../logEntryPlayback';
 import { LAYER_CHARACTER_BASE, LAYER_EFFECT_BASE, LAYER_EFFECT_TEXT_BASE, worldDepth } from '../renderLayers';
@@ -137,6 +139,9 @@ export function playBuffChangeAnimation(
   const point = getMarkerEffectPoint(marker, ctx, entry.target);
   const x = point.x;
   const y = point.y;
+  const hasDescription = Boolean(effect.description);
+  const textStartY = hasDescription ? y - 62 : y - 42;
+  const descriptionStartY = y - 34;
 
   // Ring glow
   const ring = ctx.scene.add.circle(x, y, 24, effect.color, 0.12);
@@ -164,7 +169,7 @@ export function playBuffChangeAnimation(
   });
 
   // Floating text (longer duration than before)
-  const text = ctx.scene.add.text(x, y - 42, effect.label, {
+  const text = ctx.scene.add.text(x, textStartY, effect.label, {
     fontFamily: GAME_FONT_FAMILY,
     fontSize: '22px',
     fontStyle: 'bold',
@@ -176,14 +181,39 @@ export function playBuffChangeAnimation(
   text.setOrigin(0.5, 0.5);
   text.setDepth(worldDepth(LAYER_EFFECT_TEXT_BASE, y));
 
+  const descriptionText = effect.description
+    ? ctx.scene.add.text(x, descriptionStartY, effect.description, {
+        fontFamily: GAME_FONT_FAMILY,
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: '#fff7d6',
+        align: 'center',
+        stroke: '#0b1020',
+        strokeThickness: 4,
+      })
+    : null;
+  descriptionText?.setOrigin(0.5, 0.5);
+  descriptionText?.setDepth(worldDepth(LAYER_EFFECT_TEXT_BASE, y));
+  const restorePausedPlayerNames = pauseOverlappingPlayerNames(ctx, descriptionText);
+
   ctx.tweens.add({
-    targets: text,
-    y: y - 88,
+    targets: descriptionText ? [text, descriptionText] : text,
+    y: descriptionText
+      ? (_target: unknown, _key: string, _value: number, index: number) => (index === 0 ? y - 102 : y - 74)
+      : y - 88,
     alpha: 0,
     scale: 1.15,
+    delay: descriptionText ? FIRST_BUFF_DESCRIPTION_EXTRA_DELAY_MS : 0,
     duration: 1200,
     ease: 'Cubic.easeOut',
-    onComplete: () => text.destroy(),
+    onComplete: () => {
+      if (entry.action_type === 'add_buff' && effect.description) {
+        markBuffDescriptionSeen(getMetadataString(entry.metadata, 'buff_type'));
+      }
+      restorePausedPlayerNames();
+      text.destroy();
+      descriptionText?.destroy();
+    },
   });
 }
 

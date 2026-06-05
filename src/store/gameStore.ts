@@ -200,8 +200,12 @@ interface GameState {
   checkpointDrawGuideSeen: boolean;
   /** 本局是否已经展示过退回检查点引导 */
   checkpointRespawnGuideSeen: boolean;
+  /** 本局是否已经展示过首次 Buff 引导 */
+  buffGuideSeen: boolean;
   /** 本局已展示过首次获得说明的道具范围 key */
   seenItemDescriptionTypes: string[];
+  /** 本局已展示过首次获得说明的 Buff 类型 */
+  seenBuffDescriptionTypes: string[];
   /** Colyseus 连接错误信息 */
   colyseusError: string;
 
@@ -274,8 +278,12 @@ interface GameState {
   setCheckpointDrawGuideSeen: (seen: boolean) => void;
   /** 设置退回检查点引导是否已展示 */
   setCheckpointRespawnGuideSeen: (seen: boolean) => void;
+  /** 设置首次 Buff 引导是否已展示 */
+  setBuffGuideSeen: (seen: boolean) => void;
   /** 标记某个道具说明范围已展示 */
   markItemDescriptionSeen: (seenKey: string) => void;
+  /** 标记某个 Buff 说明已展示 */
+  markBuffDescriptionSeen: (buffType: string) => void;
   /** 设置 Colyseus 连接错误 */
   setColyseusError: (error: string) => void;
 
@@ -342,7 +350,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   skillActionGuideSeen: false,
   checkpointDrawGuideSeen: false,
   checkpointRespawnGuideSeen: false,
+  buffGuideSeen: false,
   seenItemDescriptionTypes: [],
+  seenBuffDescriptionTypes: [],
   colyseusError: '',
 
   // ========== Actions ==========
@@ -415,11 +425,18 @@ export const useGameStore = create<GameState>((set, get) => ({
   setSkillActionGuideSeen: (seen) => set({ skillActionGuideSeen: seen }),
   setCheckpointDrawGuideSeen: (seen) => set({ checkpointDrawGuideSeen: seen }),
   setCheckpointRespawnGuideSeen: (seen) => set({ checkpointRespawnGuideSeen: seen }),
+  setBuffGuideSeen: (seen) => set({ buffGuideSeen: seen }),
   markItemDescriptionSeen: (seenKey) =>
     set((state) =>
       state.seenItemDescriptionTypes.includes(seenKey)
         ? state
         : { seenItemDescriptionTypes: [...state.seenItemDescriptionTypes, seenKey] },
+    ),
+  markBuffDescriptionSeen: (buffType) =>
+    set((state) =>
+      state.seenBuffDescriptionTypes.includes(buffType)
+        ? state
+        : { seenBuffDescriptionTypes: [...state.seenBuffDescriptionTypes, buffType] },
     ),
   setColyseusError: (error) => set({ colyseusError: error }),
 
@@ -499,7 +516,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       skillActionGuideSeen: false,
       checkpointDrawGuideSeen: false,
       checkpointRespawnGuideSeen: false,
+      buffGuideSeen: false,
       seenItemDescriptionTypes: [],
+      seenBuffDescriptionTypes: [],
       colyseusError: '',
     }),
 
@@ -537,7 +556,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       skillActionGuideSeen: false,
       checkpointDrawGuideSeen: false,
       checkpointRespawnGuideSeen: false,
+      buffGuideSeen: false,
       seenItemDescriptionTypes: [],
+      seenBuffDescriptionTypes: [],
       faction: state.faction,
     })),
 }));
