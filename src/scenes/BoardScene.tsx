@@ -754,6 +754,7 @@ export const BoardScene: React.FC = () => {
   }, [activeAnimationContext, checkpointDrawGuideSeen, pendingCheckpointGuide, players, renderedPlayers]);
 
   useEffect(() => {
+    if (!activeLogEntry) return;
     const nextGuide = getCheckpointGuideForEntry(activeLogEntry);
     if (nextGuide !== 'respawn') return;
     if (checkpointRespawnGuideSeen) return;
@@ -764,7 +765,7 @@ export const BoardScene: React.FC = () => {
     setPendingSkillActionGuide(false);
     setItemTargetSelection(null);
     setSkillTargetSelection(false);
-    setCheckpointGuideCellIndex(null);
+    setCheckpointGuideCellIndex(getMetadataNumber(activeLogEntry.metadata, 'checkpoint_pos'));
     setCheckpointGuide('respawn');
   }, [activeLogEntry, checkpointRespawnGuideSeen]);
 
@@ -1302,7 +1303,7 @@ export const BoardScene: React.FC = () => {
             selfPlayerId={myPlayerId}
             activeAnimationContext={boardAnimationContext}
             settlementPlayer={settlementPlayer}
-            guideCellIndex={checkpointGuide === 'draw' ? checkpointGuideCellIndex : null}
+            guideCellIndex={checkpointGuide ? checkpointGuideCellIndex : null}
           />
         ) : (
           <div style={styles.mapMissing}>地图未加载 (mapConfig is null)</div>
@@ -1652,7 +1653,7 @@ export const BoardScene: React.FC = () => {
         {checkpointGuide && (
           <div
             style={
-              checkpointGuide === 'draw' && checkpointGuideAnchor?.cellIndex === checkpointGuideCellIndex
+              checkpointGuideAnchor?.cellIndex === checkpointGuideCellIndex
                 ? {
                     ...styles.checkpointGuideCard,
                     left: `${clamp(checkpointGuideAnchor.x, 260, window.innerWidth - 260)}px`,
@@ -1672,7 +1673,7 @@ export const BoardScene: React.FC = () => {
             ) : (
               <p style={styles.checkpointGuideText}>HP 降至 0！已退回最近的【检查点】</p>
             )}
-            {checkpointGuide === 'draw' && (
+            {checkpointGuide && (
               <div className="paradice-checkpoint-guide-pointer-float" style={styles.checkpointGuidePointer} aria-hidden="true" />
             )}
           </div>
@@ -2367,11 +2368,15 @@ const styles: Record<string, React.CSSProperties> = {
     top: '50%',
     transform: 'translate(-50%, -50%)',
     width: 'min(500px, calc(100vw - 44px))',
+    minHeight: '65px',
     padding: '18px 22px 34px',
     border: '4px solid #5c3a1c',
     borderRadius: '2px',
     backgroundColor: '#fff0b8',
     color: '#5b3614',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
     textAlign: 'center',
     pointerEvents: 'auto',
     overflow: 'visible',
