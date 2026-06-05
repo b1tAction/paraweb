@@ -93,6 +93,25 @@ button:disabled {
   animation: paradice-checkpoint-guide-pointer-float 1.2s ease-in-out infinite;
 }
 
+@keyframes paradice-buff-guide-glow {
+  0%,
+  100% {
+    scale: 1;
+  }
+
+  50% {
+    scale: 1.04;
+  }
+}
+
+.paradice-buff-guide-glow {
+  animation: paradice-buff-guide-glow 0.9s ease-in-out infinite;
+}
+
+.paradice-hidden-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes paradice-dice-spin {
   0% {
     transform: rotate(0deg) scale(1);

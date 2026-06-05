@@ -7,12 +7,14 @@ import {
   DICE_ROLL_MIN_MS,
   DICE_UPGRADE_FLASH_MS,
   DICE_UPGRADE_RESULT_MS,
+  FIRST_BUFF_DESCRIPTION_EXTRA_DELAY_MS,
   FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS,
   getMetadataBoolean,
   getMetadataNumber,
   getMetadataNumberArray,
   getMetadataString,
   MOVE_STEP_MS,
+  shouldShowFirstBuffDescription,
   shouldShowFirstItemDescription,
 } from './logEntryPlayback';
 
@@ -112,7 +114,15 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
   },
   add_buff: {
     renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry),
-    delayMs: ({ entry }) => (isReverseClockLostBuffEntry(entry) ? 1800 : 1200),
+    delayMs: ({ entry }) => {
+      const isReverseClockLost =
+        entry.action_type === 'add_buff' &&
+        entry.source === 'item_reverse_clock_buff' &&
+        getMetadataString(entry.metadata, 'buff_type') === 'lost';
+      if (isReverseClockLost) return 1800;
+      const buffType = getMetadataString(entry.metadata, 'buff_type');
+      return 1200 + (shouldShowFirstBuffDescription(buffType, entry.target) ? FIRST_BUFF_DESCRIPTION_EXTRA_DELAY_MS : 0);
+    },
   },
   remove_buff: {
     renderOnBoard: true,
