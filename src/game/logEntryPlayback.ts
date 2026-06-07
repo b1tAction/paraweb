@@ -76,6 +76,17 @@ const ITEM_EFFECT_DESCRIPTIONS: Record<string, string> = {
   reverse_clock: '让目标玩家朝反方向移动',
   any_door: '传送至目标玩家所在的位置',
   dice_upgrade: '提升骰子的品质',
+  magic_flute: '与某人共同获得沉沦Buff，共享恶性Action',
+  cupid_arrow: '与某人共同获得永恒Buff，共享良性Action',
+  crimson_blade: '损失一半的血量，对某人造成损失血量的伤害',
+  wisdom_ring: '获得神眷Buff',
+  meditation_ring: '获得甘霖Buff',
+  discipline_ring: '获得金身Buff',
+  foolish_ring: 'HP+1，LP-1',
+  greedy_ring: 'LP+1，HP-1',
+  wrath_ring: 'HP-1，获得嗔怒Buff',
+  named_blade: '抵挡一次致命伤害',
+  sage_protection: '原地复活',
 };
 
 const BUFF_EFFECT_DESCRIPTIONS: Record<string, string> = {
@@ -89,14 +100,21 @@ const BUFF_EFFECT_DESCRIPTIONS: Record<string, string> = {
   hidden: '免疫任意事件与道具，持续 1 回合',
   fire: '每 3 回合 LP +1',
   thorns: '受伤后反弹 30% 伤害，持续 2 回合',
+  sinking: '接下来2回合与某人共享恶性的Action',
+  eternal: '接下来2回合与某人共享良性的Action',
+  fearless: '血量立刻减至1点，3回合内血量保持不变',
+  golden_body: '接下来2回合受到的伤害减半',
+  wrath: '接下来2回合造成的伤害+1',
+  savior: '抵挡一次致命伤害',
+  sage_protection: '原地复活，不回到检查点',
 };
 
-export function getItemEffectDescription(itemType: string) {
-  return ITEM_EFFECT_DESCRIPTIONS[itemType] ?? '';
+export function getItemEffectDescription(itemType: string, definitions?: DefinitionsConfig | null) {
+  return definitions?.items[itemType]?.desc || ITEM_EFFECT_DESCRIPTIONS[itemType] || '';
 }
 
-export function getBuffEffectDescription(buffType: string) {
-  return BUFF_EFFECT_DESCRIPTIONS[buffType] ?? '';
+export function getBuffEffectDescription(buffType: string, definitions?: DefinitionsConfig | null) {
+  return definitions?.buffs[buffType]?.desc || BUFF_EFFECT_DESCRIPTIONS[buffType] || '';
 }
 
 function itemDescriptionSeenKey(scope: 'global' | 'self', itemType: string) {
@@ -109,7 +127,8 @@ function isSelfTarget(targetPlayerId: string) {
 }
 
 export function shouldShowFirstItemDescription(itemType: string, targetPlayerId: string) {
-  if (!itemType || !getItemEffectDescription(itemType)) return false;
+  const definitions = useGameStore.getState().definitions;
+  if (!itemType || !getItemEffectDescription(itemType, definitions)) return false;
   const { seenItemDescriptionTypes } = useGameStore.getState();
   const scope = isSelfTarget(targetPlayerId) ? 'self' : 'global';
   return !seenItemDescriptionTypes.includes(itemDescriptionSeenKey(scope, itemType));
@@ -126,7 +145,8 @@ export function markItemDescriptionSeen(itemType: string, targetPlayerId: string
 }
 
 export function shouldShowFirstBuffDescription(buffType: string, targetPlayerId: string) {
-  if (!buffType || !getBuffEffectDescription(buffType) || !isSelfTarget(targetPlayerId)) return false;
+  const definitions = useGameStore.getState().definitions;
+  if (!buffType || !getBuffEffectDescription(buffType, definitions) || !isSelfTarget(targetPlayerId)) return false;
   const { seenBuffDescriptionTypes } = useGameStore.getState();
   return !seenBuffDescriptionTypes.includes(buffType);
 }
@@ -342,7 +362,7 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
       return {
         label: `+${buffName(str('buff_type'))}`,
         description: shouldShowFirstBuffDescription(str('buff_type'), entry.target)
-          ? getBuffEffectDescription(str('buff_type'))
+          ? getBuffEffectDescription(str('buff_type'), definitions)
           : undefined,
         color: 0x7e57c2,
         textColor: '#f3e5f5',
@@ -363,7 +383,7 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
       const itemType = str('item_type');
       return {
         label: `获得道具「${itemName(itemType)}」`,
-        description: shouldShowFirstItemDescription(itemType, entry.target) ? getItemEffectDescription(itemType) : undefined,
+        description: shouldShowFirstItemDescription(itemType, entry.target) ? getItemEffectDescription(itemType, definitions) : undefined,
         color: 0xffca28,
         textColor: '#fffde7',
       };
