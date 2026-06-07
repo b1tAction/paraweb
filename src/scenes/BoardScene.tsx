@@ -56,15 +56,21 @@ const PLAYER_CARD_IMAGES: Record<string, string> = {
   bai_hu: assetUrl('assets/ui/player_card_baihu.png'),
   xuan_wu: assetUrl('assets/ui/player_card_xuanwu.png'),
 };
-const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
-  any_door: 'any_door.png',
-  dice_upgrade: 'dice_upgrade.png',
-  reverse_clock: 'reverse_clock.png',
-};
 const ITEM_TOOLTIPS: Record<string, string> = {
   reverse_clock: '【反方向的钟】\n给目标玩家添加「迷途」Buff，使其下次移动时朝反方向前进',
   any_door: '【任意门】\n传送至目标玩家所在的位置',
   dice_upgrade: '【骰子升级卡】\n将当前骰子提升一级：木 → 铜 → 银 → 金',
+  magic_flute: '【魔笛】\n与某人共同获得沉沦Buff，共享恶性Action',
+  cupid_arrow: '【丘比特之箭】\n与某人共同获得永恒Buff，共享良性Action',
+  crimson_blade: '【猩红之刃】\n损失一半血量，对目标造成等量伤害',
+  wisdom_ring: '【智慧玄戒】\n获得神眷Buff',
+  meditation_ring: '【禅定玄戒】\n获得甘霖Buff',
+  discipline_ring: '【持戒玄戒】\n获得金身Buff',
+  foolish_ring: '【痴愚煞戒】\nHP+1，LP-1',
+  greedy_ring: '【贪婪煞戒】\nLP+1，HP-1',
+  wrath_ring: '【嗔恨煞戒】\nHP-1，获得嗔怒Buff',
+  named_blade: '【名刀司命】\n抵挡一次致命伤害',
+  sage_protection: '【贤者的庇护】\n原地复活',
 };
 const FACTION_SKILL_ICONS: Record<string, string> = {
   qing_long: assetUrl('assets/buff/dominance.png'),
@@ -127,11 +133,12 @@ function getPlayerCardImage(faction: string) {
 }
 
 function getBottomBarItemIcon(type: string) {
-  return assetUrl(`assets/bottom_bar/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`);
+  return assetUrl(`assets/bottom_bar/${type}.png`);
 }
 
 function getItemTooltip(item: Item) {
-  return ITEM_TOOLTIPS[item.type] ?? item.name;
+  const { definitions } = useGameStore.getState();
+  return definitions?.items[item.type]?.desc || ITEM_TOOLTIPS[item.type] || item.name;
 }
 
 function getFactionSkillIconSrc(faction: string) {
@@ -301,7 +308,7 @@ function rollPreviewDiceFace() {
 }
 
 // Item types that require selecting a target player before use
-const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door']);
+const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door', 'magic_flute', 'cupid_arrow', 'crimson_blade']);
 
 // Factions whose skill requires selecting a target player before activation
 const SKILL_TARGET_FACTIONS = new Set(['bai_hu']);
@@ -334,16 +341,17 @@ function shouldTriggerFirstBuffGuide(
   entry: { action_type: string; source: string; target: string; metadata?: Record<string, unknown> } | null,
   myPlayerId: string,
   buffGuideSeen: boolean,
-): boolean {
-  if (!entry || buffGuideSeen || !myPlayerId) return false;
-  if (entry.action_type !== 'add_buff' || entry.target !== myPlayerId) return false;
+): string | null {
+  if (!entry || buffGuideSeen || !myPlayerId) return null;
+  if (entry.action_type !== 'add_buff' || entry.target !== myPlayerId) return null;
 
   const buffType = getMetadataString(entry.metadata, 'buff_type');
-  if (!buffType) return false;
-  if (entry.source === 'item_reverse_clock_buff' && buffType === 'lost') return false;
+  if (!buffType) return null;
+  if (entry.source === 'item_reverse_clock_buff' && buffType === 'lost') return null;
 
   const definitions = useGameStore.getState().definitions;
-  return definitions?.buffs[buffType]?.is_hidden !== true;
+  if (definitions?.buffs[buffType]?.is_hidden === true) return null;
+  return buffType;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -425,6 +433,7 @@ export const BoardScene: React.FC = () => {
   const [checkpointGuideCellIndex, setCheckpointGuideCellIndex] = useState<number | null>(null);
   const [checkpointGuideAnchor, setCheckpointGuideAnchor] = useState<BoardGuideAnchor | null>(null);
   const [showBuffGuide, setShowBuffGuide] = useState(false);
+  const [buffGuideType, setBuffGuideType] = useState<string | null>(null);
   // 2. 新增：监听 Phaser 发过来的头像事件
   useEffect(() => {
     const handleAvatarUpdate = (event: Event) => {
@@ -790,6 +799,7 @@ export const BoardScene: React.FC = () => {
 
     const timeoutId = window.setTimeout(() => {
       setShowBuffGuide(false);
+      setBuffGuideType(null);
       useGameStore.getState().playNextEntry();
     }, BUFF_GUIDE_DURATION_MS);
 
@@ -1073,6 +1083,7 @@ export const BoardScene: React.FC = () => {
         setItemTargetSelection(null);
         setSkillTargetSelection(false);
         setShowBuffGuide(true);
+        setBuffGuideType(pendingFirstBuffGuide);
         return;
       }
       useGameStore.getState().playNextEntry();
@@ -1682,8 +1693,27 @@ export const BoardScene: React.FC = () => {
         {showBuffGuide && (
           <div style={{ ...styles.checkpointGuideCard, ...styles.buffGuideCard }} role="status" aria-live="polite">
             <div style={styles.checkpointGuideTextGroup}>
-              <p style={styles.checkpointGuideText}>Buff 会持续若干回合</p>
-              <p style={styles.checkpointGuideText}>影响你的属性和行动</p>
+              {buffGuideType ? (() => {
+                const buffDef = useGameStore.getState().definitions?.buffs[buffGuideType];
+                const desc = buffDef?.desc;
+                const name = buffDef?.name;
+                return desc ? (
+                  <>
+                    {name && <p style={styles.checkpointGuideText}>{name}</p>}
+                    <p style={styles.checkpointGuideText}>{desc}</p>
+                  </>
+                ) : (
+                  <>
+                    <p style={styles.checkpointGuideText}>Buff 会持续若干回合</p>
+                    <p style={styles.checkpointGuideText}>影响你的属性和行动</p>
+                  </>
+                );
+              })() : (
+                <>
+                  <p style={styles.checkpointGuideText}>Buff 会持续若干回合</p>
+                  <p style={styles.checkpointGuideText}>影响你的属性和行动</p>
+                </>
+              )}
             </div>
           </div>
         )}
