@@ -43,11 +43,22 @@ export default defineConfig(({ command }) => {
       chunkSizeWarningLimit: 1800,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom'],
-            'vendor-phaser': ['phaser'],
-            'vendor-nakama': ['@heroiclabs/nakama-js'],
-            'vendor-state': ['zustand'],
+          manualChunks(id) {
+            if (
+              id.includes('node_modules/react/') ||
+              id.includes('node_modules/react-dom/')
+            ) {
+              return 'vendor-react';
+            }
+            if (id.includes('node_modules/phaser/')) {
+              return 'vendor-phaser';
+            }
+            if (id.includes('node_modules/@heroiclabs/nakama-js/')) {
+              return 'vendor-nakama';
+            }
+            if (id.includes('node_modules/zustand/')) {
+              return 'vendor-state';
+            }
           },
         },
       },
