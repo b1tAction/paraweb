@@ -20,7 +20,15 @@ import {
   resolveCharacterProfile,
 } from '../characterRenderConfig';
 import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
-import { describeLogEntryEffect, getMetadataNumber } from '../logEntryPlayback';
+import {
+  describeLogEntryEffect,
+  FIRST_BUFF_DESCRIPTION_EXTRA_DELAY_MS,
+  FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS,
+  getMetadataNumber,
+  getMetadataString,
+  markBuffDescriptionSeen,
+  markItemDescriptionSeen,
+} from '../logEntryPlayback';
 import { LAYER_CHARACTER_BASE, LAYER_EFFECT_BASE, LAYER_EFFECT_TEXT_BASE, worldDepth } from '../renderLayers';
 import { isBossReflectDamage, playBossProfileAnimation, playBossReflectAnimation } from './bossAnimations';
 import type { BoardAnimationContext } from './eventAnimations';
@@ -75,6 +83,43 @@ export function shouldSuppressSettlementEffect(entry: LogEntry, settlementPlayer
   return ['damage', 'heal', 'fell_down', 'modify_lp', 'add_buff', 'remove_buff'].includes(entry.action_type);
 }
 
+type BoundsLike = { x: number; y: number; width: number; height: number };
+
+function boundsOverlap(a: BoundsLike, b: BoundsLike): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+function expandBounds(bounds: BoundsLike, padding: number): BoundsLike {
+  return {
+    x: bounds.x - padding,
+    y: bounds.y - padding,
+    width: bounds.width + padding * 2,
+    height: bounds.height + padding * 2,
+  };
+}
+
+function pauseOverlappingPlayerNames(
+  ctx: BoardAnimationContext,
+  descriptionText: Phaser.GameObjects.Text | null,
+): () => void {
+  if (!descriptionText || !ctx.playerNames) return () => {};
+
+  const descriptionBounds = expandBounds(descriptionText.getBounds(), 6);
+  const pausedNames = new Map<Phaser.GameObjects.Text, boolean>();
+
+  ctx.playerNames.forEach((nameText) => {
+    if (!nameText.active || !boundsOverlap(descriptionBounds, nameText.getBounds())) return;
+    pausedNames.set(nameText, nameText.visible);
+    nameText.setVisible(false);
+  });
+
+  return () => {
+    pausedNames.forEach((wasVisible, nameText) => {
+      if (nameText.active) nameText.setVisible(wasVisible);
+    });
+  };
+}
+
 // --- Character animation functions ---
 
 // Buff change animation: ring glow, marker pulse, and floating text
@@ -94,6 +139,9 @@ export function playBuffChangeAnimation(
   const point = getMarkerEffectPoint(marker, ctx, entry.target);
   const x = point.x;
   const y = point.y;
+  const hasDescription = Boolean(effect.description);
+  const textStartY = hasDescription ? y - 62 : y - 42;
+  const descriptionStartY = y - 34;
 
   // Ring glow
   const ring = ctx.scene.add.circle(x, y, 24, effect.color, 0.12);
@@ -121,7 +169,7 @@ export function playBuffChangeAnimation(
   });
 
   // Floating text (longer duration than before)
-  const text = ctx.scene.add.text(x, y - 42, effect.label, {
+  const text = ctx.scene.add.text(x, textStartY, effect.label, {
     fontFamily: GAME_FONT_FAMILY,
     fontSize: '22px',
     fontStyle: 'bold',
@@ -133,14 +181,39 @@ export function playBuffChangeAnimation(
   text.setOrigin(0.5, 0.5);
   text.setDepth(worldDepth(LAYER_EFFECT_TEXT_BASE, y));
 
+  const descriptionText = effect.description
+    ? ctx.scene.add.text(x, descriptionStartY, effect.description, {
+        fontFamily: GAME_FONT_FAMILY,
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: '#fff7d6',
+        align: 'center',
+        stroke: '#0b1020',
+        strokeThickness: 4,
+      })
+    : null;
+  descriptionText?.setOrigin(0.5, 0.5);
+  descriptionText?.setDepth(worldDepth(LAYER_EFFECT_TEXT_BASE, y));
+  const restorePausedPlayerNames = pauseOverlappingPlayerNames(ctx, descriptionText);
+
   ctx.tweens.add({
-    targets: text,
-    y: y - 88,
+    targets: descriptionText ? [text, descriptionText] : text,
+    y: descriptionText
+      ? (_target: unknown, _key: string, _value: number, index: number) => (index === 0 ? y - 102 : y - 74)
+      : y - 88,
     alpha: 0,
     scale: 1.15,
+    delay: descriptionText ? FIRST_BUFF_DESCRIPTION_EXTRA_DELAY_MS : 0,
     duration: 1200,
     ease: 'Cubic.easeOut',
-    onComplete: () => text.destroy(),
+    onComplete: () => {
+      if (entry.action_type === 'add_buff' && effect.description) {
+        markBuffDescriptionSeen(getMetadataString(entry.metadata, 'buff_type'));
+      }
+      restorePausedPlayerNames();
+      text.destroy();
+      descriptionText?.destroy();
+    },
   });
 }
 
@@ -161,12 +234,16 @@ export function playGenericLogEntryEffect(
   const point = getMarkerEffectPoint(marker, ctx, entry.target);
   const x = point.x;
   const y = point.y;
+  const hasDescription = Boolean(effect.description);
+  const descriptionLabel = effect.description ? `道具效果：${effect.description}` : null;
+  const textStartY = hasDescription ? y - 62 : y - 42;
+  const descriptionStartY = y - 34;
 
   const ring = ctx.scene.add.circle(x, y, 24, effect.color, 0.12);
   ring.setStrokeStyle(4, effect.color, 1);
   ring.setDepth(worldDepth(LAYER_EFFECT_BASE, y));
 
-  const text = ctx.scene.add.text(x, y - 42, effect.label, {
+  const text = ctx.scene.add.text(x, textStartY, effect.label, {
     fontFamily: GAME_FONT_FAMILY,
     fontSize: '22px',
     fontStyle: 'bold',
@@ -177,6 +254,21 @@ export function playGenericLogEntryEffect(
   });
   text.setOrigin(0.5, 0.5);
   text.setDepth(worldDepth(LAYER_EFFECT_TEXT_BASE, y));
+
+  const descriptionText = descriptionLabel
+    ? ctx.scene.add.text(x, descriptionStartY, descriptionLabel, {
+        fontFamily: GAME_FONT_FAMILY,
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: '#fff7d6',
+        align: 'center',
+        stroke: '#0b1020',
+        strokeThickness: 4,
+      })
+    : null;
+  descriptionText?.setOrigin(0.5, 0.5);
+  descriptionText?.setDepth(worldDepth(LAYER_EFFECT_TEXT_BASE, y));
+  const restorePausedPlayerNames = pauseOverlappingPlayerNames(ctx, descriptionText);
 
   ctx.tweens.add({
     targets: marker,
@@ -197,13 +289,21 @@ export function playGenericLogEntryEffect(
   });
 
   ctx.tweens.add({
-    targets: text,
-    y: y - 88,
+    targets: descriptionText ? [text, descriptionText] : text,
+    y: (_target: unknown, _key: string, _value: number, index: number) => (index === 0 ? y - 102 : y - 74),
     alpha: 0,
     scale: 1.15,
+    delay: descriptionText ? FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS : 0,
     duration: 1050,
     ease: 'Cubic.easeOut',
-    onComplete: () => text.destroy(),
+    onComplete: () => {
+      if (entry.action_type === 'draw_item' && effect.description) {
+        markItemDescriptionSeen(getMetadataString(entry.metadata, 'item_type'), entry.target);
+      }
+      restorePausedPlayerNames();
+      text.destroy();
+      descriptionText?.destroy();
+    },
   });
 }
 

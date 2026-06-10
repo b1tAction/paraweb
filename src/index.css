@@ -67,6 +67,51 @@ button:disabled {
   box-shadow: none;
 }
 
+.paradice-item-guide-got-it:hover,
+.paradice-item-guide-got-it:focus,
+.paradice-item-guide-got-it:focus-visible,
+.paradice-item-guide-got-it:active {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  outline: none;
+  transform: none;
+}
+
+@keyframes paradice-checkpoint-guide-pointer-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+
+  50% {
+    translate: 0 6px;
+  }
+}
+
+.paradice-checkpoint-guide-pointer-float {
+  animation: paradice-checkpoint-guide-pointer-float 1.2s ease-in-out infinite;
+}
+
+@keyframes paradice-buff-guide-glow {
+  0%,
+  100% {
+    scale: 1;
+  }
+
+  50% {
+    scale: 1.04;
+  }
+}
+
+.paradice-buff-guide-glow {
+  animation: paradice-buff-guide-glow 0.9s ease-in-out infinite;
+}
+
+.paradice-hidden-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes paradice-dice-spin {
   0% {
     transform: rotate(0deg) scale(1);
@@ -270,6 +315,49 @@ button:disabled {
   image-rendering: pixelated;
   animation: paradice-reverse-clock-sprite 1.8s steps(29) reverse both;
   will-change: background-position-x;
+}
+
+@keyframes paradice-wish-bead-effect {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+
+  20% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  75% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.3);
+  }
+}
+
+.paradice-wish-bead-effect {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 32;
+  pointer-events: none;
+  animation: paradice-wish-bead-effect 3s cubic-bezier(0.19, 0.92, 0.26, 1) both;
+  will-change: transform, opacity;
+}
+
+.paradice-wish-bead-effect__gif {
+  width: 280px;
+  height: 280px;
+  object-fit: contain;
+  image-rendering: auto;
 }
 
 @keyframes paradice-figure-idle {

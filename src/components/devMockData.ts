@@ -305,11 +305,29 @@ export const MOCK_DEFINITIONS: protocol.DefinitionsConfig = {
     dominance: { type: 'dominance', evaluation: 95, category: 'good', english_name: 'Dominance', name: '威势', desc: '青龙阵营增益，增益效果翻倍', duration: 1, is_positive: true, is_negative: false, is_hidden: false, is_boss: false, is_faction: true, is_draw: false },
     rob_luck: { type: 'rob_luck', evaluation: 40, category: 'bad', english_name: 'RobLuck', name: '劫运', desc: '白虎阵营增益，抢夺目标好运', duration: 1, is_positive: false, is_negative: true, is_hidden: true, is_boss: false, is_faction: true, is_draw: false },
     suppress: { type: 'suppress', evaluation: 80, category: 'good', english_name: 'Suppress', name: '鎮厄', desc: '玄武阵营增益，1回合免疫恶性事件和负面Buff', duration: 1, is_positive: true, is_negative: false, is_hidden: false, is_boss: false, is_faction: true, is_draw: false },
+    sinking: { type: 'sinking', evaluation: 20, category: 'bad', english_name: 'Sinking', name: '沉沦', desc: '接下来2回合与某人共享恶性的Action', duration: 2, is_positive: false, is_negative: true, is_hidden: true, is_boss: false, is_faction: false, is_draw: false },
+    eternal: { type: 'eternal', evaluation: 80, category: 'good', english_name: 'Eternal', name: '永恒', desc: '接下来2回合与某人共享良性的Action', duration: 2, is_positive: true, is_negative: false, is_hidden: true, is_boss: false, is_faction: false, is_draw: false },
+    fearless: { type: 'fearless', evaluation: 40, category: 'bad', english_name: 'Fearless', name: '无畏', desc: '血量立刻减至1点，3回合内血量保持不变', duration: 3, is_positive: false, is_negative: true, is_hidden: false, is_boss: false, is_faction: false, is_draw: false },
+    golden_body: { type: 'golden_body', evaluation: 80, category: 'good', english_name: 'GoldenBody', name: '金身', desc: '接下来2回合受到的伤害减半', duration: 2, is_positive: true, is_negative: false, is_hidden: false, is_boss: false, is_faction: false, is_draw: false },
+    wrath: { type: 'wrath', evaluation: 70, category: 'good', english_name: 'Wrath', name: '嗔怒', desc: '接下来2回合造成的伤害+1', duration: 2, is_positive: true, is_negative: false, is_hidden: false, is_boss: false, is_faction: false, is_draw: false },
+    savior: { type: 'savior', evaluation: 50, category: 'neutral', english_name: 'Savior', name: '庇护', desc: '抵挡一次致命伤害', duration: -1, is_positive: false, is_negative: false, is_hidden: true, is_boss: false, is_faction: false, is_draw: false },
+    sage_protection: { type: 'sage_protection', evaluation: 50, category: 'neutral', english_name: 'SageProtection', name: '贤者的庇护', desc: '原地复活，不回到检查点', duration: -1, is_positive: false, is_negative: false, is_hidden: true, is_boss: false, is_faction: false, is_draw: false },
   },
   items: {
     reverse_clock: { type: 'reverse_clock', evaluation: 75, category: 'good', english_name: 'ReverseClock', name: '反方向的钟', desc: '给予指定玩家迷途Buff' },
     any_door: { type: 'any_door', evaluation: 50, category: 'neutral', english_name: 'AnyDoor', name: '任意门', desc: '前往指定玩家身边' },
     dice_upgrade: { type: 'dice_upgrade', evaluation: 80, category: 'good', english_name: 'DiceUpgrade', name: '骰子升级卡', desc: '将当前骰子升级为更高等级' },
+    magic_flute: { type: 'magic_flute', evaluation: 40, category: 'bad', english_name: 'MagicFlute', name: '魔笛', desc: '与某人共同获得沉沦Buff，共享恶性Action' },
+    cupid_arrow: { type: 'cupid_arrow', evaluation: 70, category: 'good', english_name: 'CupidArrow', name: '丘比特之箭', desc: '与某人共同获得永恒Buff，共享良性Action' },
+    crimson_blade: { type: 'crimson_blade', evaluation: 50, category: 'neutral', english_name: 'CrimsonBlade', name: '猩红之刃', desc: '损失一半血量，对目标造成等量伤害' },
+    wish_bead: { type: 'wish_bead', evaluation: 80, category: 'good', english_name: 'WishBead', name: '摩愿佛珠', desc: '获得神眷Buff' },
+    rainwater_vessel: { type: 'rainwater_vessel', evaluation: 75, category: 'good', english_name: 'RainwaterVessel', name: '萍雨水盂', desc: '获得甘霖Buff' },
+    vajra_seal: { type: 'vajra_seal', evaluation: 80, category: 'good', english_name: 'VajraSeal', name: '金刚法印', desc: '获得金身Buff' },
+    foolish_ring: { type: 'foolish_ring', evaluation: 50, category: 'neutral', english_name: 'FoolishRing', name: '痴愚煞戒', desc: 'HP+1，LP-1' },
+    greedy_ring: { type: 'greedy_ring', evaluation: 50, category: 'neutral', english_name: 'GreedyRing', name: '贪婪煞戒', desc: 'LP+1，HP-1' },
+    wrath_ring: { type: 'wrath_ring', evaluation: 40, category: 'bad', english_name: 'WrathRing', name: '嗔恨煞戒', desc: 'HP-1，获得嗔怒Buff' },
+    named_blade: { type: 'named_blade', evaluation: 95, category: 'good', english_name: 'NamedBlade', name: '名刀司命', desc: '抵挡一次致命伤害' },
+    sage_protection: { type: 'sage_protection', evaluation: 80, category: 'good', english_name: 'SageProtection', name: '贤者的庇护', desc: '原地复活' },
   },
   mini_games: {
     dice_race: { type: 'dice_race', mode: 'frontend', available: true, english_name: 'DiceRace', name: '骰子竞速', desc: '掷骰子比大小，按分数排名' },
@@ -356,6 +374,234 @@ export const MOCK_MINI_GAME_RESULT: protocol.MiniGameResult = {
     { player_id: MOCK_UUID_BAIHU, display_name: '白虎将', rank: 4 },
   ],
 };
+
+// ========== Item Definitions Helper ==========
+
+export const TARGETABLE_ITEM_TYPES = new Set(['reverse_clock', 'any_door', 'magic_flute', 'cupid_arrow', 'crimson_blade']);
+
+/** All item types from MOCK_DEFINITIONS, sorted by evaluation descending */
+export const ALL_ITEM_TYPES = Object.entries(MOCK_DEFINITIONS.items)
+  .sort(([, a], [, b]) => b.evaluation - a.evaluation)
+  .map(([type, def]) => ({
+    type,
+    name: def.name,
+    desc: def.desc,
+    targetable: TARGETABLE_ITEM_TYPES.has(type),
+  }));
+
+/**
+ * Add an item of the given type to a specified player, and also
+ * register it in availableActions so the Board UI can display it
+ * as a usable item.
+ */
+export function addItemToPlayer(itemType: string, targetPlayerId?: string): void {
+  const store = useGameStore.getState();
+  const itemDef = MOCK_DEFINITIONS.items[itemType];
+  if (!itemDef) return;
+
+  const targetable = TARGETABLE_ITEM_TYPES.has(itemType);
+  const itemId = `dev-item-${itemType}-${Date.now()}`;
+  const newItem: protocol.Item = { id: itemId, type: itemType, name: itemDef.name, targetable };
+
+  // Update players: add item to the target player
+  const players = store.players.map((player) =>
+    player.player_id === (targetPlayerId ?? store.myPlayerId ?? store.currentPlayerId)
+      ? { ...player, items: [...player.items, newItem] }
+      : player,
+  );
+  store.setPlayers(players);
+
+  // Update availableActions: add item so Board UI shows it
+  const currentAvailable = store.availableActions ?? {
+    items: [],
+    can_use_skill: true,
+    dice_type: 'copper',
+  };
+  store.setAvailableActions({
+    ...currentAvailable,
+    items: [...currentAvailable.items, newItem],
+  });
+}
+
+/**
+ * Remove an item from the player's items and from availableActions,
+ * then inject the appropriate animation LogEntries for that item type.
+ */
+export function useItemDev(itemId: string, targetId?: string): void {
+  const store = useGameStore.getState();
+  const myId = store.myPlayerId ?? store.currentPlayerId;
+  if (!myId) return;
+
+  // Find the item on the player
+  const player = store.players.find((p) => p.player_id === myId);
+  if (!player) return;
+  const item = player.items.find((i) => i.id === itemId);
+  if (!item) return;
+
+  // Remove item from player.items
+  store.setPlayers(
+    store.players.map((p) =>
+      p.player_id === myId ? { ...p, items: p.items.filter((i) => i.id !== itemId) } : p,
+    ),
+  );
+
+  // Remove item from availableActions.items
+  if (store.availableActions) {
+    store.setAvailableActions({
+      ...store.availableActions,
+      items: store.availableActions.items.filter((i) => i.id !== itemId),
+    });
+  }
+
+  // Build animation entries for this item type
+  const timestamp = new Date().toISOString();
+  const targetPlayer = store.players.find((p) => p.player_id === (targetId ?? myId)) ?? player;
+  const targetPosition = targetPlayer.position;
+  const sourcePosition = player.position;
+
+  function makeEntry(actionType: string, metadata: Record<string, unknown>, overrides?: Partial<protocol.LogEntry>): protocol.LogEntry {
+    return {
+      timestamp,
+      type: 'action',
+      action_type: actionType,
+      target: targetPlayer.player_id,
+      source: `item_${item!.type}`,
+      metadata,
+      ...overrides,
+    };
+  }
+
+  // First entry: use_item announcement
+  const useItemEntry = makeEntry('use_item', { item_type: item.type });
+
+  // Effect entries depend on item type
+  const effectEntries: protocol.LogEntry[] = [];
+
+  switch (item.type) {
+    case 'any_door':
+      // Teleport to target player's position
+      effectEntries.push(
+        makeEntry('teleport', {
+          item_type: 'any_door',
+          from_pos: sourcePosition,
+          to_pos: targetPosition,
+        }, { target: myId }),
+      );
+      break;
+
+    case 'reverse_clock':
+      // Give target player the "lost" buff
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'reverse_clock', buff_type: 'lost', duration: 2 }),
+      );
+      break;
+
+    case 'dice_upgrade':
+      const fromDice = store.availableActions?.dice_type || 'wood';
+      const toDice = getNextDevDiceType(fromDice);
+      effectEntries.push(
+        makeEntry('dice_upgrade', { from_dice: fromDice, to_dice: toDice }, { target: myId }),
+      );
+      break;
+
+    case 'magic_flute':
+      // Both caster and target get "sinking" buff
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'magic_flute', buff_type: 'sinking', duration: 2 }, { target: myId }),
+        makeEntry('add_buff', { item_type: 'magic_flute', buff_type: 'sinking', duration: 2 }),
+      );
+      break;
+
+    case 'cupid_arrow':
+      // Both caster and target get "eternal" buff
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'cupid_arrow', buff_type: 'eternal', duration: 2 }, { target: myId }),
+        makeEntry('add_buff', { item_type: 'cupid_arrow', buff_type: 'eternal', duration: 2 }),
+      );
+      break;
+
+    case 'crimson_blade':
+      // Caster loses half HP, target takes equivalent damage
+      const halfHp = Math.floor(player.hp / 2);
+      effectEntries.push(
+        makeEntry('damage', { item_type: 'crimson_blade', hp_change: -halfHp }, { target: myId }),
+        makeEntry('damage', { item_type: 'crimson_blade', hp_change: -halfHp }),
+      );
+      break;
+
+    case 'wish_bead':
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'wish_bead', buff_type: 'divine', duration: 3 }, { target: myId }),
+      );
+      break;
+
+    case 'rainwater_vessel':
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'rainwater_vessel', buff_type: 'rain', duration: 4 }, { target: myId }),
+      );
+      break;
+
+    case 'vajra_seal':
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'vajra_seal', buff_type: 'golden_body', duration: 2 }, { target: myId }),
+      );
+      break;
+
+    case 'foolish_ring':
+      effectEntries.push(
+        makeEntry('heal', { item_type: 'foolish_ring', hp_change: 1 }, { target: myId }),
+        makeEntry('modify_lp', { item_type: 'foolish_ring', lp_change: -1 }, { target: myId }),
+      );
+      break;
+
+    case 'greedy_ring':
+      effectEntries.push(
+        makeEntry('modify_lp', { item_type: 'greedy_ring', lp_change: 1 }, { target: myId }),
+        makeEntry('damage', { item_type: 'greedy_ring', hp_change: -1 }, { target: myId }),
+      );
+      break;
+
+    case 'wrath_ring':
+      effectEntries.push(
+        makeEntry('damage', { item_type: 'wrath_ring', hp_change: -1 }, { target: myId }),
+        makeEntry('add_buff', { item_type: 'wrath_ring', buff_type: 'wrath', duration: 2 }, { target: myId }),
+      );
+      break;
+
+    case 'named_blade':
+      // Passive: gives savior buff (blocks one fatal damage)
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'named_blade', buff_type: 'savior', duration: -1 }, { target: myId }),
+      );
+      break;
+
+    case 'sage_protection':
+      // Passive: gives sage_protection buff (revive in-place)
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'sage_protection', buff_type: 'sage_protection', duration: -1 }, { target: myId }),
+      );
+      break;
+  }
+
+  // Inject all entries (use_item announcement + effect entries)
+  const allEntries = [useItemEntry, ...effectEntries];
+  store.addPendingEntries(allEntries);
+}
+
+function getNextDevDiceType(diceType: string): string {
+  switch (diceType) {
+    case 'wood':
+      return 'copper';
+    case 'copper':
+      return 'silver';
+    case 'silver':
+      return 'gold';
+    case 'gold':
+      return 'gold';
+    default:
+      return 'copper';
+  }
+}
 
 // ========== Inject Functions ==========
 

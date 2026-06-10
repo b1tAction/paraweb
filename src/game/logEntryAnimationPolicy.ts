@@ -7,11 +7,15 @@ import {
   DICE_ROLL_MIN_MS,
   DICE_UPGRADE_FLASH_MS,
   DICE_UPGRADE_RESULT_MS,
+  FIRST_BUFF_DESCRIPTION_EXTRA_DELAY_MS,
+  FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS,
   getMetadataBoolean,
   getMetadataNumber,
   getMetadataNumberArray,
   getMetadataString,
   MOVE_STEP_MS,
+  shouldShowFirstBuffDescription,
+  shouldShowFirstItemDescription,
 } from './logEntryPlayback';
 
 export type LogEntryAnimationContext = {
@@ -66,6 +70,14 @@ export function isReverseClockLostBuffEntry(entry?: LogEntry | null): entry is L
   );
 }
 
+export function isWishBeadBuffEntry(entry?: LogEntry | null): entry is LogEntry {
+  return Boolean(
+    entry &&
+      entry.action_type === 'add_buff' &&
+      entry.source === 'item_wish_bead_buff',
+  );
+}
+
 export function isAnyDoorTeleportEntry(entry?: LogEntry | null): entry is LogEntry {
   return Boolean(entry && entry.action_type === 'teleport' && entry.source === 'item_any_door');
 }
@@ -98,9 +110,30 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
       return (config.duration || DEFAULT_ACTION_ANIMATION_DELAY_MS) + EFFECT_START_GAP_MS + DRAW_EVENT_EFFECT_EXTRA_MS;
     },
   },
+  draw_item: {
+    renderOnBoard: true,
+    delayMs: ({ entry }) => {
+      const itemType = getMetadataString(entry.metadata, 'item_type');
+      return (
+        DEFAULT_ACTION_ANIMATION_DELAY_MS +
+        (shouldShowFirstItemDescription(itemType, entry.target) ? FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS : 0)
+      );
+    },
+  },
   add_buff: {
-    renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry),
-    delayMs: ({ entry }) => (isReverseClockLostBuffEntry(entry) ? 1800 : 1200),
+    renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry) && !isWishBeadBuffEntry(entry),
+    delayMs: ({ entry }) => {
+      if (entry.source === 'item_magic_flute_buff') return 2000;
+      if (entry.source === 'item_cupid_arrow_buff') return 2000;
+      if (entry.source === 'item_wish_bead_buff') return 3000;
+      const isReverseClockLost =
+        entry.action_type === 'add_buff' &&
+        entry.source === 'item_reverse_clock_buff' &&
+        getMetadataString(entry.metadata, 'buff_type') === 'lost';
+      if (isReverseClockLost) return 1800;
+      const buffType = getMetadataString(entry.metadata, 'buff_type');
+      return 1200 + (shouldShowFirstBuffDescription(buffType, entry.target) ? FIRST_BUFF_DESCRIPTION_EXTRA_DELAY_MS : 0);
+    },
   },
   remove_buff: {
     renderOnBoard: true,
@@ -184,6 +217,12 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   const currentActionType = context.entry.action_type;
   const nextActionType = context.nextEntry?.action_type;
   const currentEventType = getMetadataString(context.entry.metadata, 'event_type');
+  const currentSource = context.entry.source;
+
+  // Crimson blade damage has a longer animation (splatter effect).
+  if (currentActionType === 'damage' && currentSource === 'item_crimson_blade') {
+    return 2000;
+  }
 
   // Thunder draw_event should not be skipped by immediate damage chaining.
   // Total: popup 2800ms + gap 200ms + lightning effect ~700ms + hit pause 200ms = 3900ms

@@ -1,13 +1,15 @@
+import { useGameStore } from '../store/gameStore';
 import type { DefinitionsConfig, LogEntry, Player } from '../types/protocol';
 import { isBossPlayer } from './bossVisualConfig';
 import { getEventEffectConfig } from './eventAnimations';
-import { useGameStore } from '../store/gameStore';
 
 export const DICE_ROLL_MIN_MS = 1200;
 export const DICE_RESULT_DISPLAY_MS = 1200;
 export const DICE_UPGRADE_FLASH_MS = 720;
 export const DICE_UPGRADE_RESULT_MS = 980;
 export const DEFAULT_ACTION_ANIMATION_DELAY_MS = 2000;
+export const FIRST_ITEM_DESCRIPTION_EXTRA_DELAY_MS = 1800;
+export const FIRST_BUFF_DESCRIPTION_EXTRA_DELAY_MS = 1800;
 export const MOVE_STEP_MS = 220;
 export const PLAYER_STAT_MAX = 8;
 
@@ -64,10 +66,95 @@ export type DiceRollResult = {
 
 export type EffectDescriptor = {
   label: string;
+  description?: string;
   color: number;
   textColor: string;
   iconEmoji?: string;
 };
+
+const ITEM_EFFECT_DESCRIPTIONS: Record<string, string> = {
+  reverse_clock: '让目标玩家朝反方向移动',
+  any_door: '传送至目标玩家所在的位置',
+  dice_upgrade: '提升骰子的品质',
+  magic_flute: '与某人共同获得沉沦Buff，共享恶性Action',
+  cupid_arrow: '与某人共同获得永恒Buff，共享良性Action',
+  crimson_blade: '损失一半的血量，对某人造成损失血量的伤害',
+  wish_bead: '获得神眷Buff',
+  rainwater_vessel: '获得甘霖Buff',
+  vajra_seal: '获得金身Buff',
+  foolish_ring: 'HP+1，LP-1',
+  greedy_ring: 'LP+1，HP-1',
+  wrath_ring: 'HP-1，获得嗔怒Buff',
+  named_blade: '抵挡一次致命伤害',
+  sage_protection: '原地复活',
+};
+
+const BUFF_EFFECT_DESCRIPTIONS: Record<string, string> = {
+  corrupt: '每 2 回合 HP -1，持续 4 回合',
+  curse: 'LP -1，持续 3 回合',
+  poison: '每回合触发恶性事件，持续 3 回合',
+  lost: '下一回合反向移动',
+  divine: 'LP +1，持续 3 回合',
+  exorcism: '免疫毒瘴，持续 5 回合',
+  rain: '每 2 回合 HP +1，持续 4 回合',
+  hidden: '免疫任意事件与道具，持续 1 回合',
+  fire: '每 3 回合 LP +1',
+  thorns: '受伤后反弹 30% 伤害，持续 2 回合',
+  sinking: '接下来2回合与某人共享恶性的Action',
+  eternal: '接下来2回合与某人共享良性的Action',
+  fearless: '血量立刻减至1点，3回合内血量保持不变',
+  golden_body: '接下来2回合受到的伤害减半',
+  wrath: '接下来2回合造成的伤害+1',
+  savior: '抵挡一次致命伤害',
+  sage_protection: '原地复活，不回到检查点',
+};
+
+export function getItemEffectDescription(itemType: string, definitions?: DefinitionsConfig | null) {
+  return definitions?.items[itemType]?.desc || ITEM_EFFECT_DESCRIPTIONS[itemType] || '';
+}
+
+export function getBuffEffectDescription(buffType: string, definitions?: DefinitionsConfig | null) {
+  return definitions?.buffs[buffType]?.desc || BUFF_EFFECT_DESCRIPTIONS[buffType] || '';
+}
+
+function itemDescriptionSeenKey(scope: 'global' | 'self', itemType: string) {
+  return `${scope}:${itemType}`;
+}
+
+function isSelfTarget(targetPlayerId: string) {
+  const myPlayerId = useGameStore.getState().myPlayerId;
+  return Boolean(myPlayerId && targetPlayerId === myPlayerId);
+}
+
+export function shouldShowFirstItemDescription(itemType: string, targetPlayerId: string) {
+  const definitions = useGameStore.getState().definitions;
+  if (!itemType || !getItemEffectDescription(itemType, definitions)) return false;
+  const { seenItemDescriptionTypes } = useGameStore.getState();
+  const scope = isSelfTarget(targetPlayerId) ? 'self' : 'global';
+  return !seenItemDescriptionTypes.includes(itemDescriptionSeenKey(scope, itemType));
+}
+
+export function markItemDescriptionSeen(itemType: string, targetPlayerId: string) {
+  if (!itemType) return;
+  const isSelf = isSelfTarget(targetPlayerId);
+  const keys = [itemDescriptionSeenKey(isSelf ? 'self' : 'global', itemType)];
+  if (isSelf) keys.push(itemDescriptionSeenKey('global', itemType));
+  keys.forEach((key) => {
+    useGameStore.getState().markItemDescriptionSeen(key);
+  });
+}
+
+export function shouldShowFirstBuffDescription(buffType: string, targetPlayerId: string) {
+  const definitions = useGameStore.getState().definitions;
+  if (!buffType || !getBuffEffectDescription(buffType, definitions) || !isSelfTarget(targetPlayerId)) return false;
+  const { seenBuffDescriptionTypes } = useGameStore.getState();
+  return !seenBuffDescriptionTypes.includes(buffType);
+}
+
+export function markBuffDescriptionSeen(buffType: string) {
+  if (!buffType) return;
+  useGameStore.getState().markBuffDescriptionSeen(buffType);
+}
 
 export function getMetadataNumber(metadata: Record<string, unknown> | undefined, key: string) {
   const value = metadata?.[key];
@@ -272,7 +359,14 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     case 'modify_lp':
       return { label: `LP ${signed(num('lp_change'))}`, color: 0x42a5f5, textColor: '#e3f2fd' };
     case 'add_buff':
-      return { label: `+${buffName(str('buff_type'))}`, color: 0x7e57c2, textColor: '#f3e5f5' };
+      return {
+        label: `+${buffName(str('buff_type'))}`,
+        description: shouldShowFirstBuffDescription(str('buff_type'), entry.target)
+          ? getBuffEffectDescription(str('buff_type'), definitions)
+          : undefined,
+        color: 0x7e57c2,
+        textColor: '#f3e5f5',
+      };
     case 'remove_buff':
       return { label: `-${buffName(str('buff_type'))}`, color: 0xff7043, textColor: '#fff3e0' };
     case 'draw_event': {
@@ -287,11 +381,16 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     }
     case 'draw_item': {
       const itemType = str('item_type');
-      return { label: `获得 ${itemName(itemType)}`, color: 0xffca28, textColor: '#fffde7' };
+      return {
+        label: `获得道具「${itemName(itemType)}」`,
+        description: shouldShowFirstItemDescription(itemType, entry.target) ? getItemEffectDescription(itemType, definitions) : undefined,
+        color: 0xffca28,
+        textColor: '#fffde7',
+      };
     }
     case 'draw_buff': {
       const buffType = str('buff_type');
-      return { label: `获得 ${buffName(buffType)}`, color: 0x7e57c2, textColor: '#f3e5f5' };
+      return { label: `获得「${buffName(buffType)}」Buff`, color: 0x7e57c2, textColor: '#f3e5f5' };
     }
     case 'steal_buff': {
       const buffType = str('buff_type');
@@ -413,6 +512,14 @@ export function formatChangeReason(entry: LogEntry, definitions?: DefinitionsCon
     TurnEndRespawn: '回合结束复活',
     FragileCell: '脆弱格',
     DiceRollFellDown: '移动跌落',
+    system_turn_end_respawn: '回合结束复活',
+    system_boss_attack_respawn: 'Boss 攻击复活',
+    system_boss_skill_respawn: 'Boss 技能复活',
+    system_checkpoint_treasure: '检查点宝箱',
+    system_dice_roll_checkpoint: '经过检查点',
+    system_dice_roll_fell_down: '移动跌落',
+    fragile_cell: '脆弱格',
+    death_respawn: '死亡复活',
     system: '系统',
     System: '系统',
     normal: '普通格',

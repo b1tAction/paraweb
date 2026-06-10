@@ -14,6 +14,7 @@ import {
   getLogEntryAnimationDelay,
   isLogEntryAnimationCandidate,
   isReverseClockLostBuffEntry,
+  isWishBeadBuffEntry,
   shouldRenderBoardLogEntryAnimation,
 } from '../game/logEntryAnimationPolicy';
 import {
@@ -33,8 +34,9 @@ import { gameService } from '../service/NakamaService';
 import { Scene, useGameStore } from '../store/gameStore';
 import type { Available, Item, Player } from '../types/protocol';
 import { assetCssUrl, assetUrl } from '../utils/assets';
-import { getDisambiguatedDisplayName } from '../utils/displayName';
 import { playDiceSfx } from '../utils/diceSfx';
+import { useItemDev } from '../components/devMockData';
+import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const SHOW_DEV_DEBUG_UI = import.meta.env.DEV;
 
@@ -56,15 +58,44 @@ const PLAYER_CARD_IMAGES: Record<string, string> = {
   bai_hu: assetUrl('assets/ui/player_card_baihu.png'),
   xuan_wu: assetUrl('assets/ui/player_card_xuanwu.png'),
 };
-const BOTTOM_BAR_ITEM_ICONS: Record<string, string> = {
-  any_door: 'any_door.png',
-  dice_upgrade: 'dice_upgrade.png',
-  reverse_clock: 'reverse_clock.png',
+const ITEM_TOOLTIPS: Record<string, string> = {
+  reverse_clock: '【反方向的钟】\n给目标玩家添加「迷途」Buff，使其下次移动时朝反方向前进',
+  any_door: '【任意门】\n传送至目标玩家所在的位置',
+  dice_upgrade: '【骰子升级卡】\n将当前骰子提升一级：木 → 铜 → 银 → 金',
+  magic_flute: '【魔笛】\n与某人共同获得沉沦Buff，共享恶性Action',
+  cupid_arrow: '【丘比特之箭】\n与某人共同获得永恒Buff，共享良性Action',
+  crimson_blade: '【猩红之刃】\n损失一半血量，对目标造成等量伤害',
+  wish_bead: '【摩愿佛珠】\n获得神眷Buff',
+  rainwater_vessel: '【萍雨水盂】\n获得甘霖Buff',
+  vajra_seal: '【金刚法印】\n获得金身Buff',
+  foolish_ring: '【痴愚煞戒】\nHP+1，LP-1',
+  greedy_ring: '【贪婪煞戒】\nLP+1，HP-1',
+  wrath_ring: '【嗔恨煞戒】\nHP-1，获得嗔怒Buff',
+  named_blade: '【名刀司命】\n抵挡一次致命伤害',
+  sage_protection: '【贤者的庇护】\n原地复活',
 };
 const FACTION_SKILL_ICONS: Record<string, string> = {
   qing_long: assetUrl('assets/buff/dominance.png'),
   bai_hu: assetUrl('assets/buff/rob_luck.png'),
   xuan_wu: assetUrl('assets/buff/suppress.png'),
+};
+const FACTION_SKILL_GUIDES: Record<string, { skillName: string; effect: string; tooltip: string }> = {
+  qing_long: {
+    skillName: '威势',
+    effect: '使有益效果翻倍',
+    tooltip: '【威势】\n每 2 回合充能\n发动期间对 Boss 的伤害、受到的治疗、LP 增益都会「翻倍」',
+  },
+  bai_hu: {
+    skillName: '劫运',
+    effect: '夺走其他玩家获得的好运',
+    tooltip:
+      '【劫运】\n每 2 回合充能\n选择一名目标玩家，在接下来的一回合内\n其获得的道具、正面 Buff、受到的治疗、LP 增益都会「转移给你」',
+  },
+  xuan_wu: {
+    skillName: '镇厄',
+    effect: '可以阻止坏事件和负面 Buff',
+    tooltip: '【镇厄】\n每 2 回合充能\n发动后阻挡坏事件和负面 Buff',
+  },
 };
 function isBossBattleTurn(turnState: string) {
   return turnState === 'turn_boss_battle' || turnState === 'TurnBossBattle';
@@ -104,11 +135,20 @@ function getPlayerCardImage(faction: string) {
 }
 
 function getBottomBarItemIcon(type: string) {
-  return assetUrl(`assets/bottom_bar/${BOTTOM_BAR_ITEM_ICONS[type] ?? `${type}.png`}`);
+  return assetUrl(`assets/bottom_bar/${type}.png`);
+}
+
+function getItemTooltip(item: Item) {
+  const { definitions } = useGameStore.getState();
+  return definitions?.items[item.type]?.desc || ITEM_TOOLTIPS[item.type] || item.name;
 }
 
 function getFactionSkillIconSrc(faction: string) {
   return FACTION_SKILL_ICONS[faction];
+}
+
+function getFactionSkillGuide(faction: string) {
+  return FACTION_SKILL_GUIDES[faction] ?? null;
 }
 
 function getLogEntryKey(entry: { timestamp: string; action_type: string; target: string; source: string }) {
@@ -129,6 +169,16 @@ function getDiceAssetType(diceType: string) {
   return diceType === 'gold' || diceType === 'silver' || diceType === 'copper' || diceType === 'wood'
     ? diceType
     : 'wood';
+}
+
+function getDiceActionLabel(diceType: string) {
+  const diceNames: Record<string, string> = {
+    gold: '金',
+    silver: '银',
+    copper: '铜',
+    wood: '木',
+  };
+  return `投「${diceNames[getDiceAssetType(diceType)] ?? diceType}」骰子`;
 }
 
 function getDiceRotateSrc(diceType: string) {
@@ -260,10 +310,55 @@ function rollPreviewDiceFace() {
 }
 
 // Item types that require selecting a target player before use
-const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door']);
+const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door', 'magic_flute', 'cupid_arrow', 'crimson_blade']);
 
 // Factions whose skill requires selecting a target player before activation
 const SKILL_TARGET_FACTIONS = new Set(['bai_hu']);
+const CHECKPOINT_GUIDE_DURATION_MS = 4500;
+const BUFF_GUIDE_DURATION_MS = 3600;
+const CHECKPOINT_DRAW_ITEM_SOURCES = new Set(['system_checkpoint_treasure', 'CheckpointTreasure']);
+const CHECKPOINT_RESPAWN_SOURCES = new Set([
+  'system_turn_end_respawn',
+  'system_boss_attack_respawn',
+  'system_boss_skill_respawn',
+  'death_respawn',
+  'TurnEndRespawn',
+]);
+
+type CheckpointGuide = 'draw' | 'respawn';
+type BoardGuideAnchor = {
+  cellIndex: number;
+  x: number;
+  y: number;
+};
+
+function getCheckpointGuideForEntry(entry: { action_type: string; source: string } | null): CheckpointGuide | null {
+  if (!entry) return null;
+  if (entry.action_type === 'draw_item' && CHECKPOINT_DRAW_ITEM_SOURCES.has(entry.source)) return 'draw';
+  if (entry.action_type === 'respawn' && CHECKPOINT_RESPAWN_SOURCES.has(entry.source)) return 'respawn';
+  return null;
+}
+
+function shouldTriggerFirstBuffGuide(
+  entry: { action_type: string; source: string; target: string; metadata?: Record<string, unknown> } | null,
+  myPlayerId: string,
+  buffGuideSeen: boolean,
+): string | null {
+  if (!entry || buffGuideSeen || !myPlayerId) return null;
+  if (entry.action_type !== 'add_buff' || entry.target !== myPlayerId) return null;
+
+  const buffType = getMetadataString(entry.metadata, 'buff_type');
+  if (!buffType) return null;
+  if (entry.source === 'item_reverse_clock_buff' && buffType === 'lost') return null;
+
+  const definitions = useGameStore.getState().definitions;
+  if (definitions?.buffs[buffType]?.is_hidden === true) return null;
+  return buffType;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
 
 export const BoardScene: React.FC = () => {
   const {
@@ -284,6 +379,11 @@ export const BoardScene: React.FC = () => {
     diceAssignments,
     gameOver,
     pendingScene,
+    itemActionGuideSeen,
+    skillActionGuideSeen,
+    checkpointDrawGuideSeen,
+    checkpointRespawnGuideSeen,
+    buffGuideSeen,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
   const [diceUpgradeView, setDiceUpgradeView] = useState<DiceUpgradeView>({ status: 'idle' });
@@ -321,12 +421,22 @@ export const BoardScene: React.FC = () => {
   const debugLogContentRef = useRef<HTMLDivElement>(null);
   const playerCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const handledReverseClockFlightKeyRef = useRef('');
+  const wasShowingItemActionGuideRef = useRef(false);
   const [reverseClockBuffFlight, setReverseClockBuffFlight] = useState<ReverseClockBuffFlight | null>(null);
+  const [wishBeadEffectKey, setWishBeadEffectKey] = useState<string | null>(null);
 
   // 1. 新增：存储所有玩家的头像 Base64 (以 playerId 为 key)
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [itemTargetSelection, setItemTargetSelection] = useState<Item | null>(null);
   const [skillTargetSelection, setSkillTargetSelection] = useState(false);
+  const [showItemActionGuide, setShowItemActionGuide] = useState(false);
+  const [showSkillActionGuide, setShowSkillActionGuide] = useState(false);
+  const [pendingSkillActionGuide, setPendingSkillActionGuide] = useState(false);
+  const [checkpointGuide, setCheckpointGuide] = useState<CheckpointGuide | null>(null);
+  const [checkpointGuideCellIndex, setCheckpointGuideCellIndex] = useState<number | null>(null);
+  const [checkpointGuideAnchor, setCheckpointGuideAnchor] = useState<BoardGuideAnchor | null>(null);
+  const [showBuffGuide, setShowBuffGuide] = useState(false);
+  const [buffGuideType, setBuffGuideType] = useState<string | null>(null);
   // 2. 新增：监听 Phaser 发过来的头像事件
   useEffect(() => {
     const handleAvatarUpdate = (event: Event) => {
@@ -337,6 +447,21 @@ export const BoardScene: React.FC = () => {
     window.addEventListener('ui-player-avatar', handleAvatarUpdate);
     return () => {
       window.removeEventListener('ui-player-avatar', handleAvatarUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleGuideAnchorUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<BoardGuideAnchor>).detail;
+      if (!detail || !Number.isFinite(detail.cellIndex) || !Number.isFinite(detail.x) || !Number.isFinite(detail.y)) {
+        return;
+      }
+      setCheckpointGuideAnchor(detail);
+    };
+
+    window.addEventListener('ui-board-guide-anchor', handleGuideAnchorUpdate);
+    return () => {
+      window.removeEventListener('ui-board-guide-anchor', handleGuideAnchorUpdate);
     };
   }, []);
 
@@ -357,14 +482,17 @@ export const BoardScene: React.FC = () => {
    */
   const handleRollDice = () => {
     console.log('[BoardScene] 掷骰子 - 开始');
+    setShowItemActionGuide(false);
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
     setItemTargetSelection(null);
     setSkillTargetSelection(false);
-    
+
     // 在用户手势的同步调用栈内立即播放音效，确保浏览器允许自动播放
     console.log('[BoardScene] 准备播放骰子音效');
     playDiceSfx();
     console.log('[BoardScene] 骰子音效播放调用完成');
-    
+
     setRolledDiceTurnKey(`${storeRound}:${storeTurn}:${currentPlayerId || myPlayerId}`);
     setDiceRollView({
       status: 'awaiting_result',
@@ -384,6 +512,8 @@ export const BoardScene: React.FC = () => {
    */
   const handleUseSkill = () => {
     console.log('[BoardScene] 使用技能');
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
     if (SKILL_TARGET_FACTIONS.has(myPlayer?.faction || '')) {
       setSkillTargetSelection(true);
       return;
@@ -395,6 +525,9 @@ export const BoardScene: React.FC = () => {
    * 处理使用道具
    */
   const handleUseItem = (item: Item) => {
+    setShowItemActionGuide(false);
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
     if (TARGET_PLAYER_ITEM_TYPES.has(item.type) || item.targetable) {
       setItemTargetSelection(item);
       return;
@@ -416,6 +549,11 @@ export const BoardScene: React.FC = () => {
       console.error('[BoardScene] 使用道具失败', err);
       if (item.type === 'dice_upgrade') {
         setDiceUpgradeView({ status: 'idle' });
+      }
+      // In DEV mode, fall back to playing the item animation locally
+      if (SHOW_DEV_DEBUG_UI) {
+        console.log('[BoardScene] DEV fallback: 使用道具动画', item.type);
+        useItemDev(item.id);
       }
     });
   };
@@ -463,15 +601,46 @@ export const BoardScene: React.FC = () => {
         }
       : null;
   const factionSkillIconSrc = myPlayer ? getFactionSkillIconSrc(myPlayer.faction) : '';
-  const canInteractWithActions = isMyTurn && Boolean(availableActions);
+  const factionSkillGuide = myPlayer ? getFactionSkillGuide(myPlayer.faction) : null;
+  const isActionAnimationBlocking = diceUpgradeView.status !== 'idle' || pendingEntries.length > 0;
+  const canInteractWithActions = isMyTurn && Boolean(availableActions) && !isActionAnimationBlocking;
+  const isAnyActionGuideVisible = showItemActionGuide || showSkillActionGuide;
   const actionTurnKey = isMainAction && currentPlayerId ? `${storeRound}:${storeTurn}:${currentPlayerId}` : '';
   const currentDicePreviewType = isMyTurn ? availableActions?.dice_type || miniGameDiceType : miniGameDiceType;
+  const canShowItemActionGuide =
+    currentScene === Scene.Board &&
+    isMainAction &&
+    isMyTurn &&
+    Boolean(availableActions) &&
+    Boolean(actionView?.items.length) &&
+    diceRollView.status === 'idle' &&
+    diceUpgradeView.status === 'idle' &&
+    pendingEntries.length === 0 &&
+    !decisionRequest;
+  const canShowSkillActionGuide =
+    currentScene === Scene.Board &&
+    isMainAction &&
+    isMyTurn &&
+    Boolean(availableActions) &&
+    Boolean(actionView?.can_use_skill) &&
+    Boolean(factionSkillGuide) &&
+    diceRollView.status === 'idle' &&
+    diceUpgradeView.status === 'idle' &&
+    pendingEntries.length === 0 &&
+    !decisionRequest;
+  const dismissItemActionGuide = () => {
+    setShowItemActionGuide(false);
+    if ((pendingSkillActionGuide || canShowSkillActionGuide) && !skillActionGuideSeen) {
+      setPendingSkillActionGuide(false);
+      useGameStore.getState().setSkillActionGuideSeen(true);
+      setShowSkillActionGuide(true);
+    }
+  };
   const shouldShowActionPanel =
     Boolean(actionView) &&
     isMainAction &&
     diceRollView.status !== 'awaiting_result' &&
-    diceRollView.status !== 'rolling' &&
-    diceUpgradeView.status === 'idle';
+    diceRollView.status !== 'rolling';
   const shouldShowIdleDicePreview =
     Boolean(idleDicePreview) &&
     Boolean(currentDicePreviewType) &&
@@ -511,7 +680,16 @@ export const BoardScene: React.FC = () => {
     activeAnimationContext && isLogEntryAnimationCandidate(activeAnimationContext.entry)
       ? activeAnimationContext.entry
       : null;
-  const boardAnimationContext = shouldRenderBoardLogEntryAnimation(activeAnimationContext)
+  const pendingCheckpointGuide = getCheckpointGuideForEntry(activeAnimationContext?.entry ?? null);
+  const shouldHoldCheckpointDraw =
+    pendingCheckpointGuide === 'draw' && (!checkpointDrawGuideSeen || checkpointGuide === 'draw');
+  const pendingFirstBuffGuide = shouldTriggerFirstBuffGuide(
+    activeAnimationContext?.entry ?? null,
+    myPlayerId,
+    buffGuideSeen,
+  );
+  const shouldHoldBuffGuide = showBuffGuide;
+  const boardAnimationContext = !shouldHoldCheckpointDraw && shouldRenderBoardLogEntryAnimation(activeAnimationContext)
     ? activeAnimationContext
     : null;
   const settlementPlayer = settlementPlayerId
@@ -520,6 +698,121 @@ export const BoardScene: React.FC = () => {
       players.find((player) => player.player_id === settlementPlayerId) ||
       null
     : null;
+
+  useEffect(() => {
+    if (!canShowItemActionGuide) {
+      setShowItemActionGuide(false);
+      return;
+    }
+
+    if (!itemActionGuideSeen) {
+      if (canShowSkillActionGuide && !skillActionGuideSeen) {
+        setPendingSkillActionGuide(true);
+      }
+      useGameStore.getState().setItemActionGuideSeen(true);
+      setShowItemActionGuide(true);
+    }
+  }, [canShowItemActionGuide, canShowSkillActionGuide, itemActionGuideSeen, skillActionGuideSeen]);
+
+  useEffect(() => {
+    if (!canShowSkillActionGuide) {
+      setShowSkillActionGuide(false);
+      return;
+    }
+
+    const itemGuidePending = canShowItemActionGuide && (!itemActionGuideSeen || showItemActionGuide);
+    if (itemGuidePending) {
+      if (!skillActionGuideSeen) {
+        setPendingSkillActionGuide(true);
+      }
+      setShowSkillActionGuide(false);
+      return;
+    }
+
+    if (!skillActionGuideSeen) {
+      setPendingSkillActionGuide(false);
+      useGameStore.getState().setSkillActionGuideSeen(true);
+      setShowSkillActionGuide(true);
+    }
+  }, [
+    canShowItemActionGuide,
+    canShowSkillActionGuide,
+    itemActionGuideSeen,
+    showItemActionGuide,
+    skillActionGuideSeen,
+  ]);
+
+  useEffect(() => {
+    const wasShowing = wasShowingItemActionGuideRef.current;
+    wasShowingItemActionGuideRef.current = showItemActionGuide;
+
+    if (wasShowing && !showItemActionGuide && pendingSkillActionGuide && !skillActionGuideSeen) {
+      setPendingSkillActionGuide(false);
+      useGameStore.getState().setSkillActionGuideSeen(true);
+      setShowSkillActionGuide(true);
+    }
+  }, [pendingSkillActionGuide, showItemActionGuide, skillActionGuideSeen]);
+
+  useEffect(() => {
+    if (pendingCheckpointGuide !== 'draw') return;
+    if (checkpointDrawGuideSeen) return;
+
+    const targetPlayer =
+      renderedPlayers.find((player) => player.player_id === activeAnimationContext?.entry.target) ||
+      players.find((player) => player.player_id === activeAnimationContext?.entry.target);
+
+    setShowItemActionGuide(false);
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
+    setItemTargetSelection(null);
+    setSkillTargetSelection(false);
+    setCheckpointGuideCellIndex(targetPlayer?.position ?? null);
+    setCheckpointGuide('draw');
+  }, [activeAnimationContext, checkpointDrawGuideSeen, pendingCheckpointGuide, players, renderedPlayers]);
+
+  useEffect(() => {
+    if (!activeLogEntry) return;
+    const nextGuide = getCheckpointGuideForEntry(activeLogEntry);
+    if (nextGuide !== 'respawn') return;
+    if (checkpointRespawnGuideSeen) return;
+
+    useGameStore.getState().setCheckpointRespawnGuideSeen(true);
+    setShowItemActionGuide(false);
+    setShowSkillActionGuide(false);
+    setPendingSkillActionGuide(false);
+    setItemTargetSelection(null);
+    setSkillTargetSelection(false);
+    setCheckpointGuideCellIndex(getMetadataNumber(activeLogEntry.metadata, 'checkpoint_pos'));
+    setCheckpointGuide('respawn');
+  }, [activeLogEntry, checkpointRespawnGuideSeen]);
+
+  useEffect(() => {
+    if (!checkpointGuide) return;
+
+    const timeoutId = window.setTimeout(() => {
+      const finishedGuide = checkpointGuide;
+      setCheckpointGuide(null);
+      setCheckpointGuideCellIndex(null);
+      setCheckpointGuideAnchor(null);
+      if (finishedGuide === 'draw') {
+        useGameStore.getState().setCheckpointDrawGuideSeen(true);
+      }
+    }, CHECKPOINT_GUIDE_DURATION_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [checkpointGuide]);
+
+  useEffect(() => {
+    if (!showBuffGuide) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setShowBuffGuide(false);
+      setBuffGuideType(null);
+      useGameStore.getState().playNextEntry();
+    }, BUFF_GUIDE_DURATION_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [showBuffGuide]);
 
   useEffect(() => {
     if (
@@ -574,6 +867,22 @@ export const BoardScene: React.FC = () => {
 
     return () => window.clearTimeout(timeoutId);
   }, [activeAnimationContext]);
+
+  useEffect(() => {
+    if (!isWishBeadBuffEntry(activeAnimationContext?.entry)) return;
+
+    const entry = activeAnimationContext.entry;
+    const key = getLogEntryKey(entry);
+    if (wishBeadEffectKey === key) return;
+
+    setWishBeadEffectKey(key);
+
+    const timeoutId = window.setTimeout(() => {
+      setWishBeadEffectKey((current) => (current === key ? null : current));
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeAnimationContext, wishBeadEffectKey]);
 
   useEffect(() => {
     if (!actionTurnKey || !currentDicePreviewType || !currentPlayerId) {
@@ -779,15 +1088,33 @@ export const BoardScene: React.FC = () => {
   // Action-type entries get animation delay, others skip immediately
   useEffect(() => {
     if (pendingEntries.length === 0) return;
+    if (shouldHoldCheckpointDraw) return;
+    if (shouldHoldBuffGuide) return;
 
     const delay = getLogEntryAnimationDelay(activeAnimationContext);
 
     const timeoutId = window.setTimeout(() => {
+      if (pendingFirstBuffGuide) {
+        useGameStore.getState().setBuffGuideSeen(true);
+        if (activeAnimationContext?.entry) {
+          setRenderedPlayers((current) =>
+            current.map((player) => applyLogEntryToPlayer(player, activeAnimationContext.entry)),
+          );
+        }
+        setShowItemActionGuide(false);
+        setShowSkillActionGuide(false);
+        setPendingSkillActionGuide(false);
+        setItemTargetSelection(null);
+        setSkillTargetSelection(false);
+        setShowBuffGuide(true);
+        setBuffGuideType(pendingFirstBuffGuide);
+        return;
+      }
       useGameStore.getState().playNextEntry();
     }, delay);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeAnimationContext, pendingEntries.length]);
+  }, [activeAnimationContext, pendingEntries.length, pendingFirstBuffGuide, shouldHoldBuffGuide, shouldHoldCheckpointDraw]);
 
   // Auto-scroll debug log when new entries appear
   const playedEntryCount = playedEntries.length;
@@ -1011,6 +1338,7 @@ export const BoardScene: React.FC = () => {
             selfPlayerId={myPlayerId}
             activeAnimationContext={boardAnimationContext}
             settlementPlayer={settlementPlayer}
+            guideCellIndex={checkpointGuide ? checkpointGuideCellIndex : null}
           />
         ) : (
           <div style={styles.mapMissing}>地图未加载 (mapConfig is null)</div>
@@ -1102,11 +1430,15 @@ export const BoardScene: React.FC = () => {
         {SHOW_DEV_DEBUG_UI && bossStatusPanel && <div style={styles.sidePanels}>{bossStatusPanel}</div>}
 
         {myBuffs.length > 0 && (
-          <div style={styles.selfBuffPanel}>
+          <div className="paradice-hidden-scrollbar" style={styles.selfBuffPanel}>
             {myBuffs.map((buff) => (
               <div
                 key={buff.type}
-                style={styles.selfBuffFrame}
+                className={showBuffGuide ? 'paradice-buff-guide-glow' : undefined}
+                style={{
+                  ...styles.selfBuffFrame,
+                  ...(showBuffGuide ? styles.selfBuffFrameGuideGlow : null),
+                }}
                 title={`${buff.name}\n${getBuffDesc(buff.type)}\n剩余回合: ${formatBuffDuration(buff.duration)}`}
               >
                 <span style={styles.selfBuffDuration}>{formatBuffDuration(buff.duration)}</span>
@@ -1152,8 +1484,25 @@ export const BoardScene: React.FC = () => {
           </div>
         )}
 
+        {wishBeadEffectKey && (
+          <div
+            key={wishBeadEffectKey}
+            className="paradice-wish-bead-effect"
+            aria-hidden="true"
+          >
+            <img
+              src={assetUrl('assets/effects/wish_bead_effect.gif')}
+              alt=""
+              draggable={false}
+              className="paradice-wish-bead-effect__gif"
+            />
+          </div>
+        )}
+
         {shouldShowActionPanel && actionView && (
-          <div style={styles.mapActionPanel}>
+          <div
+            style={{ ...styles.mapActionPanel, ...(isAnyActionGuideVisible ? styles.itemActionGuideActionPanel : null) }}
+          >
             {!isMyTurn && <div style={styles.waitingActionText}>等待玩家 {getPlayerName(currentPlayerId)} 操作</div>}
             <button
               type="button"
@@ -1161,9 +1510,10 @@ export const BoardScene: React.FC = () => {
               style={{
                 ...styles.bottomBarButton,
                 ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                ...(showSkillActionGuide ? styles.itemActionGuideMutedOption : null),
               }}
-              title={`投 ${actionView.dice_type} 骰子`}
-              aria-label={`投骰子 ${actionView.dice_type}`}
+              title={getDiceActionLabel(actionView.dice_type)}
+              aria-label={getDiceActionLabel(actionView.dice_type)}
               disabled={!canInteractWithActions}
             >
               <img
@@ -1182,8 +1532,10 @@ export const BoardScene: React.FC = () => {
                 style={{
                   ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                  ...(showItemActionGuide ? styles.itemActionGuideHighlight : null),
+                  ...(showSkillActionGuide ? styles.itemActionGuideMutedOption : null),
                 }}
-                title={item.name}
+                title={getItemTooltip(item)}
                 aria-label={item.name}
                 disabled={!canInteractWithActions}
               >
@@ -1198,8 +1550,10 @@ export const BoardScene: React.FC = () => {
                 style={{
                   ...styles.bottomBarButton,
                   ...(!canInteractWithActions ? styles.disabledActionTile : null),
+                  ...(showItemActionGuide ? styles.itemActionGuideMutedOption : null),
+                  ...(showSkillActionGuide ? styles.itemActionGuideHighlight : null),
                 }}
-                title="使用阵营技能"
+                title={factionSkillGuide?.tooltip ?? '使用阵营技能'}
                 aria-label="使用阵营技能"
                 disabled={!canInteractWithActions}
               >
@@ -1294,6 +1648,115 @@ export const BoardScene: React.FC = () => {
           </div>
         )}
 
+        {showItemActionGuide && (
+          <>
+            <button
+              type="button"
+              aria-label="关闭道具引导"
+              style={styles.itemActionGuideBackdrop}
+              onClick={dismissItemActionGuide}
+            />
+            <div style={styles.itemActionGuideCallout}>
+              <div style={styles.itemActionGuideText}>可以先使用道具，也可以直接投骰子前进</div>
+              <div style={styles.itemActionGuidePointer} aria-hidden="true" />
+              <button
+                type="button"
+                className="paradice-item-guide-got-it"
+                onClick={dismissItemActionGuide}
+                style={styles.itemActionGuideGotIt}
+              >
+                Got it
+              </button>
+            </div>
+          </>
+        )}
+
+        {showSkillActionGuide && factionSkillGuide && (
+          <>
+            <button
+              type="button"
+              aria-label="关闭阵营技能引导"
+              style={styles.itemActionGuideBackdrop}
+              onClick={() => setShowSkillActionGuide(false)}
+            />
+            <div style={styles.itemActionGuideCallout}>
+              <div style={styles.itemActionGuideText}>
+                <div style={styles.skillActionGuideTitle}>【阵营技能 - {factionSkillGuide.skillName}】已准备就绪！</div>
+                <div>
+                  发动后「{factionSkillGuide.effect}」
+                </div>
+                <div>可以先发动技能，或者直接投骰子前进</div>
+              </div>
+              <div style={styles.itemActionGuidePointer} aria-hidden="true" />
+              <button
+                type="button"
+                className="paradice-item-guide-got-it"
+                onClick={() => setShowSkillActionGuide(false)}
+                style={styles.itemActionGuideGotIt}
+              >
+                Got it
+              </button>
+            </div>
+          </>
+        )}
+
+        {checkpointGuide && (
+          <div
+            style={
+              checkpointGuideAnchor?.cellIndex === checkpointGuideCellIndex
+                ? {
+                    ...styles.checkpointGuideCard,
+                    left: `${clamp(checkpointGuideAnchor.x, 260, window.innerWidth - 260)}px`,
+                    top: `${clamp(checkpointGuideAnchor.y - 70, 130, window.innerHeight - 170)}px`,
+                    transform: 'translate(-50%, -100%)',
+                  }
+                : styles.checkpointGuideCard
+            }
+            role="status"
+            aria-live="polite"
+          >
+            {checkpointGuide === 'draw' ? (
+              <div style={styles.checkpointGuideTextGroup}>
+                <p style={styles.checkpointGuideText}>每 10 格设有【检查点】</p>
+                <p style={styles.checkpointGuideText}>经过检查点时可以「抽取道具」</p>
+              </div>
+            ) : (
+              <p style={styles.checkpointGuideText}>HP 降至 0！已退回最近的【检查点】</p>
+            )}
+            {checkpointGuide && (
+              <div className="paradice-checkpoint-guide-pointer-float" style={styles.checkpointGuidePointer} aria-hidden="true" />
+            )}
+          </div>
+        )}
+
+        {showBuffGuide && (
+          <div style={{ ...styles.checkpointGuideCard, ...styles.buffGuideCard }} role="status" aria-live="polite">
+            <div style={styles.checkpointGuideTextGroup}>
+              {buffGuideType ? (() => {
+                const buffDef = useGameStore.getState().definitions?.buffs[buffGuideType];
+                const desc = buffDef?.desc;
+                const name = buffDef?.name;
+                return desc ? (
+                  <>
+                    {name && <p style={styles.checkpointGuideText}>{name}</p>}
+                    <p style={styles.checkpointGuideText}>{desc}</p>
+                  </>
+                ) : (
+                  <>
+                    <p style={styles.checkpointGuideText}>Buff 会持续若干回合</p>
+                    <p style={styles.checkpointGuideText}>影响你的属性和行动</p>
+                  </>
+                );
+              })() : (
+                <>
+                  <p style={styles.checkpointGuideText}>Buff 会持续若干回合</p>
+                  <p style={styles.checkpointGuideText}>影响你的属性和行动</p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {currentScene === Scene.Board && itemTargetSelection && (
           <div style={styles.decisionBackdrop}>
             <div style={styles.selectionPanel}>
@@ -1311,6 +1774,10 @@ export const BoardScene: React.FC = () => {
                       console.log('[BoardScene] 选择目标使用了道具', itemTargetSelection.id, player.player_id);
                       gameService.sendUseItem(itemTargetSelection.id, player.player_id).catch((err) => {
                         console.error('[BoardScene] 选择目标使用道具失败', err);
+                        if (SHOW_DEV_DEBUG_UI) {
+                          console.log('[BoardScene] DEV fallback: 使用道具动画', itemTargetSelection.type, player.player_id);
+                          useItemDev(itemTargetSelection.id, player.player_id);
+                        }
                       });
                       setItemTargetSelection(null);
                     }}
@@ -1642,7 +2109,8 @@ const styles: Record<string, React.CSSProperties> = {
     left: '14px',
     top: '130px',
     maxHeight: 'calc(100vh - 340px)',
-    overflowY: 'auto',
+    overflowY: 'scroll',
+    scrollbarWidth: 'none',
     display: 'flex',
     flexDirection: 'column',
     gap: '10px',
@@ -1674,6 +2142,10 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundPosition: 'center',
     filter: 'drop-shadow(0 5px 10px rgba(0, 0, 0, 0.36))',
     boxSizing: 'border-box',
+  },
+  selfBuffFrameGuideGlow: {
+    filter:
+      'drop-shadow(0 5px 10px rgba(0, 0, 0, 0.36)) drop-shadow(0 0 10px rgba(255, 226, 132, 0.95)) drop-shadow(0 0 18px rgba(126, 87, 194, 0.78))',
   },
   selfBuffDuration: {
     minWidth: '34px',
@@ -1870,6 +2342,153 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'auto',
+  },
+  itemActionGuideBackdrop: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 30,
+    padding: 0,
+    border: 'none',
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    cursor: 'pointer',
+    pointerEvents: 'auto',
+  },
+  itemActionGuideActionPanel: {
+    zIndex: 42,
+  },
+  itemActionGuideCallout: {
+    position: 'absolute',
+    zIndex: 46,
+    left: '50%',
+    bottom: '166px',
+    transform: 'translateX(-8%)',
+    width: 'min(480px, calc(100vw - 44px))',
+    padding: '18px 22px 34px',
+    border: '4px solid #5c3a1c',
+    borderRadius: '2px',
+    backgroundColor: '#fff0b8',
+    color: '#5b3614',
+    textAlign: 'center',
+    pointerEvents: 'auto',
+    boxShadow:
+      '0 0 0 4px #f6c96e, 0 0 0 8px rgba(58, 34, 14, 0.82), 0 0 22px rgba(255, 231, 143, 0.76), 0 20px 34px rgba(255, 225, 124, 0.46), 0 42px 48px rgba(255, 203, 72, 0.30), 0 12px 0 rgba(0, 0, 0, 0.28)',
+  },
+  itemActionGuideHighlight: {
+    position: 'relative',
+    zIndex: 44,
+    filter:
+      'brightness(1.12) saturate(1.06) drop-shadow(0 0 10px rgba(255, 239, 184, 0.78)) drop-shadow(0 0 24px rgba(255, 206, 76, 0.58)) drop-shadow(0 -22px 30px rgba(255, 225, 124, 0.34)) drop-shadow(0 -42px 44px rgba(255, 203, 72, 0.24)) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.32))',
+  },
+  itemActionGuideMutedOption: {
+    position: 'relative',
+    zIndex: 42,
+    opacity: 0.42,
+    filter: 'brightness(0.62) saturate(0.72) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.32))',
+  },
+  itemActionGuideText: {
+    color: '#5b3614',
+    fontSize: '21px',
+    fontWeight: 800,
+    lineHeight: 1.45,
+    textAlign: 'center',
+    textShadow: '0 1px 0 rgba(255, 255, 255, 0.65)',
+  },
+  skillActionGuideTitle: {
+    display: 'inline-block',
+    marginBottom: '6px',
+    padding: '0 10px 2px',
+    color: '#6a451d',
+    fontSize: '23px',
+    fontWeight: 900,
+    textShadow: '0 1px 0 rgba(255, 255, 255, 0.78), 0 2px 0 rgba(246, 201, 110, 0.62)',
+  },
+  itemActionGuidePointer: {
+    position: 'absolute',
+    left: '62%',
+    bottom: '-29px',
+    width: 0,
+    height: 0,
+    borderLeft: '18px solid transparent',
+    borderRight: '18px solid transparent',
+    borderTop: '26px solid #5c3a1c',
+    filter:
+      'drop-shadow(0 7px 0 rgba(0, 0, 0, 0.26)) drop-shadow(0 12px 16px rgba(255, 225, 124, 0.46)) drop-shadow(0 26px 24px rgba(255, 203, 72, 0.22))',
+  },
+  itemActionGuideGotIt: {
+    position: 'absolute',
+    right: '18px',
+    bottom: '10px',
+    padding: 0,
+    border: 'none',
+    backgroundColor: 'transparent',
+    color: '#7b4b20',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '15px',
+    fontWeight: 900,
+    lineHeight: 1,
+    textDecoration: 'underline',
+    textUnderlineOffset: '3px',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    outline: 'none',
+    boxShadow: 'none',
+  },
+  checkpointGuideCard: {
+    position: 'absolute',
+    zIndex: 60,
+    left: '50%',
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 'min(500px, calc(100vw - 44px))',
+    minHeight: '65px',
+    padding: '18px 22px 34px',
+    border: '4px solid #5c3a1c',
+    borderRadius: '2px',
+    backgroundColor: '#fff0b8',
+    color: '#5b3614',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    textAlign: 'center',
+    pointerEvents: 'auto',
+    overflow: 'visible',
+    boxShadow: '0 0 0 4px #f6c96e, 0 0 0 8px rgba(58, 34, 14, 0.82), 0 12px 0 rgba(0, 0, 0, 0.28)',
+  },
+  checkpointGuideTextGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  checkpointGuideText: {
+    margin: 0,
+    color: '#5b3614',
+    fontSize: '21px',
+    fontWeight: 800,
+    lineHeight: 1.45,
+    textAlign: 'center',
+    textShadow: '0 1px 0 rgba(255, 255, 255, 0.65)',
+  },
+  checkpointGuidePointer: {
+    position: 'absolute',
+    zIndex: -1,
+    left: '56%',
+    bottom: '-29px',
+    width: 0,
+    height: 0,
+    pointerEvents: 'none',
+    borderLeft: '18px solid transparent',
+    borderRight: '18px solid transparent',
+    borderTop: '26px solid #5c3a1c',
+    filter: 'drop-shadow(0 7px 0 rgba(0, 0, 0, 0.26))',
+  },
+  buffGuideCard: {
+    left: '188px',
+    top: '156px',
+    transform: 'none',
+    width: 'min(430px, calc(100vw - 220px))',
+    padding: '16px 20px 22px',
+    textAlign: 'left',
   },
   decisionOptions: {
     display: 'flex',

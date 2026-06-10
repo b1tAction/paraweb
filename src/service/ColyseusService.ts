@@ -35,17 +35,11 @@ export interface DilemmaRacePlayer {
   choice: number; // 0=unset, 1/3/5=chosen
   isBlocked: boolean;
   isFinished: boolean;
-  rank: number;
 }
 
 /**
  * DilemmaRaceRoomState - simplified view type for React component rendering.
  * Derived from raw Colyseus state during state bridging.
- * Maps to the server-side DilemmaRaceRoom GameState schema:
- *   phase: string (choosing/resolving/finished)
- *   round: number
- *   roundTimer: number (seconds per round)
- *   players: MapSchema<PlayerState> with playerId, position, choice, blocked, finished
  */
 export interface DilemmaRaceRoomState {
   phase: 'choosing' | 'resolving' | 'finished';
@@ -55,35 +49,107 @@ export interface DilemmaRaceRoomState {
   players: DilemmaRacePlayer[];
 }
 
-export interface ColyseusJoinContext {
-  playerId?: string;
-  players?: string[];
+/**
+ * TrustDilemmaPlayer - simplified view type for React component rendering.
+ */
+export interface TrustDilemmaPlayer {
+  id: string;
+  choice: number; // 0=unset, 1=C, 2=D
+  score: number;
+  roundScore: number;
+  isReady: boolean;
+  rank: number;
+}
+
+/**
+ * TrustDilemmaRoomState - simplified view type for React component rendering.
+ */
+export interface TrustDilemmaRoomState {
+  phase: 'rules' | 'choosing' | 'resolving' | 'finished';
+  currentRound: number;
+  timeLeft: number;
+  players: TrustDilemmaPlayer[];
+}
+
+/**
+ * CakeCuttingPlayer - simplified view type for React component rendering.
+ */
+export interface CakeCuttingPlayer {
+  id: string;
+  isReady: boolean;
+  isAlive: boolean;
+  eliminatedRound: number;
+  rank: number;
+}
+
+/**
+ * CakeCuttingRoomState - simplified view type for React component rendering.
+ */
+export interface CakeCuttingRoomState {
+  phase: 'rules' | 'playing' | 'resolving_cut' | 'finished';
+  timeLeft: number;
+  cakeStart: number;
+  cakeEnd: number;
+  activePlayerId: string;
+  cutPosition: number;
+  players: CakeCuttingPlayer[];
+}
+
+/**
+ * TypingSpeedPlayer - simplified view type for React component rendering.
+ */
+export interface TypingSpeedPlayer {
+  id: string;
+  typedCount: number;
+  progressPercent: number;
+  finishTimeMs: number;
+  rank: number;
+}
+
+/**
+ * TypingSpeedRoomState - simplified view type for React component rendering.
+ */
+export interface TypingSpeedRoomState {
+  phase: 'rules' | 'countdown' | 'playing' | 'finished';
+  timeLeft: number;
+  targetText: string;
+  players: TypingSpeedPlayer[];
 }
 
 // ========== Raw state types (from Colyseus handshake reflection) ==========
 
 /**
  * Raw player state from Colyseus Schema deserialization.
- * Property names match server-side PlayerState schema annotations.
  */
 interface RawPlayerState {
   playerId: string;
-  position: number;
+  position?: number;
   choice: number;
-  blocked: boolean;
-  finished: boolean;
-  rank: number;
+  blocked?: boolean;
+  finished?: boolean;
+  score?: number;
+  roundScore?: number;
+  isReady?: boolean;
+  rank?: number;
+  isAlive?: boolean;
+  eliminatedRound?: number;
+  typedCount?: number;
+  progressPercent?: number;
+  finishTimeMs?: number;
 }
 
 /**
  * Raw game state from Colyseus Schema deserialization.
- * Property names match server-side GameState schema annotations.
- * players is a MapSchema-like object (iterable via forEach/entries/values).
  */
 interface RawGameState {
   phase: string;
   round: number;
   roundTimer: number;
+  cakeStart?: number;
+  cakeEnd?: number;
+  activePlayerId?: string;
+  cutPosition?: number;
+  targetText?: string;
   players: {
     forEach: (cb: (value: RawPlayerState, key: string) => void) => void;
     entries: () => IterableIterator<[string, RawPlayerState]>;
@@ -97,21 +163,17 @@ export class ColyseusService {
   private client: Client | null = null;
   private room: Room | null = null;
   private joinGeneration = 0;
+  private roomName = '';
 
   // State change callback - set by the React component to trigger re-renders
-  private onStateChange: ((state: DilemmaRaceRoomState) => void) | null = null;
+  private onStateChange: ((state: any) => void) | null = null;
   private onError: ((error: Error) => void) | null = null;
   private onLeave: ((code: number) => void) | null = null;
 
   /**
    * Join or create a Colyseus room using connection info from MiniGameStart message.
-   * Uses joinOrCreate (WebSocket/matchmaker mode) instead of joinById (REST mode).
-   * The first client to call joinOrCreate triggers room creation on the Colyseus server.
-   * Subsequent clients with the same minigame_instance_id are routed to the same room.
-   *
-   * No rootSchema is provided - the client auto-decodes via handshake reflection.
    */
-  async joinRoom(conn: MiniGameConn, context?: ColyseusJoinContext): Promise<void> {
+  async joinRoom(conn: MiniGameConn, debugOptions?: { playerId?: string; players?: string[] }): Promise<void> {
     const generation = ++this.joinGeneration;
 
     // Clean up any existing connection first
@@ -120,13 +182,30 @@ export class ColyseusService {
       return;
     }
 
+    this.roomName = conn.room_name;
+
     // Create client pointing to the Colyseus server URL
     this.client = new Client(conn.url);
 
     // Get current player info for auth
     const store = useGameStore.getState();
-    const myPlayerId = context?.playerId ?? store.myPlayerId ?? '';
+    const myPlayerId = debugOptions?.playerId || store.myPlayerId || store.session?.user_id || '';
     const myToken = conn.player_tokens?.[myPlayerId] || conn.token || '';
+
+    if (!myPlayerId || !myToken || !conn.minigame_instance_id) {
+      const error = new Error('[Colyseus] Missing mini-game auth fields');
+      console.error('[Colyseus] Cannot join room: missing auth fields', {
+        roomName: conn.room_name,
+        hasPlayerId: Boolean(myPlayerId),
+        hasToken: Boolean(myToken),
+        hasMiniGameInstanceId: Boolean(conn.minigame_instance_id),
+        tokenPlayerIds: Object.keys(conn.player_tokens || {}),
+      });
+      if (this.onError) {
+        this.onError(error);
+      }
+      return;
+    }
 
     // Build join options for Colyseus onAuth verification
     const options: Record<string, unknown> = {
@@ -136,11 +215,13 @@ export class ColyseusService {
       token: myToken,
     };
 
-    options.players = context?.players ?? store.miniGameStart?.players;
+    const playerList =
+      debugOptions?.players && debugOptions.players.length > 0 ? debugOptions.players : store.miniGameStart?.players;
+    if (playerList && playerList.length > 0) {
+      options.players = playerList;
+    }
 
     try {
-      // joinOrCreate: creates room if none exists with matching filterBy key,
-      // otherwise joins the existing room. filterBy key is minigame_instance_id.
       const room = await this.client.joinOrCreate(conn.room_name, options);
       if (generation !== this.joinGeneration) {
         await room.leave().catch(() => undefined);
@@ -166,31 +247,90 @@ export class ColyseusService {
 
   /**
    * Convert raw Colyseus decoded state to simplified view type for React.
-   * Called inside onStateChange callback to provide clean data to the component.
    */
-  private bridgeState(rawState: RawGameState): DilemmaRaceRoomState {
-    const playerArray: DilemmaRacePlayer[] = [];
+  private bridgeState(rawState: RawGameState): DilemmaRaceRoomState | TrustDilemmaRoomState | CakeCuttingRoomState | TypingSpeedRoomState {
+    if (this.roomName === 'trust_dilemma') {
+      const playerArray: TrustDilemmaPlayer[] = [];
 
-    rawState.players.forEach((playerState: RawPlayerState) => {
-      const choice =
-        rawState.phase === 'resolving' || rawState.phase === 'finished' ? playerState.choice || 1 : playerState.choice;
-      playerArray.push({
-        id: playerState.playerId,
-        position: playerState.position,
-        choice,
-        isBlocked: playerState.blocked,
-        isFinished: playerState.finished,
-        rank: playerState.rank,
+      rawState.players.forEach((playerState: RawPlayerState) => {
+        playerArray.push({
+          id: playerState.playerId,
+          choice: playerState.choice,
+          score: playerState.score || 0,
+          roundScore: playerState.roundScore || 0,
+          isReady: playerState.isReady || false,
+          rank: playerState.rank || 0,
+        });
       });
-    });
 
-    return {
-      phase: rawState.phase as DilemmaRaceRoomState['phase'],
-      currentRound: rawState.round,
-      timeLeft: rawState.roundTimer,
-      trackLength: 15,
-      players: playerArray,
-    };
+      return {
+        phase: rawState.phase as TrustDilemmaRoomState['phase'],
+        currentRound: rawState.round,
+        timeLeft: rawState.roundTimer,
+        players: playerArray,
+      };
+    } else if (this.roomName === 'cake_cutting') {
+      const playerArray: CakeCuttingPlayer[] = [];
+
+      rawState.players.forEach((playerState: RawPlayerState) => {
+        playerArray.push({
+          id: playerState.playerId,
+          isReady: playerState.isReady || false,
+          isAlive: playerState.isAlive !== false,
+          eliminatedRound: playerState.eliminatedRound || 0,
+          rank: playerState.rank || 0,
+        });
+      });
+
+      return {
+        phase: rawState.phase as CakeCuttingRoomState['phase'],
+        timeLeft: rawState.roundTimer,
+        cakeStart: rawState.cakeStart ?? 0,
+        cakeEnd: rawState.cakeEnd ?? 100,
+        activePlayerId: rawState.activePlayerId || '',
+        cutPosition: rawState.cutPosition ?? -1,
+        players: playerArray,
+      };
+    } else if (this.roomName === 'typing_speed') {
+      const playerArray: TypingSpeedPlayer[] = [];
+
+      rawState.players.forEach((playerState: RawPlayerState) => {
+        playerArray.push({
+          id: playerState.playerId,
+          typedCount: playerState.typedCount || 0,
+          progressPercent: playerState.progressPercent || 0,
+          finishTimeMs: playerState.finishTimeMs || 0,
+          rank: playerState.rank || 0,
+        });
+      });
+
+      return {
+        phase: rawState.phase as TypingSpeedRoomState['phase'],
+        timeLeft: rawState.roundTimer,
+        targetText: rawState.targetText || '',
+        players: playerArray,
+      };
+    } else {
+      const playerArray: DilemmaRacePlayer[] = [];
+
+      rawState.players.forEach((playerState: RawPlayerState) => {
+        playerArray.push({
+          id: playerState.playerId,
+          position: playerState.position || 1,
+          choice: playerState.choice,
+          isBlocked: playerState.blocked || false,
+          isFinished: playerState.finished || false,
+        });
+      });
+
+      return {
+        phase: rawState.phase as DilemmaRaceRoomState['phase'],
+        currentRound: rawState.round,
+        timeLeft: rawState.roundTimer,
+        trackLength: 15,
+        players: playerArray,
+      };
+    }
   }
 
   private setupRoomListeners(room: Room): void {
@@ -247,6 +387,41 @@ export class ColyseusService {
   }
 
   /**
+   * Send a rules confirmation to the Colyseus room.
+   */
+  sendConfirmRules(): void {
+    if (!this.room) {
+      console.warn('[Colyseus] Cannot send confirm_rules: not in a room');
+      return;
+    }
+    this.room.send('confirm_rules');
+    console.log('[Colyseus] Sent confirm_rules');
+  }
+
+  /**
+   * Send a cut cake position to the Colyseus room.
+   */
+  sendCutCake(pos: number): void {
+    if (!this.room) {
+      console.warn('[Colyseus] Cannot send cut_cake: not in a room');
+      return;
+    }
+    this.room.send('cut_cake', { pos });
+    console.log('[Colyseus] Sent cut_cake', { pos });
+  }
+
+  /**
+   * Send typed character count progress to the Colyseus room.
+   */
+  sendTypingProgress(typedCount: number): void {
+    if (!this.room) {
+      console.warn('[Colyseus] Cannot send submit_progress: not in a room');
+      return;
+    }
+    this.room.send('submit_progress', { typedCount });
+  }
+
+  /**
    * Leave the Colyseus room. Called when mini-game ends or component unmounts.
    */
   async leaveRoom(): Promise<void> {
@@ -282,7 +457,7 @@ export class ColyseusService {
    * These are set once per component mount lifecycle.
    */
   setCallbacks(
-    onStateChange: (state: DilemmaRaceRoomState) => void,
+    onStateChange: (state: any) => void,
     onError: (error: Error) => void,
     onLeave: (code: number) => void,
   ): void {
@@ -294,7 +469,7 @@ export class ColyseusService {
   /**
    * Get current room state snapshot (for initial render after joining).
    */
-  getCurrentState(): DilemmaRaceRoomState | null {
+  getCurrentState(): any {
     if (!this.room?.state) return null;
     return this.bridgeState(this.room.state as RawGameState);
   }

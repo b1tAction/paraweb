@@ -17,7 +17,7 @@ import {
   playRespawnAnimation,
 } from './boardAnimations/characterAnimations';
 import type { BoardAnimationContext } from './boardAnimations/eventAnimations';
-import { playDrawEventAnimation } from './boardAnimations/eventAnimations';
+import { playDrawEventAnimation, playCupidArrowAnimation, playMagicFluteAnimation, playCrimsonBladeAnimation } from './boardAnimations/eventAnimations';
 import { playMoveAnimation, playTeleportAnimation } from './boardAnimations/movementAnimations';
 import type { PopupContext } from './boardAnimations/popup';
 import {
@@ -30,6 +30,18 @@ import {
   BLACKHOLE_FRAME_RATE,
   BLACKHOLE_TEXTURE_KEY,
   CELL_LABEL_SCREEN_FONT_SIZE,
+  CUPID_ARROW_ANIMATION_KEY,
+  CUPID_ARROW_FRAME_COUNT,
+  CUPID_ARROW_FRAME_HEIGHT,
+  CUPID_ARROW_FRAME_RATE,
+  CUPID_ARROW_FRAME_WIDTH,
+  CUPID_ARROW_TEXTURE_KEY,
+  CRIMSON_BLADE_ANIMATION_KEY,
+  CRIMSON_BLADE_FRAME_COUNT,
+  CRIMSON_BLADE_FRAME_HEIGHT,
+  CRIMSON_BLADE_FRAME_RATE,
+  CRIMSON_BLADE_FRAME_WIDTH,
+  CRIMSON_BLADE_TEXTURE_KEY,
   DIVINE_BLESS_WINGS_TEXTURE_KEY,
   GAME_FONT_FAMILY,
   LOGIC_CELL_MARKER_SCALE,
@@ -45,6 +57,12 @@ import {
   LP_MINUS_FRAME_RATE,
   LP_MINUS_FRAME_WIDTH,
   LP_MINUS_TEXTURE_KEY,
+  MAGIC_FLUTE_ANIMATION_KEY,
+  MAGIC_FLUTE_FRAME_COUNT,
+  MAGIC_FLUTE_FRAME_HEIGHT,
+  MAGIC_FLUTE_FRAME_RATE,
+  MAGIC_FLUTE_FRAME_WIDTH,
+  MAGIC_FLUTE_TEXTURE_KEY,
   PLAYER_NAME_SCREEN_FONT_SIZE,
   PLAYER_NAME_TEXTURE_RESOLUTION,
   PROJECTILE_BLACK_CHARGE_ANIMATION_KEY,
@@ -132,6 +150,7 @@ export class ForestBoardScene extends Phaser.Scene {
   private selfPlayerId?: string | null;
   private activeAnimationContext?: LogEntryAnimationContext | null;
   private settlementPlayer?: Player | null;
+  private guideCellIndex?: number | null;
   private characterRenderOptions?: CharacterRenderOptions;
   private mapTileWidth = 32;
   private mapTileHeight = 32;
@@ -157,6 +176,7 @@ export class ForestBoardScene extends Phaser.Scene {
       orchestrator: this.orchestrator,
       tweens: this.tweens,
       playerMarkers: this.playerMarkers,
+      playerNames: this.playerNames,
       players: this.players,
       logDrivenPositions: this.logDrivenPositions,
       cellViews: this.cellViews as Map<number, { x: number; y: number; index: number }>,
@@ -187,14 +207,18 @@ export class ForestBoardScene extends Phaser.Scene {
         this.mapTileHeight,
         () => this.refreshCellMarkerStates(),
       ),
-    damage: (context) =>
+    damage: (context) => {
+      if (context.entry.source === 'item_crimson_blade') {
+        playCrimsonBladeAnimation(this.buildAnimationCtx(), context);
+      }
       playDamageAnimation(
         this.buildAnimationCtx(),
         context,
         this.activeMoveAnimations,
         this.followPlayerId,
         this.settlementPlayer,
-      ),
+      );
+    },
     heal: (context) => playHealAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
     death: (context) =>
       playDeathAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
@@ -206,8 +230,15 @@ export class ForestBoardScene extends Phaser.Scene {
       ),
     modify_lp: (context) =>
       playModifyLpAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
-    add_buff: (context) =>
-      playBuffChangeAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
+    add_buff: (context) => {
+      if (context.entry.source === 'item_magic_flute_buff') {
+        playMagicFluteAnimation(this.buildAnimationCtx(), context);
+      } else if (context.entry.source === 'item_cupid_arrow_buff') {
+        playCupidArrowAnimation(this.buildAnimationCtx(), context);
+      } else {
+        playBuffChangeAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer);
+      }
+    },
     remove_buff: (context) =>
       playBuffChangeAnimation(this.buildAnimationCtx(), context, this.followPlayerId, this.settlementPlayer),
     draw_event: (context) => playDrawEventAnimation(this.buildAnimationCtx(), this.buildPopupCtx(), context),
@@ -227,6 +258,7 @@ export class ForestBoardScene extends Phaser.Scene {
     selfPlayerId?: string | null;
     activeAnimationContext?: LogEntryAnimationContext | null;
     settlementPlayer?: Player | null;
+    guideCellIndex?: number | null;
     characterRenderOptions?: CharacterRenderOptions;
   }) {
     this.mapConfig = data.mapConfig;
@@ -235,6 +267,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.selfPlayerId = data.selfPlayerId;
     this.activeAnimationContext = data.activeAnimationContext;
     this.settlementPlayer = data.settlementPlayer;
+    this.guideCellIndex = data.guideCellIndex;
     this.characterRenderOptions = data.characterRenderOptions;
   }
 
@@ -316,6 +349,24 @@ export class ForestBoardScene extends Phaser.Scene {
     this.load.spritesheet('mosquito-effect', assetUrl('assets/effects/mosquito.png'), {
       frameWidth: 150,
       frameHeight: 150,
+    });
+
+    // Load magic flute absorb effect sprite sheet for magic_flute item
+    this.load.spritesheet(MAGIC_FLUTE_TEXTURE_KEY, assetUrl('assets/effects/magic-flute.png'), {
+      frameWidth: MAGIC_FLUTE_FRAME_WIDTH,
+      frameHeight: MAGIC_FLUTE_FRAME_HEIGHT,
+    });
+
+    // Load cupid arrow heart burst effect sprite sheet for cupid_arrow item
+    this.load.spritesheet(CUPID_ARROW_TEXTURE_KEY, assetUrl('assets/effects/cupid-arrow-heart-burst.png'), {
+      frameWidth: CUPID_ARROW_FRAME_WIDTH,
+      frameHeight: CUPID_ARROW_FRAME_HEIGHT,
+    });
+
+    // Load crimson blade splatter effect sprite sheet for crimson_blade item
+    this.load.spritesheet(CRIMSON_BLADE_TEXTURE_KEY, assetUrl('assets/effects/crimson-blade.png'), {
+      frameWidth: CRIMSON_BLADE_FRAME_WIDTH,
+      frameHeight: CRIMSON_BLADE_FRAME_HEIGHT,
     });
 
     // Load relic chest image for relic event
@@ -513,6 +564,36 @@ export class ForestBoardScene extends Phaser.Scene {
       repeat: 0,
     });
 
+    // Create magic flute absorb animation for magic_flute item (31 frames)
+    if (!this.anims.exists(MAGIC_FLUTE_ANIMATION_KEY)) {
+      this.anims.create({
+        key: MAGIC_FLUTE_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(MAGIC_FLUTE_TEXTURE_KEY, { start: 0, end: MAGIC_FLUTE_FRAME_COUNT - 1 }),
+        frameRate: MAGIC_FLUTE_FRAME_RATE,
+        repeat: 0,
+      });
+    }
+
+    // Create cupid arrow heart burst animation for cupid_arrow item (23 frames)
+    if (!this.anims.exists(CUPID_ARROW_ANIMATION_KEY)) {
+      this.anims.create({
+        key: CUPID_ARROW_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(CUPID_ARROW_TEXTURE_KEY, { start: 0, end: CUPID_ARROW_FRAME_COUNT - 1 }),
+        frameRate: CUPID_ARROW_FRAME_RATE,
+        repeat: 0,
+      });
+    }
+
+    // Create crimson blade splatter animation for crimson_blade item (10 frames)
+    if (!this.anims.exists(CRIMSON_BLADE_ANIMATION_KEY)) {
+      this.anims.create({
+        key: CRIMSON_BLADE_ANIMATION_KEY,
+        frames: this.anims.generateFrameNumbers(CRIMSON_BLADE_TEXTURE_KEY, { start: 0, end: CRIMSON_BLADE_FRAME_COUNT - 1 }),
+        frameRate: CRIMSON_BLADE_FRAME_RATE,
+        repeat: 0,
+      });
+    }
+
     // Create relic bomb animation for relic event explosion (9 frames)
     if (!this.anims.exists(RELIC_BOMB_ANIMATION_KEY)) {
       this.anims.create({
@@ -659,6 +740,7 @@ export class ForestBoardScene extends Phaser.Scene {
         this.playerNames.delete(playerId);
       }
     });
+    this.dispatchGuideCellAnchor();
   }
 
   updateFromReact(
@@ -668,6 +750,7 @@ export class ForestBoardScene extends Phaser.Scene {
     selfPlayerId?: string | null,
     activeAnimationContext?: LogEntryAnimationContext | null,
     settlementPlayer?: Player | null,
+    guideCellIndex?: number | null,
     characterRenderOptions?: CharacterRenderOptions,
   ) {
     const mapChanged = this.mapConfig !== mapConfig;
@@ -680,6 +763,7 @@ export class ForestBoardScene extends Phaser.Scene {
     this.selfPlayerId = selfPlayerId;
     this.activeAnimationContext = activeAnimationContext;
     this.settlementPlayer = settlementPlayer;
+    this.guideCellIndex = guideCellIndex;
     this.characterRenderOptions = characterRenderOptions;
 
     if (!this.ready) return;
@@ -725,6 +809,29 @@ export class ForestBoardScene extends Phaser.Scene {
 
   private getTextTextureResolution() {
     return Math.max(PLAYER_NAME_TEXTURE_RESOLUTION, Math.ceil(this.getCameraZoom() * PLAYER_NAME_TEXTURE_RESOLUTION));
+  }
+
+  private dispatchGuideCellAnchor() {
+    if (typeof window === 'undefined' || this.guideCellIndex === null || this.guideCellIndex === undefined) return;
+
+    const cell = this.cellViews.get(this.guideCellIndex);
+    const canvas = this.game.canvas;
+    if (!cell || !canvas) return;
+
+    const camera = this.cameras.main;
+    const rect = canvas.getBoundingClientRect();
+    const screenX = (cell.x - camera.worldView.x) * camera.zoom;
+    const screenY = (cell.y - camera.worldView.y) * camera.zoom;
+
+    window.dispatchEvent(
+      new CustomEvent('ui-board-guide-anchor', {
+        detail: {
+          cellIndex: this.guideCellIndex,
+          x: rect.left + (screenX / camera.width) * rect.width,
+          y: rect.top + (screenY / camera.height) * rect.height,
+        },
+      }),
+    );
   }
 
   private configurePlayerNameText(text: Phaser.GameObjects.Text) {

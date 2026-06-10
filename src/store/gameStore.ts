@@ -190,6 +190,22 @@ interface GameState {
   pendingScene: Scene | null;
   /** 当前小游戏是否为在线模式 (connection != null) */
   miniGameOnline: boolean;
+  /** 本局是否已经展示过小游戏新手引导 */
+  miniGameGuideSeen: boolean;
+  /** 本局是否已经展示过道具行动引导 */
+  itemActionGuideSeen: boolean;
+  /** 本局是否已经展示过阵营技能行动引导 */
+  skillActionGuideSeen: boolean;
+  /** 本局是否已经展示过经过检查点引导 */
+  checkpointDrawGuideSeen: boolean;
+  /** 本局是否已经展示过退回检查点引导 */
+  checkpointRespawnGuideSeen: boolean;
+  /** 本局是否已经展示过首次 Buff 引导 */
+  buffGuideSeen: boolean;
+  /** 本局已展示过首次获得说明的道具范围 key */
+  seenItemDescriptionTypes: string[];
+  /** 本局已展示过首次获得说明的 Buff 类型 */
+  seenBuffDescriptionTypes: string[];
   /** Colyseus 连接错误信息 */
   colyseusError: string;
 
@@ -252,6 +268,22 @@ interface GameState {
   setPendingScene: (scene: Scene | null) => void;
   /** 设置小游戏是否为在线模式 */
   setMiniGameOnline: (online: boolean) => void;
+  /** 设置小游戏新手引导是否已展示 */
+  setMiniGameGuideSeen: (seen: boolean) => void;
+  /** 设置道具行动引导是否已展示 */
+  setItemActionGuideSeen: (seen: boolean) => void;
+  /** 设置阵营技能行动引导是否已展示 */
+  setSkillActionGuideSeen: (seen: boolean) => void;
+  /** 设置经过检查点引导是否已展示 */
+  setCheckpointDrawGuideSeen: (seen: boolean) => void;
+  /** 设置退回检查点引导是否已展示 */
+  setCheckpointRespawnGuideSeen: (seen: boolean) => void;
+  /** 设置首次 Buff 引导是否已展示 */
+  setBuffGuideSeen: (seen: boolean) => void;
+  /** 标记某个道具说明范围已展示 */
+  markItemDescriptionSeen: (seenKey: string) => void;
+  /** 标记某个 Buff 说明已展示 */
+  markBuffDescriptionSeen: (buffType: string) => void;
   /** 设置 Colyseus 连接错误 */
   setColyseusError: (error: string) => void;
 
@@ -313,6 +345,14 @@ export const useGameStore = create<GameState>((set, get) => ({
   miniGameResultPending: false,
   pendingScene: null,
   miniGameOnline: false,
+  miniGameGuideSeen: false,
+  itemActionGuideSeen: false,
+  skillActionGuideSeen: false,
+  checkpointDrawGuideSeen: false,
+  checkpointRespawnGuideSeen: false,
+  buffGuideSeen: false,
+  seenItemDescriptionTypes: [],
+  seenBuffDescriptionTypes: [],
   colyseusError: '',
 
   // ========== Actions ==========
@@ -380,6 +420,24 @@ export const useGameStore = create<GameState>((set, get) => ({
   setMiniGameResultPending: (pending) => set({ miniGameResultPending: pending }),
   setPendingScene: (scene) => set({ pendingScene: scene }),
   setMiniGameOnline: (online) => set({ miniGameOnline: online }),
+  setMiniGameGuideSeen: (seen) => set({ miniGameGuideSeen: seen }),
+  setItemActionGuideSeen: (seen) => set({ itemActionGuideSeen: seen }),
+  setSkillActionGuideSeen: (seen) => set({ skillActionGuideSeen: seen }),
+  setCheckpointDrawGuideSeen: (seen) => set({ checkpointDrawGuideSeen: seen }),
+  setCheckpointRespawnGuideSeen: (seen) => set({ checkpointRespawnGuideSeen: seen }),
+  setBuffGuideSeen: (seen) => set({ buffGuideSeen: seen }),
+  markItemDescriptionSeen: (seenKey) =>
+    set((state) =>
+      state.seenItemDescriptionTypes.includes(seenKey)
+        ? state
+        : { seenItemDescriptionTypes: [...state.seenItemDescriptionTypes, seenKey] },
+    ),
+  markBuffDescriptionSeen: (buffType) =>
+    set((state) =>
+      state.seenBuffDescriptionTypes.includes(buffType)
+        ? state
+        : { seenBuffDescriptionTypes: [...state.seenBuffDescriptionTypes, buffType] },
+    ),
   setColyseusError: (error) => set({ colyseusError: error }),
 
   enqueueStateSync: (stateSync) => set((state) => ({ stateSyncQueue: [...state.stateSyncQueue, stateSync] })),
@@ -453,6 +511,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       miniGameResultPending: false,
       pendingScene: null,
       miniGameOnline: false,
+      miniGameGuideSeen: false,
+      itemActionGuideSeen: false,
+      skillActionGuideSeen: false,
+      checkpointDrawGuideSeen: false,
+      checkpointRespawnGuideSeen: false,
+      buffGuideSeen: false,
+      seenItemDescriptionTypes: [],
+      seenBuffDescriptionTypes: [],
       colyseusError: '',
     }),
 
@@ -485,6 +551,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       definitions: null,
       miniGameResultPending: false,
       pendingScene: null,
+      miniGameGuideSeen: false,
+      itemActionGuideSeen: false,
+      skillActionGuideSeen: false,
+      checkpointDrawGuideSeen: false,
+      checkpointRespawnGuideSeen: false,
+      buffGuideSeen: false,
+      seenItemDescriptionTypes: [],
+      seenBuffDescriptionTypes: [],
       faction: state.faction,
     })),
 }));
