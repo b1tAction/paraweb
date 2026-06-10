@@ -415,6 +415,19 @@ export const DEV_EFFECT_PRESETS: DevEffectPreset[] = [
     build: (context) => entry(context, 'draw_item', { item_type: 'cupid_arrow' }, { source: 'dev_draw_item' }),
   },
   {
+    id: 'item_use_cupid_arrow',
+    group: 'Item',
+    label: 'Use Item: Cupid Arrow',
+    description: '丘比特之箭使用后的爱心爆发动画 + 永恒Buff。',
+    build: (context) =>
+      entry(
+        context,
+        'add_buff',
+        { item_type: 'cupid_arrow', buff_type: 'eternal', duration: 2 },
+        { source: 'item_cupid_arrow_buff' },
+      ),
+  },
+  {
     id: 'item_draw_crimson_blade',
     group: 'Item',
     label: 'Draw Item: Crimson Blade',

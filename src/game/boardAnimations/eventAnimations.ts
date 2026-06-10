@@ -5,6 +5,10 @@ import { playEventSfx } from '../../utils/eventSfx';
 import type { AnimationOrchestrator } from '../animationOrchestrator';
 import {
   CHARACTER_HALF_HEIGHT,
+  CUPID_ARROW_ANIMATION_KEY,
+  CUPID_ARROW_TEXTURE_KEY,
+  CRIMSON_BLADE_ANIMATION_KEY,
+  CRIMSON_BLADE_TEXTURE_KEY,
   DIVINE_BLESS_WINGS_APPEAR_DURATION,
   DIVINE_BLESS_WINGS_DISAPPEAR_DURATION,
   DIVINE_BLESS_WINGS_HOLD_DURATION,
@@ -24,6 +28,8 @@ import {
   LOST_WAY_RECOVERY_DURATION,
   LOST_WAY_RECOVERY_START_DELAY,
   LOST_WAY_TOTAL_EFFECT_MS,
+  MAGIC_FLUTE_ANIMATION_KEY,
+  MAGIC_FLUTE_TEXTURE_KEY,
   RELIC_BOMB_ANIMATION_KEY,
   RELIC_BOMB_SCALE,
   RELIC_BOMB_START_DELAY,
@@ -926,4 +932,98 @@ export function playRelicAnimation(ctx: BoardAnimationContext, context: LogEntry
       });
     });
   });
+}
+
+/**
+ * Play the magic flute absorb effect: violet spell absorb spiral
+ * appears at the player's position, plays through all 31 frames,
+ * then fades out. Used when a player uses the magic_flute item.
+ */
+export function playMagicFluteAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  playEventSfx('magic_flute');
+
+  const sprite = ctx.scene.add.sprite(marker.x, marker.y, MAGIC_FLUTE_TEXTURE_KEY);
+  sprite.setScale(2.0);
+  sprite.setOrigin(0.5, 0.5);
+  sprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  sprite.play(MAGIC_FLUTE_ANIMATION_KEY);
+
+  sprite.on('animationcomplete', () => {
+    ctx.tweens.add({
+      targets: sprite,
+      alpha: { from: 1, to: 0 },
+      duration: 300,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        sprite.destroy();
+      },
+    });
+  });
+
+  ctx.scene.cameras.main.shake(300, 0.003);
+}
+
+/**
+ * Play the cupid arrow heart burst effect: red heart burst animation
+ * appears at the player's position, plays through all 23 frames,
+ * then fades out. Used when a player uses the cupid_arrow item.
+ */
+export function playCupidArrowAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  playEventSfx('cupid_arrow');
+
+  const player = ctx.players.find((p) => p.player_id === entry.target);
+  const order = player ? ctx.players.indexOf(player) : 0;
+  const profile = player ? resolveCharacterProfile(player, order, ctx.characterRenderOptions) : null;
+  const effectOffsetY = profile ? getCharacterEffectOffsetY(profile) : 0;
+
+  const sprite = ctx.scene.add.sprite(marker.x, marker.y + effectOffsetY, CUPID_ARROW_TEXTURE_KEY);
+  sprite.setScale(2.0);
+  sprite.setOrigin(0.5, 0.5);
+  sprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  sprite.play(CUPID_ARROW_ANIMATION_KEY);
+
+  ctx.orchestrator.registerCleanupOnAnimationComplete(sprite);
+
+  ctx.scene.cameras.main.shake(300, 0.003);
+}
+
+/**
+ * Play the crimson blade splatter effect: red blood splatter animation
+ * appears at the player's position, plays through all 10 frames,
+ * then fades out. Used when a player uses the crimson_blade item.
+ */
+export function playCrimsonBladeAnimation(ctx: BoardAnimationContext, context: LogEntryAnimationContext): void {
+  const { entry } = context;
+  const marker = ctx.playerMarkers.get(entry.target);
+  if (!marker) return;
+
+  playEventSfx('crimson_blade');
+
+  const sprite = ctx.scene.add.sprite(marker.x, marker.y + CHARACTER_HALF_HEIGHT, CRIMSON_BLADE_TEXTURE_KEY);
+  sprite.setScale(2.0);
+  sprite.setOrigin(0.5, 0.5);
+  sprite.setDepth(LAYER_FULLSCREEN_EFFECT);
+  sprite.play(CRIMSON_BLADE_ANIMATION_KEY);
+
+  sprite.on('animationcomplete', () => {
+    ctx.tweens.add({
+      targets: sprite,
+      alpha: { from: 1, to: 0 },
+      duration: 300,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        sprite.destroy();
+      },
+    });
+  });
+
+  ctx.scene.cameras.main.shake(300, 0.004);
 }

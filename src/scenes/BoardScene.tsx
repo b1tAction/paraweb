@@ -34,6 +34,7 @@ import { Scene, useGameStore } from '../store/gameStore';
 import type { Available, Item, Player } from '../types/protocol';
 import { assetCssUrl, assetUrl } from '../utils/assets';
 import { playDiceSfx } from '../utils/diceSfx';
+import { useItemDev } from '../components/devMockData';
 import { getDisambiguatedDisplayName } from '../utils/displayName';
 
 const SHOW_DEV_DEBUG_UI = import.meta.env.DEV;
@@ -546,6 +547,11 @@ export const BoardScene: React.FC = () => {
       console.error('[BoardScene] 使用道具失败', err);
       if (item.type === 'dice_upgrade') {
         setDiceUpgradeView({ status: 'idle' });
+      }
+      // In DEV mode, fall back to playing the item animation locally
+      if (SHOW_DEV_DEBUG_UI) {
+        console.log('[BoardScene] DEV fallback: 使用道具动画', item.type);
+        useItemDev(item.id);
       }
     });
   };
@@ -1735,6 +1741,10 @@ export const BoardScene: React.FC = () => {
                       console.log('[BoardScene] 选择目标使用了道具', itemTargetSelection.id, player.player_id);
                       gameService.sendUseItem(itemTargetSelection.id, player.player_id).catch((err) => {
                         console.error('[BoardScene] 选择目标使用道具失败', err);
+                        if (SHOW_DEV_DEBUG_UI) {
+                          console.log('[BoardScene] DEV fallback: 使用道具动画', itemTargetSelection.type, player.player_id);
+                          useItemDev(itemTargetSelection.id, player.player_id);
+                        }
                       });
                       setItemTargetSelection(null);
                     }}
