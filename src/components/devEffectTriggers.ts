@@ -435,11 +435,24 @@ export const DEV_EFFECT_PRESETS: DevEffectPreset[] = [
     build: (context) => entry(context, 'draw_item', { item_type: 'crimson_blade' }, { source: 'dev_draw_item' }),
   },
   {
-    id: 'item_draw_wisdom_ring',
+    id: 'item_draw_wish_bead',
     group: 'Item',
-    label: 'Draw Item: Wisdom Ring',
-    description: '获得智慧玄戒道具特效。',
-    build: (context) => entry(context, 'draw_item', { item_type: 'wisdom_ring' }, { source: 'dev_draw_item' }),
+    label: 'Draw Item: Wish Bead',
+    description: '获得摩愿佛珠道具特效。',
+    build: (context) => entry(context, 'draw_item', { item_type: 'wish_bead' }, { source: 'dev_draw_item' }),
+  },
+  {
+    id: 'item_use_wish_bead',
+    group: 'Item',
+    label: 'Use Item: Wish Bead',
+    description: '摩愿佛珠使用后的佛珠动画 + 神眷Buff。',
+    build: (context) =>
+      entry(
+        context,
+        'add_buff',
+        { item_type: 'wish_bead', buff_type: 'divine', duration: 3 },
+        { source: 'item_wish_bead_buff' },
+      ),
   },
   {
     id: 'item_draw_named_blade',

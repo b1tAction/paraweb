@@ -320,9 +320,9 @@ export const MOCK_DEFINITIONS: protocol.DefinitionsConfig = {
     magic_flute: { type: 'magic_flute', evaluation: 40, category: 'bad', english_name: 'MagicFlute', name: '魔笛', desc: '与某人共同获得沉沦Buff，共享恶性Action' },
     cupid_arrow: { type: 'cupid_arrow', evaluation: 70, category: 'good', english_name: 'CupidArrow', name: '丘比特之箭', desc: '与某人共同获得永恒Buff，共享良性Action' },
     crimson_blade: { type: 'crimson_blade', evaluation: 50, category: 'neutral', english_name: 'CrimsonBlade', name: '猩红之刃', desc: '损失一半血量，对目标造成等量伤害' },
-    wisdom_ring: { type: 'wisdom_ring', evaluation: 80, category: 'good', english_name: 'WisdomRing', name: '智慧玄戒', desc: '获得神眷Buff' },
-    meditation_ring: { type: 'meditation_ring', evaluation: 75, category: 'good', english_name: 'MeditationRing', name: '禅定玄戒', desc: '获得甘霖Buff' },
-    discipline_ring: { type: 'discipline_ring', evaluation: 80, category: 'good', english_name: 'DisciplineRing', name: '持戒玄戒', desc: '获得金身Buff' },
+    wish_bead: { type: 'wish_bead', evaluation: 80, category: 'good', english_name: 'WishBead', name: '摩愿佛珠', desc: '获得神眷Buff' },
+    rainwater_vessel: { type: 'rainwater_vessel', evaluation: 75, category: 'good', english_name: 'RainwaterVessel', name: '萍雨水盂', desc: '获得甘霖Buff' },
+    vajra_seal: { type: 'vajra_seal', evaluation: 80, category: 'good', english_name: 'VajraSeal', name: '金刚法印', desc: '获得金身Buff' },
     foolish_ring: { type: 'foolish_ring', evaluation: 50, category: 'neutral', english_name: 'FoolishRing', name: '痴愚煞戒', desc: 'HP+1，LP-1' },
     greedy_ring: { type: 'greedy_ring', evaluation: 50, category: 'neutral', english_name: 'GreedyRing', name: '贪婪煞戒', desc: 'LP+1，HP-1' },
     wrath_ring: { type: 'wrath_ring', evaluation: 40, category: 'bad', english_name: 'WrathRing', name: '嗔恨煞戒', desc: 'HP-1，获得嗔怒Buff' },
@@ -529,21 +529,21 @@ export function useItemDev(itemId: string, targetId?: string): void {
       );
       break;
 
-    case 'wisdom_ring':
+    case 'wish_bead':
       effectEntries.push(
-        makeEntry('add_buff', { item_type: 'wisdom_ring', buff_type: 'divine', duration: 3 }, { target: myId }),
+        makeEntry('add_buff', { item_type: 'wish_bead', buff_type: 'divine', duration: 3 }, { target: myId }),
       );
       break;
 
-    case 'meditation_ring':
+    case 'rainwater_vessel':
       effectEntries.push(
-        makeEntry('add_buff', { item_type: 'meditation_ring', buff_type: 'rain', duration: 4 }, { target: myId }),
+        makeEntry('add_buff', { item_type: 'rainwater_vessel', buff_type: 'rain', duration: 4 }, { target: myId }),
       );
       break;
 
-    case 'discipline_ring':
+    case 'vajra_seal':
       effectEntries.push(
-        makeEntry('add_buff', { item_type: 'discipline_ring', buff_type: 'golden_body', duration: 2 }, { target: myId }),
+        makeEntry('add_buff', { item_type: 'vajra_seal', buff_type: 'golden_body', duration: 2 }, { target: myId }),
       );
       break;
 
