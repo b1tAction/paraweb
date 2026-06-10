@@ -115,6 +115,8 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
   add_buff: {
     renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry),
     delayMs: ({ entry }) => {
+      if (entry.source === 'item_magic_flute_buff') return 2000;
+      if (entry.source === 'item_cupid_arrow_buff') return 2000;
       const isReverseClockLost =
         entry.action_type === 'add_buff' &&
         entry.source === 'item_reverse_clock_buff' &&
@@ -206,6 +208,12 @@ export function getLogEntryAnimationDelay(context?: LogEntryAnimationContext | n
   const currentActionType = context.entry.action_type;
   const nextActionType = context.nextEntry?.action_type;
   const currentEventType = getMetadataString(context.entry.metadata, 'event_type');
+  const currentSource = context.entry.source;
+
+  // Crimson blade damage has a longer animation (splatter effect).
+  if (currentActionType === 'damage' && currentSource === 'item_crimson_blade') {
+    return 2000;
+  }
 
   // Thunder draw_event should not be skipped by immediate damage chaining.
   // Total: popup 2800ms + gap 200ms + lightning effect ~700ms + hit pause 200ms = 3900ms

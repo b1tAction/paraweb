@@ -18,7 +18,8 @@ export type EventAnimationType =
   | 'lost_way_dissolve' // dark dissolve/glitch overlay effect
   | 'hidden_buff_disintegrate' // blue-purple fragment scatter + void + reassemble effect
   | 'dizzy_stars' // hurt+僵直+spinning stars dizzy effect
-  | 'relic_open'; // chest appear + bomb explosion + weapon fly-out + disappear effect
+  | 'relic_open' // chest appear + bomb explosion + weapon fly-out + disappear effect
+  | 'magic_flute_absorb'; // violet spell absorb spiral effect
 
 export type EventEffectConfig = {
   color: number;

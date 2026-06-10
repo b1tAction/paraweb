@@ -182,4 +182,28 @@ export const WEAPON_ICON_KEYS: Record<WeaponCategory, string[]> = {
   fork: ['icon_96', 'icon_99'],
 };
 
+// Magic flute absorb effect texture and animation keys
+export const MAGIC_FLUTE_TEXTURE_KEY = 'magic-flute-effect';
+export const MAGIC_FLUTE_ANIMATION_KEY = 'magic_flute_anim';
+export const MAGIC_FLUTE_FRAME_WIDTH = 128;
+export const MAGIC_FLUTE_FRAME_HEIGHT = 128;
+export const MAGIC_FLUTE_FRAME_COUNT = 31;
+export const MAGIC_FLUTE_FRAME_RATE = 20;
+
+// Cupid arrow heart burst effect texture and animation keys
+export const CUPID_ARROW_TEXTURE_KEY = 'cupid-arrow-heart-burst';
+export const CUPID_ARROW_ANIMATION_KEY = 'cupid_arrow_heart_burst_anim';
+export const CUPID_ARROW_FRAME_WIDTH = 128;
+export const CUPID_ARROW_FRAME_HEIGHT = 128;
+export const CUPID_ARROW_FRAME_COUNT = 23;
+export const CUPID_ARROW_FRAME_RATE = 20;
+
+// Crimson blade splatter effect texture and animation keys
+export const CRIMSON_BLADE_TEXTURE_KEY = 'crimson-blade-effect';
+export const CRIMSON_BLADE_ANIMATION_KEY = 'crimson_blade_anim';
+export const CRIMSON_BLADE_FRAME_WIDTH = 64;
+export const CRIMSON_BLADE_FRAME_HEIGHT = 64;
+export const CRIMSON_BLADE_FRAME_COUNT = 10;
+export const CRIMSON_BLADE_FRAME_RATE = 20;
+
 export const RELIC_WEAPON_COUNT = 4; // number of weapons to randomly select and fly out

@@ -24,6 +24,8 @@ const EVENT_SOUND_MAP: Record<string, string> = {
   hidden_buff: 'music/events/hidden_buff.mp3',
   taste_test: 'music/events/taste_test.mp3',
   dog_poop: 'music/events/dog_poop.mp3',
+  magic_flute: 'music/events/magic_flute.mp3',
+  crimson_blade: 'music/events/crimson_blade.mp3',
 };
 
 /**
@@ -45,6 +47,8 @@ const EVENT_VOLUME_MAP: Record<string, number> = {
   hidden_buff: 0.5,
   taste_test: 0.4,
   dog_poop: 0.4,
+  magic_flute: 0.6,
+  crimson_blade: 0.7,
 };
 
 // Cache for preloaded audio elements
