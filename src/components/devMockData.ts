@@ -375,6 +375,234 @@ export const MOCK_MINI_GAME_RESULT: protocol.MiniGameResult = {
   ],
 };
 
+// ========== Item Definitions Helper ==========
+
+export const TARGETABLE_ITEM_TYPES = new Set(['reverse_clock', 'any_door', 'magic_flute', 'cupid_arrow', 'crimson_blade']);
+
+/** All item types from MOCK_DEFINITIONS, sorted by evaluation descending */
+export const ALL_ITEM_TYPES = Object.entries(MOCK_DEFINITIONS.items)
+  .sort(([, a], [, b]) => b.evaluation - a.evaluation)
+  .map(([type, def]) => ({
+    type,
+    name: def.name,
+    desc: def.desc,
+    targetable: TARGETABLE_ITEM_TYPES.has(type),
+  }));
+
+/**
+ * Add an item of the given type to a specified player, and also
+ * register it in availableActions so the Board UI can display it
+ * as a usable item.
+ */
+export function addItemToPlayer(itemType: string, targetPlayerId?: string): void {
+  const store = useGameStore.getState();
+  const itemDef = MOCK_DEFINITIONS.items[itemType];
+  if (!itemDef) return;
+
+  const targetable = TARGETABLE_ITEM_TYPES.has(itemType);
+  const itemId = `dev-item-${itemType}-${Date.now()}`;
+  const newItem: protocol.Item = { id: itemId, type: itemType, name: itemDef.name, targetable };
+
+  // Update players: add item to the target player
+  const players = store.players.map((player) =>
+    player.player_id === (targetPlayerId ?? store.myPlayerId ?? store.currentPlayerId)
+      ? { ...player, items: [...player.items, newItem] }
+      : player,
+  );
+  store.setPlayers(players);
+
+  // Update availableActions: add item so Board UI shows it
+  const currentAvailable = store.availableActions ?? {
+    items: [],
+    can_use_skill: true,
+    dice_type: 'copper',
+  };
+  store.setAvailableActions({
+    ...currentAvailable,
+    items: [...currentAvailable.items, newItem],
+  });
+}
+
+/**
+ * Remove an item from the player's items and from availableActions,
+ * then inject the appropriate animation LogEntries for that item type.
+ */
+export function useItemDev(itemId: string, targetId?: string): void {
+  const store = useGameStore.getState();
+  const myId = store.myPlayerId ?? store.currentPlayerId;
+  if (!myId) return;
+
+  // Find the item on the player
+  const player = store.players.find((p) => p.player_id === myId);
+  if (!player) return;
+  const item = player.items.find((i) => i.id === itemId);
+  if (!item) return;
+
+  // Remove item from player.items
+  store.setPlayers(
+    store.players.map((p) =>
+      p.player_id === myId ? { ...p, items: p.items.filter((i) => i.id !== itemId) } : p,
+    ),
+  );
+
+  // Remove item from availableActions.items
+  if (store.availableActions) {
+    store.setAvailableActions({
+      ...store.availableActions,
+      items: store.availableActions.items.filter((i) => i.id !== itemId),
+    });
+  }
+
+  // Build animation entries for this item type
+  const timestamp = new Date().toISOString();
+  const targetPlayer = store.players.find((p) => p.player_id === (targetId ?? myId)) ?? player;
+  const targetPosition = targetPlayer.position;
+  const sourcePosition = player.position;
+
+  function makeEntry(actionType: string, metadata: Record<string, unknown>, overrides?: Partial<protocol.LogEntry>): protocol.LogEntry {
+    return {
+      timestamp,
+      type: 'action',
+      action_type: actionType,
+      target: targetPlayer.player_id,
+      source: `item_${item!.type}`,
+      metadata,
+      ...overrides,
+    };
+  }
+
+  // First entry: use_item announcement
+  const useItemEntry = makeEntry('use_item', { item_type: item.type });
+
+  // Effect entries depend on item type
+  const effectEntries: protocol.LogEntry[] = [];
+
+  switch (item.type) {
+    case 'any_door':
+      // Teleport to target player's position
+      effectEntries.push(
+        makeEntry('teleport', {
+          item_type: 'any_door',
+          from_pos: sourcePosition,
+          to_pos: targetPosition,
+        }, { target: myId }),
+      );
+      break;
+
+    case 'reverse_clock':
+      // Give target player the "lost" buff
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'reverse_clock', buff_type: 'lost', duration: 2 }),
+      );
+      break;
+
+    case 'dice_upgrade':
+      const fromDice = store.availableActions?.dice_type || 'wood';
+      const toDice = getNextDevDiceType(fromDice);
+      effectEntries.push(
+        makeEntry('dice_upgrade', { from_dice: fromDice, to_dice: toDice }, { target: myId }),
+      );
+      break;
+
+    case 'magic_flute':
+      // Both caster and target get "sinking" buff
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'magic_flute', buff_type: 'sinking', duration: 2 }, { target: myId }),
+        makeEntry('add_buff', { item_type: 'magic_flute', buff_type: 'sinking', duration: 2 }),
+      );
+      break;
+
+    case 'cupid_arrow':
+      // Both caster and target get "eternal" buff
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'cupid_arrow', buff_type: 'eternal', duration: 2 }, { target: myId }),
+        makeEntry('add_buff', { item_type: 'cupid_arrow', buff_type: 'eternal', duration: 2 }),
+      );
+      break;
+
+    case 'crimson_blade':
+      // Caster loses half HP, target takes equivalent damage
+      const halfHp = Math.floor(player.hp / 2);
+      effectEntries.push(
+        makeEntry('damage', { item_type: 'crimson_blade', hp_change: -halfHp }, { target: myId }),
+        makeEntry('damage', { item_type: 'crimson_blade', hp_change: -halfHp }),
+      );
+      break;
+
+    case 'wisdom_ring':
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'wisdom_ring', buff_type: 'divine', duration: 3 }, { target: myId }),
+      );
+      break;
+
+    case 'meditation_ring':
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'meditation_ring', buff_type: 'rain', duration: 4 }, { target: myId }),
+      );
+      break;
+
+    case 'discipline_ring':
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'discipline_ring', buff_type: 'golden_body', duration: 2 }, { target: myId }),
+      );
+      break;
+
+    case 'foolish_ring':
+      effectEntries.push(
+        makeEntry('heal', { item_type: 'foolish_ring', hp_change: 1 }, { target: myId }),
+        makeEntry('modify_lp', { item_type: 'foolish_ring', lp_change: -1 }, { target: myId }),
+      );
+      break;
+
+    case 'greedy_ring':
+      effectEntries.push(
+        makeEntry('modify_lp', { item_type: 'greedy_ring', lp_change: 1 }, { target: myId }),
+        makeEntry('damage', { item_type: 'greedy_ring', hp_change: -1 }, { target: myId }),
+      );
+      break;
+
+    case 'wrath_ring':
+      effectEntries.push(
+        makeEntry('damage', { item_type: 'wrath_ring', hp_change: -1 }, { target: myId }),
+        makeEntry('add_buff', { item_type: 'wrath_ring', buff_type: 'wrath', duration: 2 }, { target: myId }),
+      );
+      break;
+
+    case 'named_blade':
+      // Passive: gives savior buff (blocks one fatal damage)
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'named_blade', buff_type: 'savior', duration: -1 }, { target: myId }),
+      );
+      break;
+
+    case 'sage_protection':
+      // Passive: gives sage_protection buff (revive in-place)
+      effectEntries.push(
+        makeEntry('add_buff', { item_type: 'sage_protection', buff_type: 'sage_protection', duration: -1 }, { target: myId }),
+      );
+      break;
+  }
+
+  // Inject all entries (use_item announcement + effect entries)
+  const allEntries = [useItemEntry, ...effectEntries];
+  store.addPendingEntries(allEntries);
+}
+
+function getNextDevDiceType(diceType: string): string {
+  switch (diceType) {
+    case 'wood':
+      return 'copper';
+    case 'copper':
+      return 'silver';
+    case 'silver':
+      return 'gold';
+    case 'gold':
+      return 'gold';
+    default:
+      return 'copper';
+  }
+}
+
 // ========== Inject Functions ==========
 
 export function injectGameOver(): void {
