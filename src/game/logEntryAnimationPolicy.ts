@@ -70,6 +70,14 @@ export function isReverseClockLostBuffEntry(entry?: LogEntry | null): entry is L
   );
 }
 
+export function isWishBeadBuffEntry(entry?: LogEntry | null): entry is LogEntry {
+  return Boolean(
+    entry &&
+      entry.action_type === 'add_buff' &&
+      entry.source === 'item_wish_bead_buff',
+  );
+}
+
 export function isAnyDoorTeleportEntry(entry?: LogEntry | null): entry is LogEntry {
   return Boolean(entry && entry.action_type === 'teleport' && entry.source === 'item_any_door');
 }
@@ -113,10 +121,11 @@ export const LOG_ENTRY_ANIMATION_RULES: Record<string, LogEntryAnimationRule> = 
     },
   },
   add_buff: {
-    renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry),
+    renderOnBoard: ({ entry }) => !isReverseClockLostBuffEntry(entry) && !isWishBeadBuffEntry(entry),
     delayMs: ({ entry }) => {
       if (entry.source === 'item_magic_flute_buff') return 2000;
       if (entry.source === 'item_cupid_arrow_buff') return 2000;
+      if (entry.source === 'item_wish_bead_buff') return 3000;
       const isReverseClockLost =
         entry.action_type === 'add_buff' &&
         entry.source === 'item_reverse_clock_buff' &&

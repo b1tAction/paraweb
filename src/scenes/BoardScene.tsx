@@ -14,6 +14,7 @@ import {
   getLogEntryAnimationDelay,
   isLogEntryAnimationCandidate,
   isReverseClockLostBuffEntry,
+  isWishBeadBuffEntry,
   shouldRenderBoardLogEntryAnimation,
 } from '../game/logEntryAnimationPolicy';
 import {
@@ -64,9 +65,9 @@ const ITEM_TOOLTIPS: Record<string, string> = {
   magic_flute: '【魔笛】\n与某人共同获得沉沦Buff，共享恶性Action',
   cupid_arrow: '【丘比特之箭】\n与某人共同获得永恒Buff，共享良性Action',
   crimson_blade: '【猩红之刃】\n损失一半血量，对目标造成等量伤害',
-  wisdom_ring: '【智慧玄戒】\n获得神眷Buff',
-  meditation_ring: '【禅定玄戒】\n获得甘霖Buff',
-  discipline_ring: '【持戒玄戒】\n获得金身Buff',
+  wish_bead: '【摩愿佛珠】\n获得神眷Buff',
+  rainwater_vessel: '【萍雨水盂】\n获得甘霖Buff',
+  vajra_seal: '【金刚法印】\n获得金身Buff',
   foolish_ring: '【痴愚煞戒】\nHP+1，LP-1',
   greedy_ring: '【贪婪煞戒】\nLP+1，HP-1',
   wrath_ring: '【嗔恨煞戒】\nHP-1，获得嗔怒Buff',
@@ -422,6 +423,7 @@ export const BoardScene: React.FC = () => {
   const handledReverseClockFlightKeyRef = useRef('');
   const wasShowingItemActionGuideRef = useRef(false);
   const [reverseClockBuffFlight, setReverseClockBuffFlight] = useState<ReverseClockBuffFlight | null>(null);
+  const [wishBeadEffectKey, setWishBeadEffectKey] = useState<string | null>(null);
 
   // 1. 新增：存储所有玩家的头像 Base64 (以 playerId 为 key)
   const [avatars, setAvatars] = useState<Record<string, string>>({});
@@ -865,6 +867,22 @@ export const BoardScene: React.FC = () => {
 
     return () => window.clearTimeout(timeoutId);
   }, [activeAnimationContext]);
+
+  useEffect(() => {
+    if (!isWishBeadBuffEntry(activeAnimationContext?.entry)) return;
+
+    const entry = activeAnimationContext.entry;
+    const key = getLogEntryKey(entry);
+    if (wishBeadEffectKey === key) return;
+
+    setWishBeadEffectKey(key);
+
+    const timeoutId = window.setTimeout(() => {
+      setWishBeadEffectKey((current) => (current === key ? null : current));
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeAnimationContext, wishBeadEffectKey]);
 
   useEffect(() => {
     if (!actionTurnKey || !currentDicePreviewType || !currentPlayerId) {
@@ -1462,6 +1480,21 @@ export const BoardScene: React.FC = () => {
             <div
               className="paradice-reverse-clock-flight__icon"
               style={{ backgroundImage: assetCssUrl('assets/effects/reverseclock.png') }}
+            />
+          </div>
+        )}
+
+        {wishBeadEffectKey && (
+          <div
+            key={wishBeadEffectKey}
+            className="paradice-wish-bead-effect"
+            aria-hidden="true"
+          >
+            <img
+              src={assetUrl('assets/effects/wish_bead_effect.gif')}
+              alt=""
+              draggable={false}
+              className="paradice-wish-bead-effect__gif"
             />
           </div>
         )}
