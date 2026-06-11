@@ -260,26 +260,17 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
           <div style={styles.rulesContentLayout}>
             <div style={styles.rulesExplainCard}>
               <p style={styles.rulesDescText}>
-                打字竞速是一场手速与眼力的极致狂飙！
+                在输入框中打出名句，最快完成者获胜！
               </p>
 
-              <h4 style={{ ...styles.rulesSectionTitle, marginTop: '12px' }}>🎮 核心规则与操作：</h4>
               <ul style={styles.rulesBulletList}>
                 <li style={styles.rulesBulletItem}>
-                  在输入框内<strong>打出屏幕上的这句汉字</strong>。
+                  <strong>字符状态</strong>：正确字符变<strong style={{ color: '#8da696' }}>灰色</strong>，未输字符变<strong style={{ color: '#2ecc71' }}>鲜绿色</strong>。
                 </li>
                 <li style={styles.rulesBulletItem}>
-                  已经输入的正确字词会变为<strong style={{ color: '#8da696' }}>灰色</strong>，剩余未打的字词保持<strong style={{ color: '#2ecc71' }}>鲜绿色</strong>。
+                  <strong>自动标点</strong>：标点符号由系统自动跳过，<strong>无需手动输入</strong>。
                 </li>
-                <li style={styles.rulesBulletItem}>
-                  <strong>智能符号过滤</strong>：中英文符号及标点将由系统自动判断并推进，您只需全力专注文字拼写！
-                </li>
-                <li style={styles.rulesBulletItem}>
-                  打错字符输入框会亮起红光，需使用<strong>退格键 (Backspace)</strong> 进行修正后才能继续前进。
-                </li>
-                <li style={styles.rulesBulletItem}>
-                  规则展示 3 秒后将<strong>自动开启 3 秒倒计时</strong>，请大家作好准备！
-                </li>
+
               </ul>
             </div>
 

@@ -230,18 +230,14 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
           <div style={styles.rulesContentLayout}>
             {/* Left: Detailed Rules explanation */}
             <div style={styles.rulesExplainCard}>
-              <h4 style={styles.rulesSectionTitle}>🔍 游戏玩法背景</h4>
               <p style={styles.rulesDescText}>
-                这是一场考验手眼协调与取舍魄力的反应小游戏。多名玩家将轮流切割同一条美味的蛋糕，切口失误将导致出局。
+                玩家轮流切割蛋糕，最先切空出局，坚持到最后者获胜！
               </p>
               
-              <h4 style={styles.rulesSectionTitle}>🎮 核心玩法机制</h4>
               <ul style={styles.rulesBulletList}>
-                <li style={styles.rulesBulletItem}>玩家按顺序 <strong>轮流切蛋糕</strong>。每人每回合限时 15 秒。</li>
-                <li style={styles.rulesBulletItem}>屏幕中的 <strong>发光切刀</strong> 在轨道上以极速往复滑动。</li>
-                <li style={styles.rulesBulletItem}><strong>保留较小一部分</strong>：蛋糕被切开后，系统会自动舍弃较大部分，仅<strong>保留较小的一侧蛋糕</strong>！蛋糕将在不断切割下急剧变小！</li>
-                <li style={styles.rulesBulletItem}><strong>切割边界判定</strong>：如果下刀位置不在当前的蛋糕段上（切空），则该玩家<strong>立即出局并开启旁观</strong>。</li>
-                <li style={styles.rulesBulletItem}>当所有人都确认规则或 15 秒倒计时结束，游戏将立刻正式开始。</li>
+                <li style={styles.rulesBulletItem}><strong>限时下刀</strong>：每人每回合限时 15 秒。</li>
+                <li style={styles.rulesBulletItem}><strong>保留规则</strong>：切开后系统仅<strong>保留较小的一侧蛋糕</strong>，蛋糕将急剧变小！</li>
+                <li style={styles.rulesBulletItem}><strong>出局判定</strong>：下刀位置必须在蛋糕上，若切空则<strong>立即出局</strong>。</li>
               </ul>
             </div>
 
