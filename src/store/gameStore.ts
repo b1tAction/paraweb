@@ -202,6 +202,10 @@ interface GameState {
   checkpointRespawnGuideSeen: boolean;
   /** 本局是否已经展示过首次 Buff 引导 */
   buffGuideSeen: boolean;
+  /** 本局是否已经展示过首次 HP 变化引导 */
+  hpGuideSeen: boolean;
+  /** 本局是否已经展示过首次 LP 变化引导 */
+  lpGuideSeen: boolean;
   /** 本局已展示过首次获得说明的道具范围 key */
   seenItemDescriptionTypes: string[];
   /** 本局已展示过首次获得说明的 Buff 类型 */
@@ -280,6 +284,10 @@ interface GameState {
   setCheckpointRespawnGuideSeen: (seen: boolean) => void;
   /** 设置首次 Buff 引导是否已展示 */
   setBuffGuideSeen: (seen: boolean) => void;
+  /** 设置首次 HP 变化引导是否已展示 */
+  setHpGuideSeen: (seen: boolean) => void;
+  /** 设置首次 LP 变化引导是否已展示 */
+  setLpGuideSeen: (seen: boolean) => void;
   /** 标记某个道具说明范围已展示 */
   markItemDescriptionSeen: (seenKey: string) => void;
   /** 标记某个 Buff 说明已展示 */
@@ -351,6 +359,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   checkpointDrawGuideSeen: false,
   checkpointRespawnGuideSeen: false,
   buffGuideSeen: false,
+  hpGuideSeen: false,
+  lpGuideSeen: false,
   seenItemDescriptionTypes: [],
   seenBuffDescriptionTypes: [],
   colyseusError: '',
@@ -426,6 +436,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   setCheckpointDrawGuideSeen: (seen) => set({ checkpointDrawGuideSeen: seen }),
   setCheckpointRespawnGuideSeen: (seen) => set({ checkpointRespawnGuideSeen: seen }),
   setBuffGuideSeen: (seen) => set({ buffGuideSeen: seen }),
+  setHpGuideSeen: (seen) => set({ hpGuideSeen: seen }),
+  setLpGuideSeen: (seen) => set({ lpGuideSeen: seen }),
   markItemDescriptionSeen: (seenKey) =>
     set((state) =>
       state.seenItemDescriptionTypes.includes(seenKey)
@@ -517,6 +529,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       checkpointDrawGuideSeen: false,
       checkpointRespawnGuideSeen: false,
       buffGuideSeen: false,
+      hpGuideSeen: false,
+      lpGuideSeen: false,
       seenItemDescriptionTypes: [],
       seenBuffDescriptionTypes: [],
       colyseusError: '',
@@ -557,6 +571,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       checkpointDrawGuideSeen: false,
       checkpointRespawnGuideSeen: false,
       buffGuideSeen: false,
+      hpGuideSeen: false,
+      lpGuideSeen: false,
       seenItemDescriptionTypes: [],
       seenBuffDescriptionTypes: [],
       faction: state.faction,
