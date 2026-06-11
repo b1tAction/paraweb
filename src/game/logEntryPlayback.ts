@@ -430,7 +430,14 @@ export function describeLogEntryEffect(entry: LogEntry, definitions?: Definition
     case 'teleport':
       return { label: `传送 ${num('from_pos')} -> ${num('to_pos')}`, color: 0x29b6f6, textColor: '#e1f5fe' };
     case 'use_item':
-      return { label: `使用 ${itemName(str('item_type'))}`, color: 0xffca28, textColor: '#fffde7' };
+      return {
+        label: `使用 ${itemName(str('item_type'))}`,
+        description: shouldShowFirstItemDescription(str('item_type'), entry.target)
+          ? getItemEffectDescription(str('item_type'), definitions)
+          : undefined,
+        color: 0xffca28,
+        textColor: '#fffde7',
+      };
     case 'use_skill': {
       const rawSkill = str('skill_type');
       // Try both formats: backend uses "qing_long", old format was "qinglong"
