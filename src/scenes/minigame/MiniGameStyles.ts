@@ -47,19 +47,19 @@ export const styles: Record<string, CSSProperties> = {
   screenContent: {
     position: 'absolute',
     // Exact coordinates: X=430, Y=70, W=900, H=630 on 1760x800 image
-    left: '24.43%',   // 430/1760
-    top: '8.75%',     // 70/800
-    width: '51.14%',  // 900/1760
+    left: '24.43%', // 430/1760
+    top: '8.75%', // 70/800
+    width: '51.14%', // 900/1760
     height: '78.75%', // 630/800
-    
+
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    backdropFilter: 'blur(20px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+
+    backgroundColor: '#f7f7ef',
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
     borderRadius: '4px',
     padding: '4px',
     overflow: 'hidden',

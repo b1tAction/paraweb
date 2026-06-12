@@ -63,7 +63,11 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
   const [roomState, setRoomState] = useState<DilemmaRaceRoomState | null>(null);
   const [error, setError] = useState<string>('');
   const [myChoice, setMyChoice] = useState<number | null>(null);
-  const effectiveParticipantIds = participantIds ?? roomState?.players.map((p) => p.id) ?? EMPTY_PARTICIPANT_IDS;
+  const roomParticipantIds = useMemo(
+    () => roomState?.players.map((player) => player.id) ?? EMPTY_PARTICIPANT_IDS,
+    [roomState?.players],
+  );
+  const effectiveParticipantIds = participantIds ?? roomParticipantIds;
   const renderPlayers = useMemo<Player[]>(() => {
     if (participantPlayers && participantPlayers.length > 0) return participantPlayers;
     if (players.length > 0) return players;
@@ -72,7 +76,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
       (id) =>
         ({
           player_id: id,
-          display_name: id === effectivePlayerId ? 'You' : id.slice(0, 8),
+          display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
           faction: '',
           position: 0,
           hp: 0,
@@ -121,7 +125,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
             userId: p.player_id,
           }))
         : effectiveParticipantIds.map((id) => ({
-            displayName: id === effectivePlayerId ? 'You' : id.slice(0, 8),
+            displayName: id === effectivePlayerId ? '我' : id.slice(0, 8),
             userId: id,
           })),
     [effectiveParticipantIds, effectivePlayerId, renderPlayers],
@@ -130,7 +134,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
   const getPlayerDisplayName = useCallback(
     (playerId: string) => {
       const playerInfo = renderPlayers.find((p) => p.player_id === playerId);
-      const fallbackName = playerId === effectivePlayerId ? 'You' : playerId.slice(0, 8);
+      const fallbackName = playerId === effectivePlayerId ? '我' : playerId.slice(0, 8);
       return getDisambiguatedDisplayName(playerInfo?.display_name || fallbackName, playerId, allPlayersData);
     },
     [renderPlayers, effectivePlayerId, allPlayersData],
@@ -323,25 +327,25 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
 
   if (!isParticipant) {
     return (
-      <div style={styles.gameArea}>
-        <p style={styles.waitingText}>You are spectating this round. Waiting for participants to finish...</p>
+      <div style={styles.centerGameArea}>
+        <p style={styles.waitingText}>你正在旁观本轮，请等待参与者完成比赛...</p>
       </div>
     );
   }
 
   if (phase === 'connecting') {
     return (
-      <div style={styles.gameArea}>
-        <p style={styles.connectingText}>Connecting to game server...</p>
+      <div style={styles.centerGameArea}>
+        <p style={styles.connectingText}>正在连接到步步为营服务器...</p>
       </div>
     );
   }
 
   if (phase === 'error') {
     return (
-      <div style={styles.gameArea}>
-        <p style={styles.errorText}>Connection failed: {error}</p>
-        <p style={styles.waitingText}>Waiting for server result...</p>
+      <div style={styles.centerGameArea}>
+        <p style={styles.errorText}>连接失败：{error}</p>
+        <p style={styles.waitingText}>正在等待服务器结算...</p>
       </div>
     );
   }
@@ -356,13 +360,6 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
       {/* ===== Header: Round & Timer ===== */}
       <div style={styles.headerRow}>
         <span style={styles.roundLabel}>Round {state.currentRound}</span>
-        {phase === 'choosing' && <span style={styles.timerDisplay}>{state.timeLeft}s</span>}
-        {phase === 'resolving' && <span style={styles.resolvingLabel}>Resolving...</span>}
-        {phase === 'finished' && <span style={styles.resolvingLabel}>Finished</span>}
-      </div>
-
-      {/* ===== Player Legend ===== */}
-      {state && (
         <div style={styles.playerLegendArea}>
           {state.players.map((p) => {
             const isMe = p.id === effectivePlayerId;
@@ -398,7 +395,10 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
             );
           })}
         </div>
-      )}
+        {phase === 'choosing' && <span style={styles.timerDisplay}>{state.timeLeft}s</span>}
+        {phase === 'resolving' && <span style={styles.resolvingLabel}>结算中...</span>}
+        {phase === 'finished' && <span style={styles.resolvingLabel}>已结束</span>}
+      </div>
 
       {/* ===== Phaser Canvas: Map + Characters + Popup ===== */}
       <div style={styles.phaserContainer}>
@@ -412,9 +412,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
       {phase === 'choosing' && !myPlayerState?.isFinished && (
         <div style={styles.choiceArea}>
           <p style={styles.choicePrompt}>
-            {myChoice !== null
-              ? `Current selection: ${myChoice} steps — you can change your choice`
-              : 'Select a step size before time runs out!'}
+            {myChoice !== null ? `当前选择：${myChoice}步，可在倒计时结束前重新选择` : '倒计时结束前选择本轮步数！'}
           </p>
           <div style={styles.choiceButtons}>
             {[1, 3, 5].map((step) => (
@@ -424,7 +422,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
                 onClick={() => handleChoice(step)}
                 style={myChoice === step ? styles.choiceButtonSelected : styles.choiceButton}
               >
-                <img src={GOLD_DICE_IMAGES[step]} alt={`Dice ${step}`} style={styles.choiceDiceImage} />
+                <img src={GOLD_DICE_IMAGES[step]} alt={`${step}步骰子`} style={styles.choiceDiceImage} />
                 <span style={myChoice === step ? styles.choiceDiceLabelSelected : styles.choiceDiceLabel}>
                   {step}步
                 </span>
@@ -435,9 +433,9 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
       )}
 
       {/* ===== Finished ===== */}
-      {phase === 'finished' && <p style={styles.finishedText}>Game finished. Waiting for ranking results...</p>}
+      {phase === 'finished' && <p style={styles.finishedText}>比赛结束，正在等待排名结果...</p>}
       {phase !== 'finished' && myPlayerState?.isFinished && (
-        <p style={styles.finishedText}>You finished! Waiting for final rankings...</p>
+        <p style={styles.finishedText}>你已到达终点，正在等待最终排名...</p>
       )}
     </div>
   );

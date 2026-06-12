@@ -676,22 +676,22 @@ export const DevPanel: React.FC = () => {
 
         {activeTab === 'minigame' && (
           <section style={styles.section}>
-            <div style={styles.sectionTitle}>MiniGame Board</div>
+            <div style={styles.sectionTitle}>小游戏面板</div>
             <button
               type="button"
               style={styles.warningButton}
               onClick={() => useGameStore.getState().setScene(Scene.MiniGameBoard)}
             >
-              {currentScene === Scene.MiniGameBoard ? 'MiniGameBoard Active' : 'Launch MiniGameBoard'}
+              {currentScene === Scene.MiniGameBoard ? '小游戏调试面板已打开' : '打开小游戏调试面板'}
             </button>
             {miniGameBoardSnapshot.isMounted && (
               <>
                 <div style={styles.stateGrid}>
-                  <StateTile label="Clients" value={miniGameBoardSnapshot.connectionLabel} />
-                  <StateTile label="Match" value={miniGameBoardSnapshot.matchId || 'not created'} />
+                  <StateTile label="客户端" value={miniGameBoardSnapshot.connectionLabel} />
+                  <StateTile label="房间" value={miniGameBoardSnapshot.matchId || '未创建'} />
                 </div>
                 <label style={styles.fieldLabel}>
-                  MiniGame Type
+                  小游戏类型
                   <select
                     value={miniGameBoardSnapshot.selectedGameType}
                     onChange={(event) => {
@@ -713,7 +713,7 @@ export const DevPanel: React.FC = () => {
                     onClick={() => void miniGameBoardDevControls.connectAll()}
                     disabled={miniGameBoardSnapshot.isConnecting}
                   >
-                    {miniGameBoardSnapshot.isConnecting ? 'Connecting...' : 'Connect 4 Clients'}
+                    {miniGameBoardSnapshot.isConnecting ? '连接中...' : '连接 4 个客户端'}
                   </button>
                   <button
                     type="button"
@@ -721,7 +721,7 @@ export const DevPanel: React.FC = () => {
                     onClick={() => void miniGameBoardDevControls.createAndJoin()}
                     disabled={!miniGameBoardSnapshot.canCreateRoom || miniGameBoardSnapshot.isCreatingRoom}
                   >
-                    {miniGameBoardSnapshot.isCreatingRoom ? 'Creating...' : 'Create & Join'}
+                    {miniGameBoardSnapshot.isCreatingRoom ? '创建中...' : '创建并加入'}
                   </button>
                 </div>
                 <button
@@ -733,8 +733,8 @@ export const DevPanel: React.FC = () => {
                   disabled={!miniGameBoardSnapshot.canTriggerMiniGame}
                 >
                   {miniGameBoardSnapshot.isTriggering
-                    ? 'Triggering...'
-                    : `Trigger ${miniGameBoardSnapshot.selectedGameType}`}
+                    ? '触发中...'
+                    : `触发 ${miniGameBoardSnapshot.selectedGameType}`}
                 </button>
                 {miniGameBoardSnapshot.statusLog.length > 0 && (
                   <div style={styles.logArea}>
