@@ -68,28 +68,32 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
     [roomState?.players],
   );
   const effectiveParticipantIds = participantIds ?? roomParticipantIds;
+  const joinParticipantIds = participantIds;
   const renderPlayers = useMemo<Player[]>(() => {
     if (participantPlayers && participantPlayers.length > 0) return participantPlayers;
-    if (players.length > 0) return players;
+    if (effectiveParticipantIds.length === 0) return players;
 
-    return effectiveParticipantIds.map(
-      (id) =>
-        ({
-          player_id: id,
-          display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
-          faction: '',
-          position: 0,
-          hp: 0,
-          max_hp: 8,
-          lp: 0,
-          buffs: [],
-          items: [],
-          charge: 0,
-          fire_counter: 0,
-          is_dead: false,
-          skip_turn: false,
-        }) as Player,
-    );
+    const playersById = new Map(players.map((player) => [player.player_id, player]));
+    return effectiveParticipantIds.map((id) => {
+      const player = playersById.get(id);
+      if (player) return player;
+
+      return {
+        player_id: id,
+        display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
+        faction: '',
+        position: 0,
+        hp: 0,
+        max_hp: 8,
+        lp: 0,
+        buffs: [],
+        items: [],
+        charge: 0,
+        fire_counter: 0,
+        is_dead: false,
+        skip_turn: false,
+      } as Player;
+    });
   }, [effectiveParticipantIds, effectivePlayerId, participantPlayers, players]);
 
   // Avatar map for React legend display
@@ -286,7 +290,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
     service
       .joinRoom(connection, {
         playerId: effectivePlayerId,
-        players: participantIds,
+        players: joinParticipantIds,
       })
       .catch((err) => {
         setPhase('error');
@@ -300,7 +304,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
     return () => {
       void service.leaveRoom();
     };
-  }, [connection, effectivePlayerId, isParticipant, onlineService, participantIds, service]);
+  }, [connection, effectivePlayerId, isParticipant, joinParticipantIds, onlineService, service]);
 
   // ========== Choice handler ==========
 
@@ -328,7 +332,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
   if (!isParticipant) {
     return (
       <div style={styles.centerGameArea}>
-        <p style={styles.waitingText}>你正在旁观本轮，请等待参与者完成比赛...</p>
+        <p style={styles.waitingText}>旁观中, 等待比赛结束</p>
       </div>
     );
   }
@@ -336,7 +340,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
   if (phase === 'connecting') {
     return (
       <div style={styles.centerGameArea}>
-        <p style={styles.connectingText}>正在连接到步步为营服务器...</p>
+        <p style={styles.connectingText}>连接步步为营服务器</p>
       </div>
     );
   }
@@ -344,8 +348,8 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
   if (phase === 'error') {
     return (
       <div style={styles.centerGameArea}>
-        <p style={styles.errorText}>连接失败：{error}</p>
-        <p style={styles.waitingText}>正在等待服务器结算...</p>
+        <p style={styles.errorText}>连接失败: {error}</p>
+        <p style={styles.waitingText}>等待服务器结算</p>
       </div>
     );
   }
@@ -396,7 +400,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
           })}
         </div>
         {phase === 'choosing' && <span style={styles.timerDisplay}>{state.timeLeft}s</span>}
-        {phase === 'resolving' && <span style={styles.resolvingLabel}>结算中...</span>}
+        {phase === 'resolving' && <span style={styles.resolvingLabel}>结算中</span>}
         {phase === 'finished' && <span style={styles.resolvingLabel}>已结束</span>}
       </div>
 
@@ -411,9 +415,7 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
       {/* ===== Choice Buttons (choosing phase only) ===== */}
       {phase === 'choosing' && !myPlayerState?.isFinished && (
         <div style={styles.choiceArea}>
-          <p style={styles.choicePrompt}>
-            {myChoice !== null ? `当前选择：${myChoice}步，可在倒计时结束前重新选择` : '倒计时结束前选择本轮步数！'}
-          </p>
+          <p style={styles.choicePrompt}>{myChoice !== null ? `已选 ${myChoice}步, 可更改` : '选择本轮步数'}</p>
           <div style={styles.choiceButtons}>
             {[1, 3, 5].map((step) => (
               <button
@@ -433,10 +435,8 @@ export const DilemmaRaceMiniGame: React.FC<DilemmaRaceMiniGameProps> = ({
       )}
 
       {/* ===== Finished ===== */}
-      {phase === 'finished' && <p style={styles.finishedText}>比赛结束，正在等待排名结果...</p>}
-      {phase !== 'finished' && myPlayerState?.isFinished && (
-        <p style={styles.finishedText}>你已到达终点，正在等待最终排名...</p>
-      )}
+      {phase === 'finished' && <p style={styles.finishedText}>比赛结束, 等待排名</p>}
+      {phase !== 'finished' && myPlayerState?.isFinished && <p style={styles.finishedText}>已到达终点, 等待排名</p>}
     </div>
   );
 };

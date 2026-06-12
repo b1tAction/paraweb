@@ -54,29 +54,33 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
     [roomState?.players],
   );
   const effectiveParticipantIds = participantIds ?? roomParticipantIds;
+  const joinParticipantIds = participantIds;
 
   const renderPlayers = useMemo<Player[]>(() => {
     if (participantPlayers && participantPlayers.length > 0) return participantPlayers;
-    if (players.length > 0) return players;
+    if (effectiveParticipantIds.length === 0) return players;
 
-    return effectiveParticipantIds.map(
-      (id) =>
-        ({
-          player_id: id,
-          display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
-          faction: '',
-          position: 0,
-          hp: 0,
-          max_hp: 8,
-          lp: 0,
-          buffs: [],
-          items: [],
-          charge: 0,
-          fire_counter: 0,
-          is_dead: false,
-          skip_turn: false,
-        }) as Player,
-    );
+    const playersById = new Map(players.map((player) => [player.player_id, player]));
+    return effectiveParticipantIds.map((id) => {
+      const player = playersById.get(id);
+      if (player) return player;
+
+      return {
+        player_id: id,
+        display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
+        faction: '',
+        position: 0,
+        hp: 0,
+        max_hp: 8,
+        lp: 0,
+        buffs: [],
+        items: [],
+        charge: 0,
+        fire_counter: 0,
+        is_dead: false,
+        skip_turn: false,
+      } as Player;
+    });
   }, [effectiveParticipantIds, effectivePlayerId, participantPlayers, players]);
 
   // ========== Colyseus connection lifecycle ==========
@@ -113,7 +117,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
     service
       .joinRoom(connection, {
         playerId: effectivePlayerId,
-        players: effectiveParticipantIds,
+        players: joinParticipantIds,
       })
       .catch((err) => {
         setPhase('error');
@@ -125,7 +129,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
     return () => {
       void service.leaveRoom();
     };
-  }, [connection, isParticipant, effectivePlayerId, service]);
+  }, [connection, isParticipant, effectivePlayerId, joinParticipantIds, service]);
 
   // ========== Real-time Local Knife Animation Loop ==========
 
@@ -191,7 +195,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
   if (!isParticipant) {
     return (
       <div style={styles.gameArea}>
-        <p style={styles.spectatorMessage}>您正在旁观本场对局。请等待参与者进行切蛋糕游戏...</p>
+        <p style={styles.spectatorMessage}>旁观中, 等待切蛋糕结束</p>
       </div>
     );
   }
@@ -199,7 +203,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
   if (phase === 'connecting') {
     return (
       <div style={styles.gameArea}>
-        <p style={styles.spectatorMessage}>正在连接到切蛋糕小游戏服务器...</p>
+        <p style={styles.spectatorMessage}>连接切蛋糕服务器</p>
       </div>
     );
   }
@@ -207,8 +211,8 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
   if (phase === 'error') {
     return (
       <div style={styles.gameArea}>
-        <p style={{ ...styles.spectatorMessage, color: '#ff5e62' }}>连接失败: {error}</p>
-        <p style={styles.spectatorMessage}>正在等待大厅同步对局结果...</p>
+        <p style={{ ...styles.spectatorMessage, color: '#b96d61' }}>连接失败: {error}</p>
+        <p style={styles.spectatorMessage}>等待大厅同步</p>
       </div>
     );
   }
@@ -231,23 +235,23 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
         <div style={styles.rulesPanel}>
           {/* Header Row: Title */}
           <div style={styles.rulesHeader}>
-            <span style={styles.rulesTitleText}>极速切蛋糕 / 规则</span>
+            <span style={styles.rulesTitleText}>切蛋糕 / 规则</span>
           </div>
 
           <div style={styles.rulesContentLayout}>
             {/* Left: Detailed Rules explanation */}
             <div style={styles.rulesExplainCard}>
-              <p style={styles.rulesDescText}>玩家轮流切割蛋糕，最先切空出局，坚持到最后者获胜！</p>
+              <p style={styles.rulesDescText}>轮流下刀, 切空出局, 留到最后获胜</p>
 
               <ul style={styles.rulesBulletList}>
                 <li style={styles.rulesBulletItem}>
-                  <strong>限时下刀</strong>：每人每回合限时 15 秒。
+                  每回合 <strong>15 秒</strong>
                 </li>
                 <li style={styles.rulesBulletItem}>
-                  <strong>保留规则</strong>：切开后系统仅<strong>保留较小的一侧蛋糕</strong>，蛋糕将急剧变小！
+                  切开后只留 <strong>较小一侧</strong>
                 </li>
                 <li style={styles.rulesBulletItem}>
-                  <strong>出局判定</strong>：下刀位置必须在蛋糕上，若切空则<strong>立即出局</strong>。
+                  切空 <strong>立即出局</strong>
                 </li>
               </ul>
             </div>
@@ -255,17 +259,18 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
             {/* Right: Player Readiness Checklist */}
             <div style={styles.rulesSideCard}>
               <div>
-                <h4 style={styles.rulesChecklistTitle}>玩家状态</h4>
+                <h4 style={styles.rulesChecklistTitle}>准备</h4>
                 <div style={styles.rulesChecklistGrid}>
                   {state.players.map((p) => {
                     const isMe = p.id === effectivePlayerId;
                     return (
                       <div key={p.id} style={isMe ? styles.rulesChecklistItemMe : styles.rulesChecklistItem}>
                         <span style={isMe ? styles.rulesPlayerNameMe : styles.rulesPlayerName}>
-                          {getPlayerDisplayName(p.id)} {isMe && '(我)'}
+                          {getPlayerDisplayName(p.id)}
+                          {isMe ? ' / 我' : ''}
                         </span>
                         <span style={p.isReady ? styles.badgeReady : styles.badgeThinking}>
-                          {p.isReady ? '已确认' : '准备中'}
+                          {p.isReady ? '已确认' : '未确认'}
                         </span>
                       </div>
                     );
@@ -276,11 +281,11 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
               <div>
                 {isConfirmed ? (
                   <button type="button" disabled style={styles.rulesConfirmBtnDisabled}>
-                    <span>已确认，等待中 ({state.timeLeft}s)...</span>
+                    <span>已确认, 等待 {state.timeLeft}s</span>
                   </button>
                 ) : (
                   <button type="button" style={styles.rulesConfirmBtn} onClick={() => service.sendConfirmRules()}>
-                    <span>确认规则并进入游戏 ({state.timeLeft}s 后自动确认)</span>
+                    <span>确认, {state.timeLeft}s 自动确认</span>
                   </button>
                 )}
               </div>
@@ -304,11 +309,9 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
     <div style={styles.gameArea}>
       {/* ===== Header Row: Round & Timer ===== */}
       <div style={styles.headerRow}>
-        <span style={styles.roundLabel}>切蛋糕挑战赛</span>
+        <span style={styles.roundLabel}>切蛋糕</span>
         {phase === 'playing' && (
-          <span style={styles.timerDisplay}>
-            {isMyTurn ? `我的回合 ${state.timeLeft}s` : `等待行动`}
-          </span>
+          <span style={styles.timerDisplay}>{isMyTurn ? `我的回合 ${state.timeLeft}s` : `等待行动`}</span>
         )}
         {phase === 'resolving_cut' && <span style={styles.statusText}>下刀结算中</span>}
         {phase === 'finished' && <span style={styles.statusText}>对局结束</span>}
@@ -320,8 +323,8 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
           <div style={styles.cakeBoard}>
             <h3 style={styles.cakeTitle}>切割区</h3>
             <p style={styles.cakeSubTitle}>
-              当前蛋糕范围：[{Math.round(state.cakeStart)}% 至 {Math.round(state.cakeEnd)}%] （宽度：
-              {Math.round(state.cakeEnd - state.cakeStart)}%）
+              范围 {Math.round(state.cakeStart)}% - {Math.round(state.cakeEnd)}% / 宽{' '}
+              {Math.round(state.cakeEnd - state.cakeStart)}%
             </p>
 
             {/* The Cake Track */}
@@ -358,41 +361,36 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
 
             {/* Turn Message Overlay & Button Action */}
             <div style={styles.actionArea}>
-              {phase === 'playing' && (
-                <>
-                  {isMyTurn ? (
-                    <>
-                      <p style={{ ...styles.cakeSubTitle, color: '#ff4e88', fontWeight: 900, fontSize: '15px' }}>
-                        看准切线进入蛋糕区域时下刀。
-                      </p>
-                      <button type="button" style={styles.cutButtonActive} onClick={handleCut}>
-                        切下
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <p style={{ ...styles.cakeSubTitle, fontWeight: 800 }}>
-                        {isMeAlive
-                          ? `等待玩家 ${getPlayerDisplayName(state.activePlayerId)} 进行切割...`
-                          : `您已出局，正在观看其他玩家切割。`}
-                      </p>
-                      <button type="button" disabled style={styles.cutButtonDisabled}>
-                        等待他人行动
-                      </button>
-                    </>
-                  )}
-                </>
-              )}
+              {phase === 'playing' &&
+                (isMyTurn ? (
+                  <>
+                    <p style={{ ...styles.cakeSubTitle, color: '#d2ae6d', fontWeight: 900, fontSize: '15px' }}>
+                      对准蛋糕下刀
+                    </p>
+                    <button type="button" style={styles.cutButtonActive} onClick={handleCut}>
+                      切下
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ ...styles.cakeSubTitle, fontWeight: 800 }}>
+                      {isMeAlive ? `等待 ${getPlayerDisplayName(state.activePlayerId)} 下刀` : `已出局, 观看下刀`}
+                    </p>
+                    <button type="button" disabled style={styles.cutButtonDisabled}>
+                      等待
+                    </button>
+                  </>
+                ))}
 
               {phase === 'resolving_cut' && (
-                <p style={{ ...styles.cakeSubTitle, color: '#ffd166', fontWeight: 900, fontSize: '15px' }}>
-                  切割完成，正在展示结果。
+                <p style={{ ...styles.cakeSubTitle, color: '#d2ae6d', fontWeight: 900, fontSize: '15px' }}>
+                  切割完成, 展示结果
                 </p>
               )}
 
               {phase === 'finished' && (
-                <p style={{ ...styles.cakeSubTitle, color: '#2ecc71', fontWeight: 900, fontSize: '15px' }}>
-                  比赛结束，分数已计入总榜。
+                <p style={{ ...styles.cakeSubTitle, color: '#7da86f', fontWeight: 900, fontSize: '15px' }}>
+                  结束, 已计分
                 </p>
               )}
             </div>
@@ -401,7 +399,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
 
         {/* ===== Right Column: Real-Time Survival Lobby List ===== */}
         <div style={styles.rightRuleboard}>
-          <h4 style={styles.rulesChecklistTitle}>生存榜</h4>
+          <h4 style={styles.rulesChecklistTitle}>生存</h4>
           <div style={styles.playerGrid}>
             {sortedLobbyPlayers.map((p) => {
               const isMe = p.id === effectivePlayerId;
@@ -420,7 +418,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
 
                   <div>
                     {!p.isAlive ? (
-                      <span style={styles.statusBadgeOut}>出局 (第{p.rank}名)</span>
+                      <span style={styles.statusBadgeOut}>第{p.rank}名出局</span>
                     ) : isActive ? (
                       <span style={styles.statusBadgeActive}>行动中</span>
                     ) : (

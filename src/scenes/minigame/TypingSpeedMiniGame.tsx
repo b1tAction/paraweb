@@ -30,7 +30,7 @@ type LocalPhase = 'connecting' | 'rules' | 'countdown' | 'playing' | 'finished' 
 
 // Helper to determine if character is punctuation
 const isPunctuationChar = (c: string) => {
-  return '，。！；？：、”“（）,.!;?:() "\''.includes(c);
+  return '\uFF0C\u3002\uFF01\uFF1B\uFF1F\uFF1A\u3001\u201D\u201C\uFF08\uFF09,.!;?:() "\''.includes(c);
 };
 
 // Advanced lenient Chinese Punctuation matcher
@@ -99,29 +99,33 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
     [roomState?.players],
   );
   const effectiveParticipantIds = participantIds ?? roomParticipantIds;
+  const joinParticipantIds = participantIds;
 
   const renderPlayers = useMemo<Player[]>(() => {
     if (participantPlayers && participantPlayers.length > 0) return participantPlayers;
-    if (players.length > 0) return players;
+    if (effectiveParticipantIds.length === 0) return players;
 
-    return effectiveParticipantIds.map(
-      (id) =>
-        ({
-          player_id: id,
-          display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
-          faction: '',
-          position: 0,
-          hp: 0,
-          max_hp: 8,
-          lp: 0,
-          buffs: [],
-          items: [],
-          charge: 0,
-          fire_counter: 0,
-          is_dead: false,
-          skip_turn: false,
-        }) as Player,
-    );
+    const playersById = new Map(players.map((player) => [player.player_id, player]));
+    return effectiveParticipantIds.map((id) => {
+      const player = playersById.get(id);
+      if (player) return player;
+
+      return {
+        player_id: id,
+        display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
+        faction: '',
+        position: 0,
+        hp: 0,
+        max_hp: 8,
+        lp: 0,
+        buffs: [],
+        items: [],
+        charge: 0,
+        fire_counter: 0,
+        is_dead: false,
+        skip_turn: false,
+      } as Player;
+    });
   }, [effectiveParticipantIds, effectivePlayerId, participantPlayers, players]);
 
   // ========== Colyseus connection lifecycle ==========
@@ -158,7 +162,7 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
     service
       .joinRoom(connection, {
         playerId: effectivePlayerId,
-        players: effectiveParticipantIds,
+        players: joinParticipantIds,
       })
       .catch((err) => {
         setPhase('error');
@@ -170,7 +174,7 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
     return () => {
       void service.leaveRoom();
     };
-  }, [connection, isParticipant, effectivePlayerId, service]);
+  }, [connection, isParticipant, effectivePlayerId, joinParticipantIds, service]);
 
   // Auto-focus input when game starts
   useEffect(() => {
@@ -218,7 +222,7 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
   if (!isParticipant) {
     return (
       <div style={styles.gameArea}>
-        <p style={styles.spectatorMessage}>您正在旁观本场对局。请等待参与者进行打字竞赛...</p>
+        <p style={styles.spectatorMessage}>旁观中, 等待打字结束</p>
       </div>
     );
   }
@@ -226,7 +230,7 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
   if (phase === 'connecting') {
     return (
       <div style={styles.gameArea}>
-        <p style={styles.spectatorMessage}>正在连接到打字竞速小游戏服务器...</p>
+        <p style={styles.spectatorMessage}>连接打字服务器</p>
       </div>
     );
   }
@@ -234,8 +238,8 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
   if (phase === 'error') {
     return (
       <div style={styles.gameArea}>
-        <p style={{ ...styles.spectatorMessage, color: '#ff5e62' }}>连接失败: {error}</p>
-        <p style={styles.spectatorMessage}>正在等待大厅同步对局结果...</p>
+        <p style={{ ...styles.spectatorMessage, color: '#b96d61' }}>连接失败: {error}</p>
+        <p style={styles.spectatorMessage}>等待大厅同步</p>
       </div>
     );
   }
@@ -248,6 +252,9 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
   const myPlayerState = state.players.find((p) => p.id === effectivePlayerId);
   const myTypedCount = myPlayerState?.typedCount || 0;
   const isFinished = myTypedCount === targetText.length;
+  const targetChars = targetText
+    .split('')
+    .map((char, index) => ({ char, key: `${targetText.slice(0, index)}${char}` }));
 
   const currentMatchCount = calculateMatchingPrefix(inputValue, targetText);
   // A typo is detected if user typed more characters than the successfully matched prefix
@@ -260,26 +267,25 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
       <div style={styles.gameArea}>
         <div style={styles.rulesPanel}>
           <div style={styles.rulesHeader}>
-            <span style={styles.rulesTitleText}>极速打字赛 / 规则</span>
+            <span style={styles.rulesTitleText}>打字竞速 / 规则</span>
           </div>
 
           <div style={styles.rulesContentLayout}>
             <div style={styles.rulesExplainCard}>
-              <p style={styles.rulesDescText}>在输入框中打出名句，最快完成者获胜！</p>
+              <p style={styles.rulesDescText}>输入目标文本, 最快完成获胜</p>
 
               <ul style={styles.rulesBulletList}>
                 <li style={styles.rulesBulletItem}>
-                  <strong>字符状态</strong>：正确字符变<strong style={{ color: '#8da696' }}>灰色</strong>，未输字符变
-                  <strong style={{ color: '#2ecc71' }}>鲜绿色</strong>。
+                  已输入变 <strong style={{ color: '#8da696' }}>灰</strong>
                 </li>
                 <li style={styles.rulesBulletItem}>
-                  <strong>自动标点</strong>：标点符号由系统自动跳过，<strong>无需手动输入</strong>。
+                  标点 <strong>自动跳过</strong>
                 </li>
               </ul>
             </div>
 
             <button type="button" disabled style={styles.rulesCountdownBtn}>
-              <span>游戏将在 {state.timeLeft} 秒后开始</span>
+              <span>{state.timeLeft} 秒后开始</span>
             </button>
           </div>
         </div>
@@ -301,16 +307,14 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
       {phase === 'countdown' && (
         <div style={styles.countdownOverlay}>
           <span style={styles.countdownText}>{state.timeLeft}</span>
-          <span style={styles.countdownLabel}>准备，开始打字！</span>
+          <span style={styles.countdownLabel}>准备</span>
         </div>
       )}
 
       {/* ===== Header Row: Status & Timer ===== */}
       <div style={styles.headerRow}>
-        <span style={styles.roundLabel}>打字大作战</span>
-        <span style={styles.timerDisplay}>
-          {phase === 'playing' ? `剩余 ${state.timeLeft}s` : `比赛结束`}
-        </span>
+        <span style={styles.roundLabel}>打字竞速</span>
+        <span style={styles.timerDisplay}>{phase === 'playing' ? `剩余 ${state.timeLeft}s` : `结束`}</span>
       </div>
 
       <div style={styles.containerLayout}>
@@ -321,7 +325,7 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
 
             {/* Target Chinese Text Display */}
             <div style={styles.sentenceContainer}>
-              {targetText.split('').map((char, index) => {
+              {targetChars.map(({ char, key }, index) => {
                 const isTyped = index < myTypedCount;
                 const isPunc = isPunctuationChar(char);
 
@@ -337,7 +341,7 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
                 }
 
                 return (
-                  <span key={index} style={charStyle}>
+                  <span key={key} style={charStyle}>
                     {char}
                   </span>
                 );
@@ -354,7 +358,7 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
                 onChange={handleInputChange}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
-                placeholder={isFinished ? '已完成，等待其他玩家...' : '在此输入文本，标点可自动跳过'}
+                placeholder={isFinished ? '已完成, 等待结算' : '输入文本, 标点自动跳过'}
                 style={
                   hasTypo
                     ? {
@@ -367,13 +371,9 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
                       : styles.typingInput
                 }
               />
-              {hasTypo && (
-                <p style={{ ...styles.inputHelpText, color: '#b96d61' }}>
-                  输入有误，请退格修正后继续。
-                </p>
-              )}
+              {hasTypo && <p style={{ ...styles.inputHelpText, color: '#b96d61' }}>输入有误, 退格修正</p>}
               {isFinished && (
-                <p style={{ ...styles.inputHelpText, color: '#7da86f', fontWeight: 900 }}>输入完成，等待结算。</p>
+                <p style={{ ...styles.inputHelpText, color: '#7da86f', fontWeight: 900 }}>输入完成, 等待结算</p>
               )}
             </div>
           </div>
@@ -381,7 +381,7 @@ export const TypingSpeedMiniGame: React.FC<TypingSpeedMiniGameProps> = ({
 
         {/* ===== Right: Real-time Player Lanes ===== */}
         <div style={styles.rightRuleboard}>
-          <h4 style={styles.raceHeader}>实时赛道</h4>
+          <h4 style={styles.raceHeader}>进度</h4>
 
           <div style={styles.playerGrid}>
             {sortedTrackPlayers.map((p) => {

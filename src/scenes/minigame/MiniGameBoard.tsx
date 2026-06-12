@@ -122,7 +122,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
 
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>正在等待联机小游戏连接...</p>
+            <p style={styles.submittedText}>等待联机连接</p>
           </div>
         );
       case 'trust_dilemma':
@@ -142,7 +142,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
 
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>正在等待联机小游戏连接...</p>
+            <p style={styles.submittedText}>等待联机连接</p>
           </div>
         );
       case 'cake_cutting':
@@ -162,7 +162,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
 
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>正在等待联机小游戏连接...</p>
+            <p style={styles.submittedText}>等待联机连接</p>
           </div>
         );
       case 'typing_speed':
@@ -182,7 +182,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
 
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>正在等待联机小游戏连接...</p>
+            <p style={styles.submittedText}>等待联机连接</p>
           </div>
         );
       case 'dice_race':
@@ -238,7 +238,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
       default:
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>{gameType || '暂无小游戏'} - 正在等待小游戏开始...</p>
+            <p style={styles.submittedText}>{gameType || '暂无小游戏'} - 等待小游戏开始</p>
           </div>
         );
     }
@@ -250,7 +250,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
     }
 
     if (connectionStatus === 'connecting') {
-      return <p style={styles.submittedText}>连接中...</p>;
+      return <p style={styles.submittedText}>连接中</p>;
     }
 
     if (connectionStatus === 'error') {
@@ -265,13 +265,13 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
     // Playing phase
     if (miniGameStart) {
       if (!isParticipant) {
-        return <p style={styles.submittedText}>未参与本轮，等待中...</p>;
+        return <p style={styles.submittedText}>未参与本轮, 等待中</p>;
       }
 
       return renderGame();
     }
 
-    return <p style={styles.submittedText}>已连接，等待小游戏开始...</p>;
+    return <p style={styles.submittedText}>已连接, 等待小游戏开始</p>;
   };
 
   const statusIcon = connectionStatus === 'connected' ? '●' : connectionStatus === 'error' ? '✗' : '○';
@@ -323,15 +323,15 @@ export const MiniGameBoardScene: React.FC = () => {
   // Connect all four clients
   const handleConnectAll = useCallback(async () => {
     setIsConnecting(true);
-    addLog('正在连接四个测试客户端...');
+    addLog('连接四个测试客户端');
 
     const newClients = clients.length === 0 ? initClients() : clients;
 
     try {
       await Promise.all(newClients.map((c) => c.connect()));
-      addLog('四个测试客户端已全部连接。');
+      addLog('四个测试客户端已连接');
     } catch (error) {
-      addLog(`连接失败：${error instanceof Error ? error.message : String(error)}`);
+      addLog(`连接失败: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     setIsConnecting(false);
@@ -340,26 +340,26 @@ export const MiniGameBoardScene: React.FC = () => {
   // Create room and join all clients
   const handleCreateAndJoin = useCallback(async () => {
     if (clients.length === 0 || clients.some((c) => c.getStore().getState().connectionStatus !== 'connected')) {
-      addLog('错误：请先连接全部客户端。');
+      addLog('错误: 请先连接全部客户端');
       return;
     }
 
     setIsCreatingRoom(true);
-    addLog('正在创建房间...');
+    addLog('创建房间');
 
     try {
       // Client 0 creates the room
       const newMatchId = await clients[0].createRoom('test_minigame', 4);
       setMatchId(newMatchId);
-      addLog(`房间已创建：${newMatchId}`);
+      addLog(`房间已创建: ${newMatchId}`);
 
       // All four clients join
       await Promise.all(clients.map((c) => c.joinMatch(newMatchId)));
-      addLog('四个客户端已全部加入房间。');
+      addLog('四个客户端已加入房间');
 
-      addLog('房间已就绪。请选择小游戏类型并触发。');
+      addLog('房间已就绪, 请选择小游戏类型并触发');
     } catch (error) {
-      addLog(`房间错误：${error instanceof Error ? error.message : String(error)}`);
+      addLog(`房间错误: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     setIsCreatingRoom(false);
@@ -368,7 +368,7 @@ export const MiniGameBoardScene: React.FC = () => {
   // Trigger mini-game via RPC
   const handleTriggerMinigame = useCallback(async () => {
     if (!matchId || clients.length === 0) {
-      addLog('错误：当前没有可用房间 ID。');
+      addLog('错误: 当前没有可用房间 ID');
       return;
     }
 
@@ -384,21 +384,23 @@ export const MiniGameBoardScene: React.FC = () => {
           client.resetForNewRound();
         });
         await waitForRenderCleanup();
-        addLog('上一轮小游戏视图已清理。');
+        addLog('上一轮小游戏视图已清理');
       } else if (hasActiveRound) {
-        addLog('小游戏仍在进行，本次触发将由后端排队处理。');
+        addLog('小游戏仍在进行, 本次触发将由后端排队处理');
       }
 
       await clients[0].triggerMiniGame(selectedGameType);
-      addLog(`已为房间 ${matchId} 触发 ${selectedGameType}。`);
+      addLog(`已为房间 ${matchId} 触发 ${selectedGameType}`);
     } catch (error) {
-      addLog(`触发失败：${error instanceof Error ? error.message : String(error)}`);
+      addLog(`触发失败: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsTriggering(false);
     }
   }, [addLog, clients, matchId, selectedGameType]);
 
-  const connectedCount = clients.filter((client) => client.getStore().getState().connectionStatus === 'connected').length;
+  const connectedCount = clients.filter(
+    (client) => client.getStore().getState().connectionStatus === 'connected',
+  ).length;
   const allClientsConnected = clients.length > 0 && connectedCount === clients.length;
   const connectionLabel = clients.length === 0 ? '未连接' : `${connectedCount}/${clients.length} 已连接`;
 
@@ -452,7 +454,7 @@ export const MiniGameBoardScene: React.FC = () => {
         {clients.length === 0 && (
           <div style={boardStyles.emptyState}>
             <strong style={boardStyles.emptyTitle}>小游戏调试面板</strong>
-            <span style={boardStyles.emptyText}>打开 DEV 菜单中的 MiniGame，连接四个测试客户端。</span>
+            <span style={boardStyles.emptyText}>打开 DEV 菜单中的 MiniGame, 连接四个测试客户端</span>
           </div>
         )}
       </div>

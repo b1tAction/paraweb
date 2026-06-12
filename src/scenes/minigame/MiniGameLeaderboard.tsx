@@ -9,7 +9,7 @@ interface MiniGameLeaderboardProps {
   result: MiniGameResult;
 }
 
-const DICE_PROBABILITY_DETAIL_PATTERN = /\s*[（(][^()（）]*[%％][^()（）]*[）)]/g;
+const DICE_PROBABILITY_DETAIL_PATTERN = /\s*[\uFF08(][^()\uFF08\uFF09]*[%\uFF05][^()\uFF08\uFF09]*[\uFF09)]/g;
 
 function formatDiceDescription(description?: string) {
   return (description || '').replace(DICE_PROBABILITY_DETAIL_PATTERN, '').trim();
@@ -37,7 +37,7 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({ gameTy
       case 'dice_race':
         return `${formatFixed(getGameDataNumber(gameData, 'dice1'), 0)} + ${formatFixed(getGameDataNumber(gameData, 'dice2'), 0)} = ${formatFixed(getGameDataNumber(gameData, 'score'), 0)}`;
       case 'count_seconds':
-        return `${formatFixed(getGameDataNumber(gameData, 'elapsed'), 2)}s (偏差: ${formatFixed(getGameDataNumber(gameData, 'deviation'), 2)}s)`;
+        return `用时 ${formatFixed(getGameDataNumber(gameData, 'elapsed'), 2)}s / 偏差 ${formatFixed(getGameDataNumber(gameData, 'deviation'), 2)}s`;
       case 'math_calc': {
         const accuracy = getGameDataNumber(gameData, 'accuracy');
         const timeMs = getGameDataNumber(gameData, 'time_ms');
@@ -52,9 +52,9 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({ gameTy
         return `偏差: ${formatFixed(getGameDataNumber(gameData, 'deviation'), 1)}%`;
       case 'dilemma_race': {
         const position = getGameDataNumber(gameData, 'position');
-        const isFinished = gameData['finished'] === true;
+        const isFinished = gameData.finished === true;
         if (isFinished) {
-          return `到达终点 (第15格)`;
+          return '到达终点 第15格';
         }
         return `位置: 第${position ?? '?'}格`;
       }
@@ -96,18 +96,7 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({ gameTy
     }
   };
 
-  const getRankIcon = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return '🥇';
-      case 2:
-        return '🥈';
-      case 3:
-        return '🥉';
-      default:
-        return '🪵';
-    }
-  };
+  const getRankLabel = (rank: number) => `第${rank}`;
 
   return (
     <div style={styles.leaderboardContainer}>
@@ -125,12 +114,12 @@ export const MiniGameLeaderboard: React.FC<MiniGameLeaderboardProps> = ({ gameTy
               animation: `leaderboard-slide-in 0.4s ease-out ${index * 0.1}s both`,
             }}
           >
-            <div style={styles.leaderboardRank}>{getRankIcon(entry.rank)}</div>
+            <div style={styles.leaderboardRank}>{getRankLabel(entry.rank)}</div>
 
             <div style={styles.leaderboardInfo}>
               <div style={styles.leaderboardName}>
                 {getDisambiguatedDisplayName(entry.display_name || entry.player_id, entry.player_id, allPlayersData)}
-                {entry.player_id === myPlayerId ? ' (我)' : ''}
+                {entry.player_id === myPlayerId ? ' / 我' : ''}
               </div>
               <div style={styles.leaderboardDetail}>{renderGameDataDetail(entry.game_data)}</div>
             </div>

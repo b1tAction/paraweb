@@ -48,29 +48,33 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
     [roomState?.players],
   );
   const effectiveParticipantIds = participantIds ?? roomParticipantIds;
+  const joinParticipantIds = participantIds;
 
   const renderPlayers = useMemo<Player[]>(() => {
     if (participantPlayers && participantPlayers.length > 0) return participantPlayers;
-    if (players.length > 0) return players;
+    if (effectiveParticipantIds.length === 0) return players;
 
-    return effectiveParticipantIds.map(
-      (id) =>
-        ({
-          player_id: id,
-          display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
-          faction: '',
-          position: 0,
-          hp: 0,
-          max_hp: 8,
-          lp: 0,
-          buffs: [],
-          items: [],
-          charge: 0,
-          fire_counter: 0,
-          is_dead: false,
-          skip_turn: false,
-        }) as Player,
-    );
+    const playersById = new Map(players.map((player) => [player.player_id, player]));
+    return effectiveParticipantIds.map((id) => {
+      const player = playersById.get(id);
+      if (player) return player;
+
+      return {
+        player_id: id,
+        display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
+        faction: '',
+        position: 0,
+        hp: 0,
+        max_hp: 8,
+        lp: 0,
+        buffs: [],
+        items: [],
+        charge: 0,
+        fire_counter: 0,
+        is_dead: false,
+        skip_turn: false,
+      } as Player;
+    });
   }, [effectiveParticipantIds, effectivePlayerId, participantPlayers, players]);
 
   useEffect(() => {
@@ -107,7 +111,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
     service
       .joinRoom(connection, {
         playerId: effectivePlayerId,
-        players: participantIds,
+        players: joinParticipantIds,
       })
       .catch((err) => {
         setPhase('error');
@@ -119,7 +123,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
     return () => {
       void service.leaveRoom();
     };
-  }, [connection, effectivePlayerId, isParticipant, participantIds, service]);
+  }, [connection, effectivePlayerId, isParticipant, joinParticipantIds, service]);
 
   const handleChoice = useCallback(
     (choice: number) => {
@@ -151,7 +155,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
   if (!isParticipant) {
     return (
       <div style={styles.gameArea}>
-        <p style={styles.spectatorMessage}>旁观中, 等待参与者完成选择</p>
+        <p style={styles.spectatorMessage}>旁观中, 等待选择结束</p>
       </div>
     );
   }
@@ -159,7 +163,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
   if (phase === 'connecting') {
     return (
       <div style={styles.gameArea}>
-        <p style={styles.connectingText}>正在连接信任考验服务器</p>
+        <p style={styles.connectingText}>连接信任考验服务器</p>
       </div>
     );
   }
@@ -176,7 +180,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
   const state = roomState;
   if (!state) return null;
 
-  const playerCountLabel = effectiveParticipantIds.length === 3 ? '3人局' : '4人局';
+  const playerCountLabel = effectiveParticipantIds.length === 3 ? '3人' : '4人';
 
   if (phase === 'rules') {
     const myPlayerState = state.players.find((p) => p.id === effectivePlayerId);
@@ -191,15 +195,15 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
 
           <div style={styles.rulesContentLayout}>
             <div style={styles.rulesExplainCard}>
-              <p style={styles.rulesDescText}>共 4 轮, 在合作与竞争之间选择, 总分最高获胜</p>
+              <p style={styles.rulesDescText}>4 轮, 选合作或竞争, 高分获胜</p>
 
               <ul style={styles.rulesBulletList}>
                 <li style={styles.rulesBulletItem}>
-                  每轮 10 秒, 选择 <strong>合作</strong> 或 <strong>竞争</strong>, 超时默认合作
+                  每轮 10 秒, 超时默认 <strong>合作</strong>
                 </li>
               </ul>
 
-              <h4 style={styles.rulesSectionTitle}>计分结算 / {playerCountLabel}</h4>
+              <h4 style={styles.rulesSectionTitle}>计分 / {playerCountLabel}</h4>
               {effectiveParticipantIds.length === 3 ? (
                 <div style={styles.ruleList}>
                   <div style={styles.ruleItemHighlight}>
@@ -215,17 +219,17 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
-                    <p style={styles.ruleItemText}>1人竞争, 2人合作</p>
+                    <p style={styles.ruleItemText}>1竞 2合</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者 +6</span>
-                      <span style={styles.badgeRuleC}>合作者 +1</span>
+                      <span style={styles.badgeRuleD}>竞 +6</span>
+                      <span style={styles.badgeRuleC}>合 +1</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
-                    <p style={styles.ruleItemText}>2人竞争, 1人合作</p>
+                    <p style={styles.ruleItemText}>2竞 1合</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者 +0</span>
-                      <span style={styles.badgeRuleC}>合作者 +6</span>
+                      <span style={styles.badgeRuleD}>竞 +0</span>
+                      <span style={styles.badgeRuleC}>合 +6</span>
                     </div>
                   </div>
                 </div>
@@ -244,24 +248,24 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
-                    <p style={styles.ruleItemText}>1人竞争, 3人合作</p>
+                    <p style={styles.ruleItemText}>1竞 3合</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者 +7</span>
-                      <span style={styles.badgeRuleC}>合作者 +2</span>
+                      <span style={styles.badgeRuleD}>竞 +7</span>
+                      <span style={styles.badgeRuleC}>合 +2</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
-                    <p style={styles.ruleItemText}>2人竞争, 2人合作</p>
+                    <p style={styles.ruleItemText}>2竞 2合</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者 +0</span>
-                      <span style={styles.badgeRuleC}>合作者 +1</span>
+                      <span style={styles.badgeRuleD}>竞 +0</span>
+                      <span style={styles.badgeRuleC}>合 +1</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
-                    <p style={styles.ruleItemText}>3人竞争, 1人合作</p>
+                    <p style={styles.ruleItemText}>3竞 1合</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者 -1</span>
-                      <span style={styles.badgeRuleC}>合作者 +3</span>
+                      <span style={styles.badgeRuleD}>竞 -1</span>
+                      <span style={styles.badgeRuleC}>合 +3</span>
                     </div>
                   </div>
                 </div>
@@ -270,7 +274,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
 
             <div style={styles.rulesSideCard}>
               <div>
-                <h4 style={styles.rulesChecklistTitle}>玩家状态</h4>
+                <h4 style={styles.rulesChecklistTitle}>准备</h4>
                 <div style={styles.rulesChecklistGrid}>
                   {state.players.map((p) => {
                     const isMe = p.id === effectivePlayerId;
@@ -281,7 +285,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
                           {isMe ? ' / 我' : ''}
                         </span>
                         <span style={p.isReady ? styles.badgeReady : styles.badgeThinking}>
-                          {p.isReady ? '已确认' : '准备中'}
+                          {p.isReady ? '已确认' : '未确认'}
                         </span>
                       </div>
                     );
@@ -296,7 +300,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
                   </button>
                 ) : (
                   <button type="button" style={styles.rulesConfirmBtn} onClick={() => service.sendConfirmRules()}>
-                    <span>确认规则, {state.timeLeft}s 后自动确认</span>
+                    <span>确认, {state.timeLeft}s 自动确认</span>
                   </button>
                 )}
               </div>
@@ -312,7 +316,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
   return (
     <div style={styles.gameArea}>
       <div style={styles.headerRow}>
-        <span style={styles.roundLabel}>信任考验 · Round {state.currentRound} / 4</span>
+        <span style={styles.roundLabel}>信任考验 {state.currentRound}/4</span>
         {phase === 'choosing' && <span style={styles.timerDisplay}>{state.timeLeft}s</span>}
         {phase === 'resolving' && <span style={styles.resolvingLabel}>结算中</span>}
         {phase === 'finished' && <span style={styles.resolvingLabel}>结束</span>}
@@ -341,7 +345,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
                     <span style={nameStyle}>{getPlayerDisplayName(p.id)}</span>
                     {isMe && (
                       <span style={isFirst ? styles.badgeMeIconFirst : styles.badgeMeIcon}>
-                        {isFirst ? '我 / 领先' : '我'}
+                        {isFirst ? '领先' : '我'}
                       </span>
                     )}
                   </div>
@@ -358,9 +362,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
 
           {phase === 'choosing' && (
             <div style={styles.choiceArea}>
-              <p style={styles.choicePrompt}>
-                {myChoice !== null ? '已记录选择, 倒计时结束前可更改' : '选择本轮策略, 未选默认合作'}
-              </p>
+              <p style={styles.choicePrompt}>{myChoice !== null ? '已记录, 可更改' : '未选默认合作'}</p>
               <div style={styles.choiceButtons}>
                 <button
                   type="button"
@@ -385,7 +387,7 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
 
           {phase === 'resolving' && (
             <div style={styles.revealContainer}>
-              <h3 style={styles.revealTitle}>本轮结算</h3>
+              <h3 style={styles.revealTitle}>本轮</h3>
               <div style={styles.revealGrid}>
                 {state.players.map((p) => {
                   const isMe = p.id === effectivePlayerId;
@@ -414,42 +416,42 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
 
           {phase === 'finished' && (
             <div style={styles.revealContainer}>
-              <h3 style={styles.revealTitle}>信任考验结束</h3>
-              <p style={styles.choicePrompt}>分数已计入总积分, 奖励骰子已分配</p>
+              <h3 style={styles.revealTitle}>结束</h3>
+              <p style={styles.choicePrompt}>已计分, 骰子已发放</p>
             </div>
           )}
         </div>
 
         <div style={styles.rightRuleboard}>
-          <h3 style={styles.ruleTitle}>计分规则 / {playerCountLabel}</h3>
-          <p style={styles.ruleSubtitle}>合作提升集体收益, 竞争改变个人收益</p>
+          <h3 style={styles.ruleTitle}>计分 / {playerCountLabel}</h3>
+          <p style={styles.ruleSubtitle}>选择影响全员得分</p>
           <div style={styles.ruleList}>
             {effectiveParticipantIds.length === 3 ? (
               <>
                 <div style={styles.ruleItemHighlight}>
                   <p style={styles.ruleItemText}>全员合作</p>
                   <div style={styles.ruleScoreRow}>
-                    <span style={styles.badgeRuleC}>合作者 +4</span>
+                    <span style={styles.badgeRuleC}>每人 +4</span>
                   </div>
                 </div>
                 <div style={styles.ruleItem}>
                   <p style={styles.ruleItemText}>全员竞争</p>
                   <div style={styles.ruleScoreRow}>
-                    <span style={styles.badgeRuleD}>竞争者 +1</span>
+                    <span style={styles.badgeRuleD}>每人 +1</span>
                   </div>
                 </div>
                 <div style={styles.ruleItem}>
-                  <p style={styles.ruleItemText}>1人竞争, 2人合作</p>
+                  <p style={styles.ruleItemText}>1竞 2合</p>
                   <div style={styles.ruleScoreRow}>
-                    <span style={styles.badgeRuleD}>竞争者 +6</span>
-                    <span style={styles.badgeRuleC}>合作者 +1</span>
+                    <span style={styles.badgeRuleD}>竞 +6</span>
+                    <span style={styles.badgeRuleC}>合 +1</span>
                   </div>
                 </div>
                 <div style={styles.ruleItem}>
-                  <p style={styles.ruleItemText}>2人竞争, 1人合作</p>
+                  <p style={styles.ruleItemText}>2竞 1合</p>
                   <div style={styles.ruleScoreRow}>
-                    <span style={styles.badgeRuleD}>竞争者 +0</span>
-                    <span style={styles.badgeRuleC}>合作者 +6</span>
+                    <span style={styles.badgeRuleD}>竞 +0</span>
+                    <span style={styles.badgeRuleC}>合 +6</span>
                   </div>
                 </div>
               </>
@@ -458,34 +460,34 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
                 <div style={styles.ruleItemHighlight}>
                   <p style={styles.ruleItemText}>全员合作</p>
                   <div style={styles.ruleScoreRow}>
-                    <span style={styles.badgeRuleC}>合作者 +5</span>
+                    <span style={styles.badgeRuleC}>每人 +5</span>
                   </div>
                 </div>
                 <div style={styles.ruleItem}>
                   <p style={styles.ruleItemText}>全员竞争</p>
                   <div style={styles.ruleScoreRow}>
-                    <span style={styles.badgeRuleD}>竞争者 +1</span>
+                    <span style={styles.badgeRuleD}>每人 +1</span>
                   </div>
                 </div>
                 <div style={styles.ruleItem}>
-                  <p style={styles.ruleItemText}>1人竞争, 3人合作</p>
+                  <p style={styles.ruleItemText}>1竞 3合</p>
                   <div style={styles.ruleScoreRow}>
-                    <span style={styles.badgeRuleD}>竞争者 +7</span>
-                    <span style={styles.badgeRuleC}>合作者 +2</span>
+                    <span style={styles.badgeRuleD}>竞 +7</span>
+                    <span style={styles.badgeRuleC}>合 +2</span>
                   </div>
                 </div>
                 <div style={styles.ruleItem}>
-                  <p style={styles.ruleItemText}>2人竞争, 2人合作</p>
+                  <p style={styles.ruleItemText}>2竞 2合</p>
                   <div style={styles.ruleScoreRow}>
-                    <span style={styles.badgeRuleD}>竞争者 +0</span>
-                    <span style={styles.badgeRuleC}>合作者 +1</span>
+                    <span style={styles.badgeRuleD}>竞 +0</span>
+                    <span style={styles.badgeRuleC}>合 +1</span>
                   </div>
                 </div>
                 <div style={styles.ruleItem}>
-                  <p style={styles.ruleItemText}>3人竞争, 1人合作</p>
+                  <p style={styles.ruleItemText}>3竞 1合</p>
                   <div style={styles.ruleScoreRow}>
-                    <span style={styles.badgeRuleD}>竞争者 -1</span>
-                    <span style={styles.badgeRuleC}>合作者 +3</span>
+                    <span style={styles.badgeRuleD}>竞 -1</span>
+                    <span style={styles.badgeRuleC}>合 +3</span>
                   </div>
                 </div>
               </>

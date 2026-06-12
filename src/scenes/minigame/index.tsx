@@ -35,7 +35,7 @@ const RESULT_DISPLAY_DURATION_MS = 5000;
 // ========== MiniGameSubmitRankScene ==========
 
 export const MiniGameSubmitRankScene: React.FC = () => {
-  const { miniGameStart, miniGameResult, myPlayerId, session, miniGameOnline } = useGameStore();
+  const { miniGameStart, miniGameResult, myPlayerId, players, session, miniGameOnline } = useGameStore();
 
   // Shared submit state
   const [submitted, setSubmitted] = useState(false);
@@ -120,9 +120,24 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   const myUserId = myPlayerId || session?.user_id || '';
   const isParticipant = hasMiniGameStart && participantIds.includes(myUserId);
   const gameType = miniGameStart?.game_type || '';
+  const participantPlayers = useMemo(() => {
+    if (participantIds.length === 0 || players.length === 0) return [];
+
+    const playersById = new Map(players.map((player) => [player.player_id, player]));
+    const orderedPlayers = participantIds.flatMap((participantId) => {
+      const player = playersById.get(participantId);
+      return player ? [player] : [];
+    });
+
+    return orderedPlayers.length === participantIds.length ? orderedPlayers : [];
+  }, [participantIds, players]);
 
   // Online mode: connection info present means Colyseus-based real-time game
   const isOnlineMode = miniGameOnline && miniGameStart?.connection != null;
+  const onlineGameKey =
+    miniGameStart?.connection?.minigame_instance_id ||
+    miniGameStart?.connection?.room_id ||
+    `${gameType}:${participantIds.join(',')}`;
 
   // ========== Submit handler (shared) ==========
 
@@ -176,7 +191,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       case 'vernier':
         return '游标卡尺';
       default:
-        return `小游戏：${gameType}`;
+        return `小游戏: ${gameType}`;
     }
   };
   // ========== Playing phase rendering ==========
@@ -188,49 +203,73 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         if (isOnlineMode && miniGameStart?.connection) {
           return (
             <DilemmaRaceMiniGame
-              key={
-                miniGameStart.connection.minigame_instance_id ||
-                miniGameStart.connection.room_id ||
-                `${gameType}:${participantIds.join(',')}`
-              }
+              key={onlineGameKey}
               connection={miniGameStart.connection}
               isParticipant={isParticipant}
               playerId={myUserId}
               participantIds={participantIds}
+              participantPlayers={participantPlayers}
             />
           );
         }
         // dilemma_race requires online mode; show waiting message if no connection
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>步步为营需要联机模式，正在等待服务器结算...</p>
+            <p style={styles.submittedText}>步步为营需要联机模式, 等待结算</p>
           </div>
         );
       case 'trust_dilemma':
         if (isOnlineMode && miniGameStart?.connection) {
-          return <TrustDilemmaMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+          return (
+            <TrustDilemmaMiniGame
+              key={onlineGameKey}
+              connection={miniGameStart.connection}
+              isParticipant={isParticipant}
+              playerId={myUserId}
+              participantIds={participantIds}
+              participantPlayers={participantPlayers}
+            />
+          );
         }
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>信任考验需要联机模式，正在等待服务器结算...</p>
+            <p style={styles.submittedText}>信任考验需要联机模式, 等待结算</p>
           </div>
         );
       case 'cake_cutting':
         if (isOnlineMode && miniGameStart?.connection) {
-          return <CakeCuttingMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+          return (
+            <CakeCuttingMiniGame
+              key={onlineGameKey}
+              connection={miniGameStart.connection}
+              isParticipant={isParticipant}
+              playerId={myUserId}
+              participantIds={participantIds}
+              participantPlayers={participantPlayers}
+            />
+          );
         }
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>切蛋糕需要联机模式，正在等待服务器结算...</p>
+            <p style={styles.submittedText}>切蛋糕需要联机模式, 等待结算</p>
           </div>
         );
       case 'typing_speed':
         if (isOnlineMode && miniGameStart?.connection) {
-          return <TypingSpeedMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+          return (
+            <TypingSpeedMiniGame
+              key={onlineGameKey}
+              connection={miniGameStart.connection}
+              isParticipant={isParticipant}
+              playerId={myUserId}
+              participantIds={participantIds}
+              participantPlayers={participantPlayers}
+            />
+          );
         }
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>打字速度需要联机模式，正在等待服务器结算...</p>
+            <p style={styles.submittedText}>打字速度需要联机模式, 等待结算</p>
           </div>
         );
       case 'dice_race':
@@ -281,7 +320,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       default:
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>{gameType} 小游戏暂未接入前端，正在等待服务器自动处理...</p>
+            <p style={styles.submittedText}>{gameType} 小游戏暂未接入前端, 等待服务器处理</p>
           </div>
         );
     }
@@ -294,7 +333,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       return (
         <>
           <h2 style={styles.title}>小游戏</h2>
-          <p style={styles.submittedText}>等待小游戏开始...</p>
+          <p style={styles.submittedText}>等待小游戏开始</p>
         </>
       );
     }
@@ -314,7 +353,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       return (
         <>
           <h2 style={styles.title}>{getGameTitle()}</h2>
-          <p style={styles.submittedText}>你未参与本轮，正在等待其他玩家...</p>
+          <p style={styles.submittedText}>未参与本轮, 等待其他玩家</p>
           {renderResult()}
         </>
       );
