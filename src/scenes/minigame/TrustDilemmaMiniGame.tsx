@@ -207,82 +207,77 @@ export const TrustDilemmaMiniGame: React.FC<TrustDilemmaMiniGameProps> = ({
           <div style={styles.rulesContentLayout}>
             {/* Left Column: Clear Game Rules Explanation */}
             <div style={styles.rulesExplainCard}>
-              <h4 style={styles.rulesSectionTitle}>🔍 游戏背景与机制</h4>
               <p style={styles.rulesDescText}>
-                信任考验是一个经典的在线博弈论微型游戏。多名玩家将在面临自私自利与集体利益冲突时的经典困境中作出决定。
+                博弈共进行 4 轮，在集体利益与个人利益之间进行决策，得分最高者获胜！
               </p>
 
-              <h4 style={styles.rulesSectionTitle}>🎮 核心玩法规则</h4>
               <ul style={styles.rulesBulletList}>
-                <li style={styles.rulesBulletItem}>游戏共进行 <strong>4 轮</strong>。每一轮结果实时公开。</li>
-                <li style={styles.rulesBulletItem}>每轮可秘密选择 <strong>🤝 合作 (Cooperate)</strong> 或 <strong>⚔️ 竞争 (Compete)</strong>。</li>
-                <li style={styles.rulesBulletItem}>决策限时 10 秒。若倒计时结束未选，将<strong>自动默认为“合作”</strong>。</li>
-                <li style={styles.rulesBulletItem}>当所有人都确认规则或 15 秒规则倒计时结束，游戏将立刻正式开始。</li>
+                <li style={styles.rulesBulletItem}>每轮限时 10 秒秘密选择 <strong>🤝 合作</strong> 或 <strong>⚔️ 竞争</strong>（超时自动选合作）。</li>
               </ul>
 
-              <h4 style={styles.rulesSectionTitle}>📊 计分结算明细 ({effectiveParticipantIds.length === 3 ? '3人局' : '4人局'})</h4>
+              <h4 style={styles.rulesSectionTitle}>📊 计分结算 ({effectiveParticipantIds.length === 3 ? '3人局' : '4人局'})</h4>
               {effectiveParticipantIds.length === 3 ? (
                 <div style={styles.ruleList}>
                   <div style={styles.ruleItemHighlight}>
-                    <p style={styles.ruleItemText}>🤝 全员合作：全员选择合作 (C, C, C)</p>
+                    <p style={styles.ruleItemText}>🤝 全员合作 (C, C, C)</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleC}>合作者：各得 +4 分</span>
+                      <span style={styles.badgeRuleC}>每人 +4 分</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
-                    <p style={styles.ruleItemText}>⚔️ 全员竞争：全员选择竞争 (D, D, D)</p>
+                    <p style={styles.ruleItemText}>⚔️ 全员竞争 (D, D, D)</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者：各得 +1 分</span>
+                      <span style={styles.badgeRuleD}>每人 +1 分</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
                     <p style={styles.ruleItemText}>⚔️ 1人竞争，2人合作 (D, C, C)</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者：拿高额红利 +6 分</span>
-                      <span style={styles.badgeRuleC}>合作者：仅得被收割保底 +1 分</span>
+                      <span style={styles.badgeRuleD}>竞争者 +6 分</span>
+                      <span style={styles.badgeRuleC}>合作者 +1 分</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
                     <p style={styles.ruleItemText}>⚔️ 2人竞争，1人合作 (D, D, C)</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者：得 +0 分</span>
-                      <span style={styles.badgeRuleC}>合作者：得收割红利 +6 分</span>
+                      <span style={styles.badgeRuleD}>竞争者 +0 分</span>
+                      <span style={styles.badgeRuleC}>合作者 +6 分</span>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div style={styles.ruleList}>
                   <div style={styles.ruleItemHighlight}>
-                    <p style={styles.ruleItemText}>🤝 全员合作：全员选择合作 (C, C, C, C)</p>
+                    <p style={styles.ruleItemText}>🤝 全员合作 (C, C, C, C)</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleC}>合作者：各得 +5 分</span>
+                      <span style={styles.badgeRuleC}>每人 +5 分</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
-                    <p style={styles.ruleItemText}>⚔️ 全员竞争：全员选择竞争 (D, D, D, D)</p>
+                    <p style={styles.ruleItemText}>⚔️ 全员竞争 (D, D, D, D)</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者：各得 +1 分</span>
+                      <span style={styles.badgeRuleD}>每人 +1 分</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
                     <p style={styles.ruleItemText}>⚔️ 1人竞争，3人合作 (D, C, C, C)</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者：拿最高红利 +7 分</span>
-                      <span style={styles.badgeRuleC}>合作者：仅得 +2 分</span>
+                      <span style={styles.badgeRuleD}>竞争者 +7 分</span>
+                      <span style={styles.badgeRuleC}>合作者 +2 分</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
                     <p style={styles.ruleItemText}>⚔️ 2人竞争，2人合作 (D, D, C, C)</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者：各得 +0 分</span>
-                      <span style={styles.badgeRuleC}>合作者：各得 +1 分</span>
+                      <span style={styles.badgeRuleD}>竞争者 +0 分</span>
+                      <span style={styles.badgeRuleC}>合作者 +1 分</span>
                     </div>
                   </div>
                   <div style={styles.ruleItem}>
                     <p style={styles.ruleItemText}>⚔️ 3人竞争，1人合作 (D, D, D, C)</p>
                     <div style={styles.ruleScoreRow}>
-                      <span style={styles.badgeRuleD}>竞争者：受人防范反倒扣 -1 分</span>
-                      <span style={styles.badgeRuleC}>合作者：坚持到底反转获得 +3 分</span>
+                      <span style={styles.badgeRuleD}>竞争者 -1 分</span>
+                      <span style={styles.badgeRuleC}>合作者 +3 分</span>
                     </div>
                   </div>
                 </div>
