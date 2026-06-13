@@ -1,6 +1,6 @@
 import { assetUrl } from './assets';
 
-const DICE_SOUND_SRC = assetUrl('music/roll_dice.mp3');
+const DICE_SOUND_SRC = assetUrl('assets/music/roll_dice.mp3');
 
 let diceSfxAudio: HTMLAudioElement | null = null;
 

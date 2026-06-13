@@ -1,6 +1,7 @@
 // Mini-game shared styles for all mini-game UI components.
 
 import type { CSSProperties } from 'react';
+import { assetCssUrl } from '../../utils/assets';
 
 export const styles: Record<string, CSSProperties> = {
   container: {
@@ -17,7 +18,7 @@ export const styles: Record<string, CSSProperties> = {
     alignItems: 'stretch', // Changed from center to stretch to fill the screen area
     justifyContent: 'center',
     // Use the gamepad frame image
-    backgroundImage: 'url(/assets/ui/gamepad_frame.png)',
+    backgroundImage: assetCssUrl('assets/ui/gamepad_frame.png'),
     backgroundSize: '100% 100%',
     backgroundRepeat: 'no-repeat',
     imageRendering: 'pixelated', // Keep pixel art sharp

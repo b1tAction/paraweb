@@ -6,26 +6,26 @@ import { assetUrl } from './assets';
  */
 const EVENT_SOUND_MAP: Record<string, string> = {
   // High priority - dramatic events
-  thunder: 'music/events/thunder.mp3',
-  skull_gaze: 'music/events/skull_gaze.mp3',
-  relic: 'music/events/relic.mp3',
-  divine_bless: 'music/events/divine_bless.mp3',
+  thunder: 'assets/music/events/thunder.mp3',
+  skull_gaze: 'assets/music/events/skull_gaze.mp3',
+  relic: 'assets/music/events/relic.mp3',
+  divine_bless: 'assets/music/events/divine_bless.mp3',
 
   // Medium priority - clear positive/negative feedback
-  herb: 'music/events/herb.mp3',
-  ghost_hit: 'music/events/ghost_hit.mp3',
-  mosquito: 'music/events/mosquito.mp3',
-  lost_way: 'music/events/lost_way.mp3',
+  herb: 'assets/music/events/herb.mp3',
+  ghost_hit: 'assets/music/events/ghost_hit.mp3',
+  mosquito: 'assets/music/events/mosquito.mp3',
+  lost_way: 'assets/music/events/lost_way.mp3',
 
   // Low priority - atmosphere
-  lucky_bubble: 'music/events/lucky_bubble.mp3',
-  wind_gust: 'music/events/wind_gust.mp3',
-  exchange: 'music/events/exchange.mp3',
-  hidden_buff: 'music/events/hidden_buff.mp3',
-  taste_test: 'music/events/taste_test.mp3',
-  dog_poop: 'music/events/dog_poop.mp3',
-  magic_flute: 'music/events/magic_flute.mp3',
-  crimson_blade: 'music/events/crimson_blade.mp3',
+  lucky_bubble: 'assets/music/events/lucky_bubble.mp3',
+  wind_gust: 'assets/music/events/wind_gust.mp3',
+  exchange: 'assets/music/events/exchange.mp3',
+  hidden_buff: 'assets/music/events/hidden_buff.mp3',
+  taste_test: 'assets/music/events/taste_test.mp3',
+  dog_poop: 'assets/music/events/dog_poop.mp3',
+  magic_flute: 'assets/music/events/magic_flute.mp3',
+  crimson_blade: 'assets/music/events/crimson_blade.mp3',
 };
 
 /**
