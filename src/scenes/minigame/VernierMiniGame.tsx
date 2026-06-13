@@ -234,7 +234,7 @@ export const VernierMiniGame: React.FC<VernierMiniGameProps> = ({
             handleStop();
           }}
         >
-          STOP!
+          锁定！
         </button>
       )}
 

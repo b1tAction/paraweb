@@ -29,9 +29,9 @@ import {
   getNextDevDiceType,
   triggerDevEffect,
 } from './devEffectTriggers';
-import { addItemToPlayer, ALL_ITEM_TYPES, injectBoard, injectGameOver, injectGameOverSkipAni, injectMiniGame, MOCK_MAP_CONFIG, TARGETABLE_ITEM_TYPES, useItemDev } from './devMockData';
+import { injectBoard, injectGameOver, injectGameOverSkipAni, injectMiniGame, MOCK_MAP_CONFIG } from './devMockData';
 
-type DevPanelTab = 'state' | 'scene' | 'board' | 'effects' | 'items' | 'audio' | 'minigame';
+type DevPanelTab = 'state' | 'scene' | 'board' | 'effects' | 'audio' | 'minigame';
 
 const SCENE_OPTIONS: { value: Scene; label: string }[] = [
   { value: Scene.Home, label: 'Home' },
@@ -60,7 +60,6 @@ const TABS: { value: DevPanelTab; label: string }[] = [
   { value: 'scene', label: 'Scene' },
   { value: 'board', label: 'Board' },
   { value: 'effects', label: 'Effects' },
-  { value: 'items', label: 'Items' },
   { value: 'audio', label: 'Audio' },
   { value: 'minigame', label: 'MiniGame' },
 ];
@@ -149,9 +148,6 @@ export const DevPanel: React.FC = () => {
   const [selectedDiceSteps, setSelectedDiceSteps] = useState(1);
   const [selectedFromDice, setSelectedFromDice] = useState<DevDiceType>('wood');
   const [selectedToDice, setSelectedToDice] = useState<DevDiceType>('copper');
-  const [selectedItemIndex, setSelectedItemIndex] = useState(0);
-  const [selectedItemTargetId, setSelectedItemTargetId] = useState('');
-  const [selectedItemId, setSelectedItemId] = useState('');
 
   const currentScene = useGameStore((state) => state.currentScene);
   const globalState = useGameStore((state) => state.globalState);
@@ -651,133 +647,6 @@ export const DevPanel: React.FC = () => {
           </section>
         )}
 
-        {activeTab === 'items' && (
-          <section style={styles.section}>
-            <div style={styles.sectionTitle}>Add Item</div>
-            <select
-              value={selectedPlayer?.player_id ?? ''}
-              onChange={(event) => setSelectedPlayerId(event.target.value)}
-              style={styles.select}
-              disabled={players.length === 0}
-            >
-              {players.length === 0 ? (
-                <option value="">No players</option>
-              ) : (
-                players
-                  .filter((player) => !player.is_boss)
-                  .map((player) => (
-                    <option key={player.player_id} value={player.player_id}>
-                      {player.display_name || player.player_id}
-                    </option>
-                  ))
-              )}
-            </select>
-            <select
-              value={selectedItemIndex}
-              onChange={(event) => setSelectedItemIndex(Number(event.target.value))}
-              style={styles.select}
-            >
-              {ALL_ITEM_TYPES.map((itemDef, index) => (
-                <option key={itemDef.type} value={index}>
-                  {itemDef.name} ({itemDef.type}){itemDef.targetable ? ' [Target]' : ''}
-                </option>
-              ))}
-            </select>
-            <p style={styles.description}>{ALL_ITEM_TYPES[selectedItemIndex]?.desc ?? ''}</p>
-            <button
-              type="button"
-              style={styles.successButton}
-              onClick={() => {
-                const itemDef = ALL_ITEM_TYPES[selectedItemIndex];
-                if (!itemDef) return;
-                const targetId = selectedPlayerId || myPlayerId || currentPlayerId || players[0]?.player_id;
-                addItemToPlayer(itemDef.type, targetId);
-              }}
-              disabled={players.length === 0}
-            >
-              Add Item to Player
-            </button>
-
-            <div style={styles.sectionTitle}>Use Item (Trigger Animation)</div>
-            {selectedPlayer && selectedPlayer.items.length > 0 ? (
-              <>
-                <label style={styles.fieldLabel}>
-                  Item
-                  <select
-                    value={selectedItemId || selectedPlayer.items[0]?.id || ''}
-                    onChange={(e) => setSelectedItemId(e.target.value)}
-                    style={styles.select}
-                  >
-                    {selectedPlayer.items.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} ({item.type}){item.targetable ? ' [T]' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {(() => {
-                  const currentItem = selectedPlayer.items.find((i) => i.id === (selectedItemId || selectedPlayer.items[0]?.id));
-                  const needsTarget = currentItem && (TARGETABLE_ITEM_TYPES.has(currentItem.type) || currentItem.targetable);
-                  return needsTarget ? (
-                    <label style={styles.fieldLabel}>
-                      Target Player
-                      <select
-                        value={selectedItemTargetId}
-                        onChange={(e) => setSelectedItemTargetId(e.target.value)}
-                        style={styles.select}
-                      >
-                        {players
-                          .filter((p) => !p.is_boss && p.player_id !== selectedPlayer.player_id)
-                          .map((p) => (
-                            <option key={p.player_id} value={p.player_id}>
-                              {p.display_name || p.player_id}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                  ) : null;
-                })()}
-                <button
-                  type="button"
-                  style={styles.warningButton}
-                  onClick={() => {
-                    if (!selectedPlayer || selectedPlayer.items.length === 0) return;
-                    const item = selectedPlayer.items.find((i) => i.id === (selectedItemId || selectedPlayer.items[0]?.id));
-                    if (!item) return;
-                    const needsTarget = TARGETABLE_ITEM_TYPES.has(item.type) || item.targetable;
-                    useItemDev(item.id, needsTarget ? selectedItemTargetId : undefined);
-                  }}
-                >
-                  Use Item + Play Animation
-                </button>
-              </>
-            ) : (
-              <p style={styles.hint}>No items on this player. Add one first.</p>
-            )}
-
-            <div style={styles.sectionTitle}>Player Items</div>
-            {selectedPlayer ? (
-              selectedPlayer.items.length > 0 ? (
-                <div style={styles.stateGrid}>
-                  {selectedPlayer.items.map((item) => (
-                    <div key={item.id} style={styles.stateTile}>
-                      <span style={styles.stateLabel}>{item.type}</span>
-                      <span style={styles.stateValue}>{item.name}{item.targetable ? ' [T]' : ''}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={styles.hint}>No items on this player.</p>
-              )
-            ) : (
-              <p style={styles.hint}>Select a player first.</p>
-            )}
-            <p style={styles.hint}>
-              Items added here are also shown on the Board. Clicking an item on the Board in DEV mode will automatically trigger the animation when the network request fails.
-            </p>
-          </section>
-        )}
-
         {activeTab === 'audio' && (
           <section style={styles.section}>
             <div style={styles.sectionTitle}>Audio Checks</div>
@@ -807,22 +676,22 @@ export const DevPanel: React.FC = () => {
 
         {activeTab === 'minigame' && (
           <section style={styles.section}>
-            <div style={styles.sectionTitle}>MiniGame Board</div>
+            <div style={styles.sectionTitle}>小游戏面板</div>
             <button
               type="button"
               style={styles.warningButton}
               onClick={() => useGameStore.getState().setScene(Scene.MiniGameBoard)}
             >
-              {currentScene === Scene.MiniGameBoard ? 'MiniGameBoard Active' : 'Launch MiniGameBoard'}
+              {currentScene === Scene.MiniGameBoard ? '小游戏调试面板已打开' : '打开小游戏调试面板'}
             </button>
             {miniGameBoardSnapshot.isMounted && (
               <>
                 <div style={styles.stateGrid}>
-                  <StateTile label="Clients" value={miniGameBoardSnapshot.connectionLabel} />
-                  <StateTile label="Match" value={miniGameBoardSnapshot.matchId || 'not created'} />
+                  <StateTile label="客户端" value={miniGameBoardSnapshot.connectionLabel} />
+                  <StateTile label="房间" value={miniGameBoardSnapshot.matchId || '未创建'} />
                 </div>
                 <label style={styles.fieldLabel}>
-                  MiniGame Type
+                  小游戏类型
                   <select
                     value={miniGameBoardSnapshot.selectedGameType}
                     onChange={(event) => {
@@ -844,7 +713,7 @@ export const DevPanel: React.FC = () => {
                     onClick={() => void miniGameBoardDevControls.connectAll()}
                     disabled={miniGameBoardSnapshot.isConnecting}
                   >
-                    {miniGameBoardSnapshot.isConnecting ? 'Connecting...' : 'Connect 4 Clients'}
+                    {miniGameBoardSnapshot.isConnecting ? '连接中...' : '连接 4 个客户端'}
                   </button>
                   <button
                     type="button"
@@ -852,7 +721,7 @@ export const DevPanel: React.FC = () => {
                     onClick={() => void miniGameBoardDevControls.createAndJoin()}
                     disabled={!miniGameBoardSnapshot.canCreateRoom || miniGameBoardSnapshot.isCreatingRoom}
                   >
-                    {miniGameBoardSnapshot.isCreatingRoom ? 'Creating...' : 'Create & Join'}
+                    {miniGameBoardSnapshot.isCreatingRoom ? '创建中...' : '创建并加入'}
                   </button>
                 </div>
                 <button
@@ -864,8 +733,8 @@ export const DevPanel: React.FC = () => {
                   disabled={!miniGameBoardSnapshot.canTriggerMiniGame}
                 >
                   {miniGameBoardSnapshot.isTriggering
-                    ? 'Triggering...'
-                    : `Trigger ${miniGameBoardSnapshot.selectedGameType}`}
+                    ? '触发中...'
+                    : `触发 ${miniGameBoardSnapshot.selectedGameType}`}
                 </button>
                 {miniGameBoardSnapshot.statusLog.length > 0 && (
                   <div style={styles.logArea}>
@@ -985,7 +854,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tabBar: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(6, 1fr)',
+    gridTemplateColumns: 'repeat(5, 1fr)',
     gap: '4px',
     padding: '8px',
     borderBottom: '1px solid rgba(255, 200, 100, 0.12)',

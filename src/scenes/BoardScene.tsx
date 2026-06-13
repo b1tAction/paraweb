@@ -316,6 +316,7 @@ const TARGET_PLAYER_ITEM_TYPES = new Set(['reverse_clock', 'any_door', 'magic_fl
 const SKILL_TARGET_FACTIONS = new Set(['bai_hu']);
 const CHECKPOINT_GUIDE_DURATION_MS = 4500;
 const BUFF_GUIDE_DURATION_MS = 3600;
+const PLAYER_STAT_GUIDE_DURATION_MS = 4500;
 const CHECKPOINT_DRAW_ITEM_SOURCES = new Set(['system_checkpoint_treasure', 'CheckpointTreasure']);
 const CHECKPOINT_RESPAWN_SOURCES = new Set([
   'system_turn_end_respawn',
@@ -326,6 +327,7 @@ const CHECKPOINT_RESPAWN_SOURCES = new Set([
 ]);
 
 type CheckpointGuide = 'draw' | 'respawn';
+type PlayerStatGuide = 'hp' | 'lp';
 type BoardGuideAnchor = {
   cellIndex: number;
   x: number;
@@ -356,6 +358,18 @@ function shouldTriggerFirstBuffGuide(
   return buffType;
 }
 
+function getFirstPlayerStatGuide(
+  entry: { action_type: string; target: string } | null,
+  myPlayerId: string,
+  hpGuideSeen: boolean,
+  lpGuideSeen: boolean,
+): PlayerStatGuide | null {
+  if (!entry || !myPlayerId || entry.target !== myPlayerId) return null;
+  if (!hpGuideSeen && ['damage', 'heal', 'fell_down'].includes(entry.action_type)) return 'hp';
+  if (!lpGuideSeen && entry.action_type === 'modify_lp') return 'lp';
+  return null;
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -384,6 +398,8 @@ export const BoardScene: React.FC = () => {
     checkpointDrawGuideSeen,
     checkpointRespawnGuideSeen,
     buffGuideSeen,
+    hpGuideSeen,
+    lpGuideSeen,
   } = useGameStore();
   const [diceRollView, setDiceRollView] = useState<DiceRollView>({ status: 'idle' });
   const [diceUpgradeView, setDiceUpgradeView] = useState<DiceUpgradeView>({ status: 'idle' });
@@ -437,6 +453,8 @@ export const BoardScene: React.FC = () => {
   const [checkpointGuideAnchor, setCheckpointGuideAnchor] = useState<BoardGuideAnchor | null>(null);
   const [showBuffGuide, setShowBuffGuide] = useState(false);
   const [buffGuideType, setBuffGuideType] = useState<string | null>(null);
+  const [playerStatGuide, setPlayerStatGuide] = useState<PlayerStatGuide | null>(null);
+  const [playerStatGuideAnchor, setPlayerStatGuideAnchor] = useState<DOMRect | null>(null);
   // 2. 新增：监听 Phaser 发过来的头像事件
   useEffect(() => {
     const handleAvatarUpdate = (event: Event) => {
@@ -688,7 +706,14 @@ export const BoardScene: React.FC = () => {
     myPlayerId,
     buffGuideSeen,
   );
+  const pendingPlayerStatGuide = getFirstPlayerStatGuide(
+    activeAnimationContext?.entry ?? null,
+    myPlayerId,
+    hpGuideSeen,
+    lpGuideSeen,
+  );
   const shouldHoldBuffGuide = showBuffGuide;
+  const shouldHoldPlayerStatGuide = playerStatGuide !== null;
   const boardAnimationContext = !shouldHoldCheckpointDraw && shouldRenderBoardLogEntryAnimation(activeAnimationContext)
     ? activeAnimationContext
     : null;
@@ -813,6 +838,28 @@ export const BoardScene: React.FC = () => {
 
     return () => window.clearTimeout(timeoutId);
   }, [showBuffGuide]);
+
+  useEffect(() => {
+    if (!playerStatGuide) return;
+
+    const updateAnchor = () => {
+      const card = playerCardRefs.current[myPlayerId];
+      setPlayerStatGuideAnchor(card?.getBoundingClientRect() ?? null);
+    };
+
+    updateAnchor();
+    window.addEventListener('resize', updateAnchor);
+    const timeoutId = window.setTimeout(() => {
+      setPlayerStatGuide(null);
+      setPlayerStatGuideAnchor(null);
+      useGameStore.getState().playNextEntry();
+    }, PLAYER_STAT_GUIDE_DURATION_MS);
+
+    return () => {
+      window.removeEventListener('resize', updateAnchor);
+      window.clearTimeout(timeoutId);
+    };
+  }, [myPlayerId, playerStatGuide]);
 
   useEffect(() => {
     if (
@@ -1090,10 +1137,24 @@ export const BoardScene: React.FC = () => {
     if (pendingEntries.length === 0) return;
     if (shouldHoldCheckpointDraw) return;
     if (shouldHoldBuffGuide) return;
+    if (shouldHoldPlayerStatGuide) return;
 
     const delay = getLogEntryAnimationDelay(activeAnimationContext);
 
     const timeoutId = window.setTimeout(() => {
+      if (pendingPlayerStatGuide) {
+        const store = useGameStore.getState();
+        if (pendingPlayerStatGuide === 'hp') store.setHpGuideSeen(true);
+        else store.setLpGuideSeen(true);
+
+        setShowItemActionGuide(false);
+        setShowSkillActionGuide(false);
+        setPendingSkillActionGuide(false);
+        setItemTargetSelection(null);
+        setSkillTargetSelection(false);
+        setPlayerStatGuide(pendingPlayerStatGuide);
+        return;
+      }
       if (pendingFirstBuffGuide) {
         useGameStore.getState().setBuffGuideSeen(true);
         if (activeAnimationContext?.entry) {
@@ -1114,7 +1175,15 @@ export const BoardScene: React.FC = () => {
     }, delay);
 
     return () => window.clearTimeout(timeoutId);
-  }, [activeAnimationContext, pendingEntries.length, pendingFirstBuffGuide, shouldHoldBuffGuide, shouldHoldCheckpointDraw]);
+  }, [
+    activeAnimationContext,
+    pendingEntries.length,
+    pendingFirstBuffGuide,
+    pendingPlayerStatGuide,
+    shouldHoldBuffGuide,
+    shouldHoldCheckpointDraw,
+    shouldHoldPlayerStatGuide,
+  ]);
 
   // Auto-scroll debug log when new entries appear
   const playedEntryCount = playedEntries.length;
@@ -1362,9 +1431,16 @@ export const BoardScene: React.FC = () => {
                   style={{
                     ...styles.pixelPlayerCard,
                     backgroundImage: `url(${getPlayerCardImage(player.faction)})`,
+                    ...(playerStatGuide && player.player_id === myPlayerId
+                      ? styles.playerStatGuideHighlight
+                      : null),
                     filter: isCurrentTurnPlayer
-                      ? `drop-shadow(0 0 8px ${faction.color}) drop-shadow(0 0 2px #ffffff)`
-                      : styles.pixelPlayerCard.filter,
+                      ? playerStatGuide && player.player_id === myPlayerId
+                        ? styles.playerStatGuideHighlight.filter
+                        : `drop-shadow(0 0 8px ${faction.color}) drop-shadow(0 0 2px #ffffff)`
+                      : playerStatGuide && player.player_id === myPlayerId
+                        ? styles.playerStatGuideHighlight.filter
+                        : styles.pixelPlayerCard.filter,
                   }}
                   title={`${getPlayerName(player.player_id)}\nHP ${player.hp}/${player.max_hp}\nLP ${player.lp}/${PLAYER_STAT_MAX}`}
                 >
@@ -1700,6 +1776,46 @@ export const BoardScene: React.FC = () => {
           </>
         )}
 
+        {playerStatGuide && (
+          <>
+            <div style={styles.playerStatGuideBackdrop} aria-hidden="true" />
+            <div
+              style={{
+                ...styles.playerStatGuideCallout,
+                left: playerStatGuideAnchor
+                  ? `${clamp(
+                      playerStatGuideAnchor.left + playerStatGuideAnchor.width / 2,
+                      260,
+                      window.innerWidth - 260,
+                    )}px`
+                  : '50%',
+                top: playerStatGuideAnchor
+                  ? `${Math.min(playerStatGuideAnchor.bottom + 22, window.innerHeight - 190)}px`
+                  : '190px',
+              }}
+              role="dialog"
+              aria-live="polite"
+            >
+              <div style={{ ...styles.itemActionGuideText, ...styles.playerStatGuideText }}>
+                {playerStatGuide === 'hp' ? (
+                  <>
+                    <div style={styles.playerStatGuideTitle}>HP 是「生命值」</div>
+                    <div>HP 降至 0 时，会退回附近的检查点</div>
+                    <div>复活后继续游戏</div>
+                  </>
+                ) : (
+                  <>
+                    <div style={styles.playerStatGuideTitle}>LP 是「幸运值」</div>
+                    <div>LP 越高，越容易抽到有利事件</div>
+                    <div>并能在 Boss 战中降低被攻击的风险</div>
+                  </>
+                )}
+              </div>
+              <div style={styles.playerStatGuidePointer} aria-hidden="true" />
+            </div>
+          </>
+        )}
+
         {checkpointGuide && (
           <div
             style={
@@ -1898,7 +2014,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'flex-start',
     gap: '12px',
     overflowX: 'auto',
-    paddingBottom: '8px',
+    marginLeft: '-48px',
+    marginRight: '-48px',
+    padding: '0 48px 8px',
   },
   pixelPlayerCard: {
     position: 'relative',
@@ -2378,6 +2496,58 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 44,
     filter:
       'brightness(1.12) saturate(1.06) drop-shadow(0 0 10px rgba(255, 239, 184, 0.78)) drop-shadow(0 0 24px rgba(255, 206, 76, 0.58)) drop-shadow(0 -22px 30px rgba(255, 225, 124, 0.34)) drop-shadow(0 -42px 44px rgba(255, 203, 72, 0.24)) drop-shadow(0 5px 8px rgba(0, 0, 0, 0.32))',
+  },
+  playerStatGuideHighlight: {
+    position: 'relative',
+    zIndex: 44,
+    filter:
+      'brightness(1.16) saturate(1.08) drop-shadow(0 0 10px rgba(255, 239, 184, 0.92)) drop-shadow(0 0 24px rgba(255, 206, 76, 0.78)) drop-shadow(0 0 42px rgba(255, 203, 72, 0.52))',
+  },
+  playerStatGuideCallout: {
+    position: 'fixed',
+    zIndex: 46,
+    transform: 'translateX(-50%)',
+    width: 'min(410px, calc(100vw - 44px))',
+    padding: '14px 18px',
+    border: '3px solid #5c3a1c',
+    borderRadius: '2px',
+    backgroundColor: '#fff0b8',
+    color: '#5b3614',
+    fontSize: '17px',
+    lineHeight: 1.45,
+    textAlign: 'center',
+    pointerEvents: 'auto',
+    boxShadow:
+      '0 0 0 3px #f6c96e, 0 0 0 6px rgba(58, 34, 14, 0.82), 0 0 18px rgba(255, 231, 143, 0.72), 0 16px 28px rgba(255, 225, 124, 0.4), 0 9px 0 rgba(0, 0, 0, 0.26)',
+  },
+  playerStatGuideBackdrop: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 30,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    pointerEvents: 'auto',
+  },
+  playerStatGuideTitle: {
+    marginBottom: '5px',
+    color: '#986a4f',
+    fontSize: 'inherit',
+    fontWeight: 900,
+  },
+  playerStatGuideText: {
+    fontSize: '17px',
+    lineHeight: 1.45,
+  },
+  playerStatGuidePointer: {
+    position: 'absolute',
+    left: '62%',
+    top: '-22px',
+    width: 0,
+    height: 0,
+    transform: 'translateX(-50%)',
+    borderLeft: '15px solid transparent',
+    borderRight: '15px solid transparent',
+    borderBottom: '22px solid #5c3a1c',
+    filter: 'drop-shadow(0 -2px 2px rgba(36, 20, 8, 0.28))',
   },
   itemActionGuideMutedOption: {
     position: 'relative',

@@ -103,6 +103,11 @@ export const PhaserCharacterPreview: React.FC<PhaserCharacterPreviewProps> = ({
 
     gameRef.current = game;
 
+    const canvas = game.canvas;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.display = 'block';
+
     return () => {
       game.destroy(true);
       gameRef.current = null;

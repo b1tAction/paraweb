@@ -13,8 +13,13 @@ import type { DilemmaRacePlayer, DilemmaRaceRoomState } from '../service/Colyseu
 import type { Player } from '../types/protocol';
 import { assetUrl } from '../utils/assets';
 import { AnimationOrchestrator } from './animationOrchestrator';
-import { type PopupContext, showCenterPopup } from './boardAnimations/popup';
-import { CELL_LABEL_SCREEN_FONT_SIZE, GAME_FONT_FAMILY, PLAYER_NAME_SCREEN_FONT_SIZE } from './boardConstants';
+import { type CenterPopupOptions, type PopupContext, showCenterPopup } from './boardAnimations/popup';
+import {
+  CELL_LABEL_SCREEN_FONT_SIZE,
+  GAME_FONT_FAMILY,
+  PLAYER_NAME_SCREEN_FONT_SIZE,
+  PLAYER_NAME_TEXTURE_RESOLUTION,
+} from './boardConstants';
 import type { CharacterRenderOptions, CharacterRenderProfile } from './characterRenderConfig';
 import {
   DEFAULT_CHARACTER_PROFILES,
@@ -64,13 +69,32 @@ const GRASS_FILL_TILE_INDEX = 65;
 const TRACK_NODE_SPACING = 128;
 const FALLBACK_TRACK_Y = 200;
 const FALLBACK_TRACK_START_X = 64;
-const TRACK_SCREEN_Y = 180;
-const TRACK_CAMERA_PADDING_X = 48;
+const TRACK_SCREEN_Y_RATIO = 0.64;
+const TRACK_SCREEN_Y_MIN = 165;
+const TRACK_SCREEN_BOTTOM_PADDING = 86;
+const TRACK_CAMERA_PADDING_X = 112;
+const TRACK_CAMERA_TARGET_VISIBLE_CELLS = 8;
+const TRACK_CAMERA_MAX_ZOOM = 0.72;
 const TRACK_NODE_START = 0;
 const TRACK_POSITION_OFFSET = 1; // position = nodeIndex + 1
 
 const CELL_MARKER_SCALE = 2;
+const TRACK_CHARACTER_SCALE_MULTIPLIER = 1.7;
+const TRACK_CHARACTER_FALLBACK_SCALE = 0.65;
+const TRACK_CHARACTER_NAME_OFFSET_Y = -48;
+const TRACK_POPUP_BACKGROUND_LAYER = 5000;
+const TRACK_POPUP_TEXT_LAYER = 5010;
+const RESOLUTION_POPUP_DURATION_MS = 3800;
 const EVENT_POPUP_FRAME_KEY = 'event-popup-frame';
+const RESOLUTION_POPUP_OPTIONS: CenterPopupOptions = {
+  width: 460,
+  height: 260,
+  horizontalPadding: 54,
+  fontSize: 20,
+  viewportMargin: 24,
+  backgroundLayer: TRACK_POPUP_BACKGROUND_LAYER,
+  textLayer: TRACK_POPUP_TEXT_LAYER,
+};
 
 // ========== Scene ==========
 
@@ -221,6 +245,7 @@ export class DilemmaRaceTrackScene extends Phaser.Scene {
 
     // Sync player positions
     this.syncPlayers(roomState.players, storePlayers);
+    this.focusTrackCameraToBounds();
 
     // Show blocked/finished indicators
     roomState.players.forEach((p) => {
@@ -238,7 +263,14 @@ export class DilemmaRaceTrackScene extends Phaser.Scene {
     const announcements = this.buildResolutionAnnouncements(players, getPlayerDisplayName);
 
     for (const announcement of announcements) {
-      await showCenterPopup(ctx, announcement.text, announcement.textColor, announcement.iconEmoji, 1500);
+      await showCenterPopup(
+        ctx,
+        announcement.text,
+        announcement.textColor,
+        announcement.iconEmoji,
+        RESOLUTION_POPUP_DURATION_MS,
+        RESOLUTION_POPUP_OPTIONS,
+      );
     }
   }
 
@@ -454,22 +486,57 @@ export class DilemmaRaceTrackScene extends Phaser.Scene {
     if (!firstNode || !lastNode) return;
 
     const trackWidth = lastNode.x - firstNode.x + TRACK_CAMERA_PADDING_X * 2;
-    const zoom = Math.min(1, cam.width / Math.max(trackWidth, 1));
+    const focusRange = this.getCameraFocusRange(firstNode, lastNode);
+    const focusWidth = Math.max(
+      TRACK_NODE_SPACING * TRACK_CAMERA_TARGET_VISIBLE_CELLS + TRACK_CAMERA_PADDING_X * 2,
+      focusRange.maxX - focusRange.minX + TRACK_CAMERA_PADDING_X * 2,
+    );
+    const zoom = Math.min(TRACK_CAMERA_MAX_ZOOM, 1, cam.width / Math.max(Math.min(focusWidth, trackWidth), 1));
     const worldViewWidth = cam.width / zoom;
     const worldViewHeight = cam.height / zoom;
-    const mapWidth = Math.max(this.mapWidth, worldViewWidth);
+    const boundsX = -TRACK_CAMERA_PADDING_X;
+    const mapWidth = Math.max(this.mapWidth + TRACK_CAMERA_PADDING_X * 2, worldViewWidth);
     const mapHeight = Math.max(this.mapHeight, worldViewHeight);
 
-    cam.setBounds(0, 0, mapWidth, mapHeight);
+    cam.setBounds(boundsX, 0, mapWidth, mapHeight);
     cam.setZoom(zoom);
     cam.roundPixels = true;
 
-    const maxScrollX = Math.max(0, mapWidth - worldViewWidth);
+    const minScrollX = boundsX;
+    const maxScrollX = Math.max(minScrollX, boundsX + mapWidth - worldViewWidth);
     const maxScrollY = Math.max(0, mapHeight - worldViewHeight);
-    const targetScrollX = Math.max(0, firstNode.x - TRACK_CAMERA_PADDING_X);
-    const targetScrollY = Math.max(0, firstNode.y - TRACK_SCREEN_Y / zoom);
+    const focusCenterX = (focusRange.minX + focusRange.maxX) / 2;
+    const targetScrollX =
+      this.players.length > 0 ? focusCenterX - worldViewWidth / 2 : firstNode.x - TRACK_CAMERA_PADDING_X;
+    const targetTrackScreenY = this.getTargetTrackScreenY(cam.height);
+    const targetScrollY = Math.max(0, firstNode.y - targetTrackScreenY / zoom);
 
-    cam.setScroll(Math.min(targetScrollX, maxScrollX), Math.min(targetScrollY, maxScrollY));
+    cam.setScroll(Phaser.Math.Clamp(targetScrollX, minScrollX, maxScrollX), Math.min(targetScrollY, maxScrollY));
+    this.refreshTextSizing();
+  }
+
+  private getCameraFocusRange(firstNode: PathNode, lastNode: PathNode): { minX: number; maxX: number } {
+    const playerNodeXs = this.players
+      .map((player) => this.pathNodes.get(player.position - TRACK_POSITION_OFFSET)?.x)
+      .filter((x): x is number => typeof x === 'number');
+
+    if (playerNodeXs.length === 0) {
+      return {
+        minX: firstNode.x,
+        maxX: Math.min(lastNode.x, firstNode.x + TRACK_NODE_SPACING * TRACK_CAMERA_TARGET_VISIBLE_CELLS),
+      };
+    }
+
+    return {
+      minX: Math.min(...playerNodeXs),
+      maxX: Math.max(...playerNodeXs),
+    };
+  }
+
+  private getTargetTrackScreenY(cameraHeight: number) {
+    const lowerBound = Math.min(TRACK_SCREEN_Y_MIN, cameraHeight / 2);
+    const upperBound = Math.max(lowerBound, cameraHeight - TRACK_SCREEN_BOTTOM_PADDING);
+    return Phaser.Math.Clamp(cameraHeight * TRACK_SCREEN_Y_RATIO, lowerBound, upperBound);
   }
 
   private renderTrackCells() {
@@ -518,12 +585,13 @@ export class DilemmaRaceTrackScene extends Phaser.Scene {
       // Cell number label
       const label = this.add.text(node.x, node.y, String(position), {
         fontFamily: GAME_FONT_FAMILY,
-        fontSize: `${CELL_LABEL_SCREEN_FONT_SIZE}px`,
+        fontSize: `${this.getWorldFontSize(CELL_LABEL_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`,
         color: isFinish ? '#ffd700' : '#ffffff',
         stroke: '#000000',
         strokeThickness: 3,
       });
       label.setOrigin(0.5, 0.5);
+      this.configurePixelText(label);
       label.setDepth(node.y + LAYER_CELL_BASE + 5);
 
       this.cellMarkers.set(node.index, { sprite, label });
@@ -562,7 +630,9 @@ export class DilemmaRaceTrackScene extends Phaser.Scene {
 
       const storePlayer = this.resolveStorePlayer(p.id, order, storePlayers);
 
-      const profile = resolveCharacterProfile(storePlayer, order, this.characterRenderOptions);
+      const profile = this.toTrackCharacterProfile(
+        resolveCharacterProfile(storePlayer, order, this.characterRenderOptions),
+      );
       const offsetX = getCharacterOffsetX(profile) + (order % 4) * 10 - 15;
       const targetX = node.x + offsetX;
       const targetY = node.y + getCharacterOffsetY(profile);
@@ -587,12 +657,15 @@ export class DilemmaRaceTrackScene extends Phaser.Scene {
         const displayName = storePlayer.display_name || this.getPlayerDisplayName(p.id);
         nameText = this.add.text(targetX, targetY + getCharacterNameOffsetY(profile), displayName, {
           fontFamily: GAME_FONT_FAMILY,
-          fontSize: `${PLAYER_NAME_SCREEN_FONT_SIZE}px`,
-          color: p.id === this.myPlayerId ? '#ffee58' : '#ffffff',
+          fontSize: `${this.getWorldFontSize(PLAYER_NAME_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`,
+          color: this.getPlayerNameColor(p.id),
+          backgroundColor: this.getPlayerNameBackgroundColor(p.id),
           stroke: '#000000',
-          strokeThickness: 3,
+          strokeThickness: 4,
         });
         nameText.setOrigin(0.5, 0.5);
+        nameText.setPadding(6, 2, 6, 2);
+        this.configurePixelText(nameText);
         nameText.setDepth(targetY + LAYER_PLAYER_NAME_BASE);
         this.playerNames.set(p.id, nameText);
         return;
@@ -603,8 +676,7 @@ export class DilemmaRaceTrackScene extends Phaser.Scene {
       marker.setPosition(targetX, targetY);
       marker.setDepth(targetY + LAYER_CHARACTER_BASE);
       if (nameText) {
-        nameText.setText(storePlayer.display_name || this.getPlayerDisplayName(p.id));
-        nameText.setColor(p.id === this.myPlayerId ? '#ffee58' : '#ffffff');
+        this.applyPlayerNameStyle(p.id, nameText, storePlayer.display_name || this.getPlayerDisplayName(p.id));
       }
     });
   }
@@ -691,10 +763,63 @@ export class DilemmaRaceTrackScene extends Phaser.Scene {
   private resolveProfileForPlayer(playerId: string): CharacterRenderProfile {
     const storePlayer = this.storePlayers.find((p) => p.player_id === playerId);
     const order = this.findPlayerOrder(playerId);
-    if (storePlayer) return resolveCharacterProfile(storePlayer, order, this.characterRenderOptions);
+    if (storePlayer) {
+      return this.toTrackCharacterProfile(resolveCharacterProfile(storePlayer, order, this.characterRenderOptions));
+    }
     const fallbackIds = ['red', 'green', 'white', 'black'];
     const profileId = fallbackIds[order % fallbackIds.length];
-    return DEFAULT_CHARACTER_PROFILES[profileId];
+    return this.toTrackCharacterProfile(DEFAULT_CHARACTER_PROFILES[profileId]);
+  }
+
+  private toTrackCharacterProfile(profile: CharacterRenderProfile): CharacterRenderProfile {
+    return {
+      ...profile,
+      scale: (profile.scale ?? TRACK_CHARACTER_FALLBACK_SCALE) * TRACK_CHARACTER_SCALE_MULTIPLIER,
+      nameOffsetY: profile.nameOffsetY ?? TRACK_CHARACTER_NAME_OFFSET_Y,
+    };
+  }
+
+  private getCameraZoom() {
+    return this.cameras.main.zoom || 1;
+  }
+
+  private getWorldFontSize(screenFontSize: number) {
+    return Math.max(1, Math.round(screenFontSize / this.getCameraZoom()));
+  }
+
+  private getTextTextureResolution() {
+    return Math.max(PLAYER_NAME_TEXTURE_RESOLUTION, Math.ceil(this.getCameraZoom() * PLAYER_NAME_TEXTURE_RESOLUTION));
+  }
+
+  private configurePixelText(text: Phaser.GameObjects.Text) {
+    text.setResolution(this.getTextTextureResolution());
+    text.setScale(1 / PLAYER_NAME_TEXTURE_RESOLUTION);
+  }
+
+  private refreshTextSizing() {
+    this.playerNames.forEach((text) => {
+      text.setFontSize(`${this.getWorldFontSize(PLAYER_NAME_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`);
+      text.setResolution(this.getTextTextureResolution());
+    });
+
+    this.cellMarkers.forEach(({ label }) => {
+      label.setFontSize(`${this.getWorldFontSize(CELL_LABEL_SCREEN_FONT_SIZE * PLAYER_NAME_TEXTURE_RESOLUTION)}px`);
+      label.setResolution(this.getTextTextureResolution());
+    });
+  }
+
+  private getPlayerNameColor(playerId: string) {
+    return playerId === this.myPlayerId ? '#9ad7ff' : '#ff9d92';
+  }
+
+  private getPlayerNameBackgroundColor(playerId: string) {
+    return playerId === this.myPlayerId ? '#163348' : '#4a1c18';
+  }
+
+  private applyPlayerNameStyle(playerId: string, text: Phaser.GameObjects.Text, displayName: string) {
+    text.setText(displayName);
+    text.setColor(this.getPlayerNameColor(playerId));
+    text.setBackgroundColor(this.getPlayerNameBackgroundColor(playerId));
   }
 
   private resolveStorePlayer(playerId: string, order: number, storePlayers: Player[]): Player {

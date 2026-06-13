@@ -7,7 +7,7 @@
 
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { type ColyseusService, colyseusService, type CakeCuttingRoomState } from '../../service/ColyseusService';
+import { type CakeCuttingRoomState, type ColyseusService, colyseusService } from '../../service/ColyseusService';
 import { useGameStore } from '../../store/gameStore';
 import type { MiniGameConn, Player } from '../../types/protocol';
 import { getDisambiguatedDisplayName } from '../../utils/displayName';
@@ -49,30 +49,38 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
   const [error, setError] = useState<string>('');
   const [localKnifePos, setLocalKnifePos] = useState<number>(50); // 0 to 100
 
-  const effectiveParticipantIds = participantIds ?? roomState?.players.map((p) => p.id) ?? EMPTY_PARTICIPANT_IDS;
+  const roomParticipantIds = useMemo(
+    () => roomState?.players.map((player) => player.id) ?? EMPTY_PARTICIPANT_IDS,
+    [roomState?.players],
+  );
+  const effectiveParticipantIds = participantIds ?? roomParticipantIds;
+  const joinParticipantIds = participantIds;
 
   const renderPlayers = useMemo<Player[]>(() => {
     if (participantPlayers && participantPlayers.length > 0) return participantPlayers;
-    if (players.length > 0) return players;
+    if (effectiveParticipantIds.length === 0) return players;
 
-    return effectiveParticipantIds.map(
-      (id) =>
-        ({
-          player_id: id,
-          display_name: id === effectivePlayerId ? 'You' : id.slice(0, 8),
-          faction: '',
-          position: 0,
-          hp: 0,
-          max_hp: 8,
-          lp: 0,
-          buffs: [],
-          items: [],
-          charge: 0,
-          fire_counter: 0,
-          is_dead: false,
-          skip_turn: false,
-        }) as Player,
-    );
+    const playersById = new Map(players.map((player) => [player.player_id, player]));
+    return effectiveParticipantIds.map((id) => {
+      const player = playersById.get(id);
+      if (player) return player;
+
+      return {
+        player_id: id,
+        display_name: id === effectivePlayerId ? '我' : id.slice(0, 8),
+        faction: '',
+        position: 0,
+        hp: 0,
+        max_hp: 8,
+        lp: 0,
+        buffs: [],
+        items: [],
+        charge: 0,
+        fire_counter: 0,
+        is_dead: false,
+        skip_turn: false,
+      } as Player;
+    });
   }, [effectiveParticipantIds, effectivePlayerId, participantPlayers, players]);
 
   // ========== Colyseus connection lifecycle ==========
@@ -106,20 +114,22 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
     );
 
     // Join/create Colyseus room
-    service.joinRoom(connection, {
-      playerId: effectivePlayerId,
-      players: effectiveParticipantIds,
-    }).catch((err) => {
-      setPhase('error');
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
-      useGameStore.getState().setColyseusError(message);
-    });
+    service
+      .joinRoom(connection, {
+        playerId: effectivePlayerId,
+        players: joinParticipantIds,
+      })
+      .catch((err) => {
+        setPhase('error');
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        useGameStore.getState().setColyseusError(message);
+      });
 
     return () => {
       void service.leaveRoom();
     };
-  }, [connection, isParticipant, effectivePlayerId, service]);
+  }, [connection, isParticipant, effectivePlayerId, joinParticipantIds, service]);
 
   // ========== Real-time Local Knife Animation Loop ==========
 
@@ -134,9 +144,10 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
       const progress = (elapsed % KNIFE_OSCILLATION_PERIOD_MS) / KNIFE_OSCILLATION_PERIOD_MS; // 0.0 to 1.0
 
       // Triangular oscillation wave: 0 -> 100 -> 0
-      const pos = progress < 0.5
-        ? (progress * 2) * 100           // Left-to-Right: 0 to 100
-        : (1 - (progress - 0.5) * 2) * 100; // Right-to-Left: 100 to 0
+      const pos =
+        progress < 0.5
+          ? progress * 2 * 100 // Left-to-Right: 0 to 100
+          : (1 - (progress - 0.5) * 2) * 100; // Right-to-Left: 100 to 0
 
       setLocalKnifePos(pos);
       animFrameId = requestAnimationFrame(updateKnife);
@@ -184,7 +195,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
   if (!isParticipant) {
     return (
       <div style={styles.gameArea}>
-        <p style={styles.spectatorMessage}>您正在旁观本场对局。请等待参与者进行切蛋糕游戏...</p>
+        <p style={styles.spectatorMessage}>旁观中, 等待切蛋糕结束</p>
       </div>
     );
   }
@@ -192,7 +203,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
   if (phase === 'connecting') {
     return (
       <div style={styles.gameArea}>
-        <p style={styles.spectatorMessage}>正在连接到切蛋糕小游戏服务器...</p>
+        <p style={styles.spectatorMessage}>连接切蛋糕服务器</p>
       </div>
     );
   }
@@ -200,8 +211,8 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
   if (phase === 'error') {
     return (
       <div style={styles.gameArea}>
-        <p style={{ ...styles.spectatorMessage, color: '#ff5e62' }}>连接失败: {error}</p>
-        <p style={styles.spectatorMessage}>正在等待大厅同步对局结果...</p>
+        <p style={{ ...styles.spectatorMessage, color: '#b96d61' }}>连接失败: {error}</p>
+        <p style={styles.spectatorMessage}>等待大厅同步</p>
       </div>
     );
   }
@@ -224,44 +235,42 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
         <div style={styles.rulesPanel}>
           {/* Header Row: Title */}
           <div style={styles.rulesHeader}>
-            <span style={styles.rulesTitleText}>📜 极速切蛋糕 · 游戏规则说明</span>
+            <span style={styles.rulesTitleText}>切蛋糕 / 规则</span>
           </div>
 
           <div style={styles.rulesContentLayout}>
             {/* Left: Detailed Rules explanation */}
             <div style={styles.rulesExplainCard}>
-              <h4 style={styles.rulesSectionTitle}>🔍 游戏玩法背景</h4>
-              <p style={styles.rulesDescText}>
-                这是一场考验手眼协调与取舍魄力的反应小游戏。多名玩家将轮流切割同一条美味的蛋糕，切口失误将导致出局。
-              </p>
-              
-              <h4 style={styles.rulesSectionTitle}>🎮 核心玩法机制</h4>
+              <p style={styles.rulesDescText}>轮流下刀, 切空出局, 留到最后获胜</p>
+
               <ul style={styles.rulesBulletList}>
-                <li style={styles.rulesBulletItem}>玩家按顺序 <strong>轮流切蛋糕</strong>。每人每回合限时 15 秒。</li>
-                <li style={styles.rulesBulletItem}>屏幕中的 <strong>发光切刀</strong> 在轨道上以极速往复滑动。</li>
-                <li style={styles.rulesBulletItem}><strong>保留较小一部分</strong>：蛋糕被切开后，系统会自动舍弃较大部分，仅<strong>保留较小的一侧蛋糕</strong>！蛋糕将在不断切割下急剧变小！</li>
-                <li style={styles.rulesBulletItem}><strong>切割边界判定</strong>：如果下刀位置不在当前的蛋糕段上（切空），则该玩家<strong>立即出局并开启旁观</strong>。</li>
-                <li style={styles.rulesBulletItem}>当所有人都确认规则或 15 秒倒计时结束，游戏将立刻正式开始。</li>
+                <li style={styles.rulesBulletItem}>
+                  每回合 <strong>15 秒</strong>
+                </li>
+                <li style={styles.rulesBulletItem}>
+                  切开后只留 <strong>较小一侧</strong>
+                </li>
+                <li style={styles.rulesBulletItem}>
+                  切空 <strong>立即出局</strong>
+                </li>
               </ul>
             </div>
 
             {/* Right: Player Readiness Checklist */}
             <div style={styles.rulesSideCard}>
               <div>
-                <h4 style={styles.rulesChecklistTitle}>👥 玩家就绪状态</h4>
+                <h4 style={styles.rulesChecklistTitle}>准备</h4>
                 <div style={styles.rulesChecklistGrid}>
                   {state.players.map((p) => {
                     const isMe = p.id === effectivePlayerId;
                     return (
-                      <div
-                        key={p.id}
-                        style={isMe ? styles.rulesChecklistItemMe : styles.rulesChecklistItem}
-                      >
+                      <div key={p.id} style={isMe ? styles.rulesChecklistItemMe : styles.rulesChecklistItem}>
                         <span style={isMe ? styles.rulesPlayerNameMe : styles.rulesPlayerName}>
-                          {getPlayerDisplayName(p.id)} {isMe && '(我)'}
+                          {getPlayerDisplayName(p.id)}
+                          {isMe ? ' / 我' : ''}
                         </span>
                         <span style={p.isReady ? styles.badgeReady : styles.badgeThinking}>
-                          {p.isReady ? '✅ 已确认' : '⏳ 准备中'}
+                          {p.isReady ? '已确认' : '未确认'}
                         </span>
                       </div>
                     );
@@ -272,15 +281,11 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
               <div>
                 {isConfirmed ? (
                   <button type="button" disabled style={styles.rulesConfirmBtnDisabled}>
-                    <span>✅ 已确认，等待中 ({state.timeLeft}s)...</span>
+                    <span>已确认, 等待 {state.timeLeft}s</span>
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    style={styles.rulesConfirmBtn}
-                    onClick={() => service.sendConfirmRules()}
-                  >
-                    <span>🤝 确认规则并进入游戏 ({state.timeLeft}s 后自动确认)</span>
+                  <button type="button" style={styles.rulesConfirmBtn} onClick={() => service.sendConfirmRules()}>
+                    <span>确认, {state.timeLeft}s 自动确认</span>
                   </button>
                 )}
               </div>
@@ -304,24 +309,22 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
     <div style={styles.gameArea}>
       {/* ===== Header Row: Round & Timer ===== */}
       <div style={styles.headerRow}>
-        <span style={styles.roundLabel}>切蛋糕挑战赛</span>
+        <span style={styles.roundLabel}>切蛋糕</span>
         {phase === 'playing' && (
-          <span style={styles.timerDisplay}>
-            {isMyTurn ? `⌛ 回合倒计时: ${state.timeLeft}s` : `⏳ 正在等待他人行动...`}
-          </span>
+          <span style={styles.timerDisplay}>{isMyTurn ? `我的回合 ${state.timeLeft}s` : `等待行动`}</span>
         )}
-        {phase === 'resolving_cut' && <span style={styles.statusText}>🎬 下刀结果揭晓中...</span>}
-        {phase === 'finished' && <span style={styles.statusText}>🏆 对局结算结束</span>}
+        {phase === 'resolving_cut' && <span style={styles.statusText}>下刀结算中</span>}
+        {phase === 'finished' && <span style={styles.statusText}>对局结束</span>}
       </div>
 
       <div style={styles.containerLayout}>
         {/* ===== Left Column: Cake Board & Interactive Knife Slider ===== */}
         <div style={styles.leftPlayboard}>
           <div style={styles.cakeBoard}>
-            <h3 style={styles.cakeTitle}>🎂 砧板上的草莓小蛋糕</h3>
+            <h3 style={styles.cakeTitle}>切割区</h3>
             <p style={styles.cakeSubTitle}>
-              当前蛋糕范围：[{Math.round(state.cakeStart)}% 至 {Math.round(state.cakeEnd)}%]
-              （宽度：{Math.round(state.cakeEnd - state.cakeStart)}%）
+              范围 {Math.round(state.cakeStart)}% - {Math.round(state.cakeEnd)}% / 宽{' '}
+              {Math.round(state.cakeEnd - state.cakeStart)}%
             </p>
 
             {/* The Cake Track */}
@@ -346,7 +349,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
               {/* Render Oscillating Knife Slider (only if playing) */}
               {phase === 'playing' && (
                 <div style={{ ...styles.knifeLine, left: `${localKnifePos}%` }}>
-                  <span style={styles.knifeHandle}>🔪</span>
+                  <span style={styles.knifeHandle}>切</span>
                 </div>
               )}
 
@@ -358,45 +361,36 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
 
             {/* Turn Message Overlay & Button Action */}
             <div style={styles.actionArea}>
-              {phase === 'playing' && (
-                <>
-                  {isMyTurn ? (
-                    <>
-                      <p style={{ ...styles.cakeSubTitle, color: '#ff4e88', fontWeight: 900, fontSize: '15px' }}>
-                        👉 看准飞刀摆入蛋糕块的时机，切下它！
-                      </p>
-                      <button
-                        type="button"
-                        style={styles.cutButtonActive}
-                        onClick={handleCut}
-                      >
-                        ⚡ 切蛋糕！(CUT)
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <p style={{ ...styles.cakeSubTitle, fontWeight: 800 }}>
-                        {isMeAlive
-                          ? `等待玩家 ${getPlayerDisplayName(state.activePlayerId)} 进行切割...`
-                          : `💀 您已出局。正在观看其他玩家切割蛋糕...`}
-                      </p>
-                      <button type="button" disabled style={styles.cutButtonDisabled}>
-                        ⏳ 等待他人行动...
-                      </button>
-                    </>
-                  )}
-                </>
-              )}
+              {phase === 'playing' &&
+                (isMyTurn ? (
+                  <>
+                    <p style={{ ...styles.cakeSubTitle, color: '#d2ae6d', fontWeight: 900, fontSize: '15px' }}>
+                      对准蛋糕下刀
+                    </p>
+                    <button type="button" style={styles.cutButtonActive} onClick={handleCut}>
+                      切下
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ ...styles.cakeSubTitle, fontWeight: 800 }}>
+                      {isMeAlive ? `等待 ${getPlayerDisplayName(state.activePlayerId)} 下刀` : `已出局, 观看下刀`}
+                    </p>
+                    <button type="button" disabled style={styles.cutButtonDisabled}>
+                      等待
+                    </button>
+                  </>
+                ))}
 
               {phase === 'resolving_cut' && (
-                <p style={{ ...styles.cakeSubTitle, color: '#ffd166', fontWeight: 900, fontSize: '15px' }}>
-                  📢 切割完成！正在展示蛋糕割裂结果...
+                <p style={{ ...styles.cakeSubTitle, color: '#d2ae6d', fontWeight: 900, fontSize: '15px' }}>
+                  切割完成, 展示结果
                 </p>
               )}
 
               {phase === 'finished' && (
-                <p style={{ ...styles.cakeSubTitle, color: '#2ecc71', fontWeight: 900, fontSize: '15px' }}>
-                  🏆 比赛结束！分数已成功累积入大富翁总榜单。
+                <p style={{ ...styles.cakeSubTitle, color: '#7da86f', fontWeight: 900, fontSize: '15px' }}>
+                  结束, 已计分
                 </p>
               )}
             </div>
@@ -405,7 +399,7 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
 
         {/* ===== Right Column: Real-Time Survival Lobby List ===== */}
         <div style={styles.rightRuleboard}>
-          <h4 style={styles.rulesChecklistTitle}>📋 参赛者生存榜单</h4>
+          <h4 style={styles.rulesChecklistTitle}>生存</h4>
           <div style={styles.playerGrid}>
             {sortedLobbyPlayers.map((p) => {
               const isMe = p.id === effectivePlayerId;
@@ -418,19 +412,17 @@ export const CakeCuttingMiniGame: React.FC<CakeCuttingMiniGameProps> = ({
               return (
                 <div key={p.id} style={cardStyle}>
                   <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={isMe ? styles.playerNameMe : styles.playerName}>
-                      {getPlayerDisplayName(p.id)}
-                    </span>
+                    <span style={isMe ? styles.playerNameMe : styles.playerName}>{getPlayerDisplayName(p.id)}</span>
                     {isMe && <span style={styles.badgeMe}>我</span>}
                   </div>
 
                   <div>
                     {!p.isAlive ? (
-                      <span style={styles.statusBadgeOut}>💀 出局 (第{p.rank}名)</span>
+                      <span style={styles.statusBadgeOut}>第{p.rank}名出局</span>
                     ) : isActive ? (
-                      <span style={styles.statusBadgeActive}>👉 行动中</span>
+                      <span style={styles.statusBadgeActive}>行动中</span>
                     ) : (
-                      <span style={styles.statusBadgeWaiting}>⏳ 存活</span>
+                      <span style={styles.statusBadgeWaiting}>存活</span>
                     )}
                   </div>
                 </div>

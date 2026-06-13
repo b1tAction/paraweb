@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ColyseusService } from '../../service/ColyseusService';
 import { MiniGameClient } from '../../service/MiniGameClient';
 import { gameService } from '../../service/NakamaService';
+import { CakeCuttingMiniGame } from './CakeCuttingMiniGame';
 import { CountSecondsMiniGame } from './CountSecondsMiniGame';
 import { DiceRaceMiniGame } from './DiceRaceMiniGame';
 import { DilemmaRaceMiniGame } from './DilemmaRaceMiniGame';
@@ -22,9 +23,8 @@ import { type MiniGameBoardGameType, miniGameBoardDevControls } from './miniGame
 import type { MiniGameViewContext } from './miniGameViewContext';
 import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
 import { TrustDilemmaMiniGame } from './TrustDilemmaMiniGame';
-import { VernierMiniGame } from './VernierMiniGame';
-import { CakeCuttingMiniGame } from './CakeCuttingMiniGame';
 import { TypingSpeedMiniGame } from './TypingSpeedMiniGame';
+import { VernierMiniGame } from './VernierMiniGame';
 
 // ========== Constants ==========
 
@@ -122,7 +122,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
 
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>Waiting for online game connection...</p>
+            <p style={styles.submittedText}>等待联机连接</p>
           </div>
         );
       case 'trust_dilemma':
@@ -142,7 +142,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
 
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>Waiting for online game connection...</p>
+            <p style={styles.submittedText}>等待联机连接</p>
           </div>
         );
       case 'cake_cutting':
@@ -162,7 +162,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
 
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>Waiting for online game connection...</p>
+            <p style={styles.submittedText}>等待联机连接</p>
           </div>
         );
       case 'typing_speed':
@@ -182,7 +182,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
 
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>Waiting for online game connection...</p>
+            <p style={styles.submittedText}>等待联机连接</p>
           </div>
         );
       case 'dice_race':
@@ -238,7 +238,7 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
       default:
         return (
           <div style={quadrantStyles.gameArea}>
-            <p style={styles.submittedText}>{gameType || 'No game'} — waiting for MiniGameStart...</p>
+            <p style={styles.submittedText}>{gameType || '暂无小游戏'} - 等待小游戏开始</p>
           </div>
         );
     }
@@ -246,11 +246,11 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
 
   const renderContent = () => {
     if (connectionStatus === 'disconnected') {
-      return <p style={styles.submittedText}>Not connected</p>;
+      return <p style={styles.submittedText}>未连接</p>;
     }
 
     if (connectionStatus === 'connecting') {
-      return <p style={styles.submittedText}>Connecting...</p>;
+      return <p style={styles.submittedText}>连接中</p>;
     }
 
     if (connectionStatus === 'error') {
@@ -265,13 +265,13 @@ const MiniGameQuadrant: React.FC<QuadrantProps> = ({ client, index }) => {
     // Playing phase
     if (miniGameStart) {
       if (!isParticipant) {
-        return <p style={styles.submittedText}>Not participating. Waiting...</p>;
+        return <p style={styles.submittedText}>未参与本轮, 等待中</p>;
       }
 
       return renderGame();
     }
 
-    return <p style={styles.submittedText}>Connected. Waiting for mini-game start...</p>;
+    return <p style={styles.submittedText}>已连接, 等待小游戏开始</p>;
   };
 
   const statusIcon = connectionStatus === 'connected' ? '●' : connectionStatus === 'error' ? '✗' : '○';
@@ -323,15 +323,15 @@ export const MiniGameBoardScene: React.FC = () => {
   // Connect all four clients
   const handleConnectAll = useCallback(async () => {
     setIsConnecting(true);
-    addLog('Connecting four test clients...');
+    addLog('连接四个测试客户端');
 
     const newClients = clients.length === 0 ? initClients() : clients;
 
     try {
       await Promise.all(newClients.map((c) => c.connect()));
-      addLog('All four clients connected successfully!');
+      addLog('四个测试客户端已连接');
     } catch (error) {
-      addLog(`Connection error: ${error instanceof Error ? error.message : String(error)}`);
+      addLog(`连接失败: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     setIsConnecting(false);
@@ -340,26 +340,26 @@ export const MiniGameBoardScene: React.FC = () => {
   // Create room and join all clients
   const handleCreateAndJoin = useCallback(async () => {
     if (clients.length === 0 || clients.some((c) => c.getStore().getState().connectionStatus !== 'connected')) {
-      addLog('Error: Connect all clients first!');
+      addLog('错误: 请先连接全部客户端');
       return;
     }
 
     setIsCreatingRoom(true);
-    addLog('Creating room...');
+    addLog('创建房间');
 
     try {
       // Client 0 creates the room
       const newMatchId = await clients[0].createRoom('test_minigame', 4);
       setMatchId(newMatchId);
-      addLog(`Room created: ${newMatchId}`);
+      addLog(`房间已创建: ${newMatchId}`);
 
       // All four clients join
       await Promise.all(clients.map((c) => c.joinMatch(newMatchId)));
-      addLog('All four clients joined the room!');
+      addLog('四个客户端已加入房间');
 
-      addLog('Room is ready. Select a game type, then trigger it.');
+      addLog('房间已就绪, 请选择小游戏类型并触发');
     } catch (error) {
-      addLog(`Room error: ${error instanceof Error ? error.message : String(error)}`);
+      addLog(`房间错误: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     setIsCreatingRoom(false);
@@ -368,7 +368,7 @@ export const MiniGameBoardScene: React.FC = () => {
   // Trigger mini-game via RPC
   const handleTriggerMinigame = useCallback(async () => {
     if (!matchId || clients.length === 0) {
-      addLog('Error: No match ID available');
+      addLog('错误: 当前没有可用房间 ID');
       return;
     }
 
@@ -384,28 +384,25 @@ export const MiniGameBoardScene: React.FC = () => {
           client.resetForNewRound();
         });
         await waitForRenderCleanup();
-        addLog('Previous mini-game view cleared.');
+        addLog('上一轮小游戏视图已清理');
       } else if (hasActiveRound) {
-        addLog('Mini-game still active; sent trigger will be queued by the backend.');
+        addLog('小游戏仍在进行, 本次触发将由后端排队处理');
       }
 
       await clients[0].triggerMiniGame(selectedGameType);
-      addLog(`${selectedGameType} trigger sent for match ${matchId}`);
+      addLog(`已为房间 ${matchId} 触发 ${selectedGameType}`);
     } catch (error) {
-      addLog(`Trigger error: ${error instanceof Error ? error.message : String(error)}`);
+      addLog(`触发失败: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsTriggering(false);
     }
   }, [addLog, clients, matchId, selectedGameType]);
 
-  const connectionLabel = (() => {
-    if (clients.length === 0) return 'not connected';
-
-    const connectedCount = clients.filter(
-      (client) => client.getStore().getState().connectionStatus === 'connected',
-    ).length;
-    return `${connectedCount}/${clients.length} connected`;
-  })();
+  const connectedCount = clients.filter(
+    (client) => client.getStore().getState().connectionStatus === 'connected',
+  ).length;
+  const allClientsConnected = clients.length > 0 && connectedCount === clients.length;
+  const connectionLabel = clients.length === 0 ? '未连接' : `${connectedCount}/${clients.length} 已连接`;
 
   useEffect(() => {
     return miniGameBoardDevControls.attach({
@@ -424,11 +421,20 @@ export const MiniGameBoardScene: React.FC = () => {
       isConnecting,
       isCreatingRoom,
       isTriggering,
-      canCreateRoom: connectionLabel === '4/4 connected',
-      canTriggerMiniGame: Boolean(matchId) && connectionLabel === '4/4 connected' && !isTriggering,
+      canCreateRoom: allClientsConnected,
+      canTriggerMiniGame: Boolean(matchId) && allClientsConnected && !isTriggering,
       statusLog,
     });
-  }, [connectionLabel, isConnecting, isCreatingRoom, isTriggering, matchId, selectedGameType, statusLog]);
+  }, [
+    allClientsConnected,
+    connectionLabel,
+    isConnecting,
+    isCreatingRoom,
+    isTriggering,
+    matchId,
+    selectedGameType,
+    statusLog,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -447,8 +453,8 @@ export const MiniGameBoardScene: React.FC = () => {
         ))}
         {clients.length === 0 && (
           <div style={boardStyles.emptyState}>
-            <strong style={boardStyles.emptyTitle}>MiniGameBoard</strong>
-            <span style={boardStyles.emptyText}>Open DEV → MiniGame and connect four clients.</span>
+            <strong style={boardStyles.emptyTitle}>小游戏调试面板</strong>
+            <span style={boardStyles.emptyText}>打开 DEV 菜单中的 MiniGame, 连接四个测试客户端</span>
           </div>
         )}
       </div>
