@@ -1,7 +1,7 @@
 import { assetUrl } from './assets';
 
 const BUTTON_SELECTOR = 'button, [role="button"], [data-button-sfx]';
-const BUTTON_SOUND_SRC = assetUrl('music/button.mp3');
+const BUTTON_SOUND_SRC = assetUrl('assets/music/button.mp3');
 
 let buttonSfxAudio: HTMLAudioElement | null = null;
 let buttonSfxInstalled = false;

@@ -1,7 +1,7 @@
 import { assetUrl } from './assets';
 import { createManagedBgm, pauseManagedBgm, playManagedBgm } from './bgmAudio';
 
-const endBgm = createManagedBgm(assetUrl('music/end.mp3'));
+const endBgm = createManagedBgm(assetUrl('assets/music/end.mp3'));
 
 export function playEndBgm(): void {
   playManagedBgm(endBgm, 0);
