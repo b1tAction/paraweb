@@ -11,11 +11,24 @@ const EVENT_POPUP_TEXT_COLOR = '#2b1d0e';
 const EVENT_POPUP_STROKE_COLOR = '#f8e7b5';
 const EVENT_POPUP_SHADOW_COLOR = '#8a6a35';
 const EVENT_POPUP_FONT_FAMILY = 'Zpix, monospace';
+const MIN_PANEL_WIDTH = 220;
+const MIN_PANEL_HEIGHT = 160;
+const DEFAULT_VIEWPORT_MARGIN = 32;
 
 export type PopupContext = {
   scene: Phaser.Scene;
   orchestrator: AnimationOrchestrator;
   tweens: Phaser.Tweens.TweenManager;
+};
+
+export type CenterPopupOptions = {
+  width?: number;
+  height?: number;
+  horizontalPadding?: number;
+  fontSize?: number;
+  viewportMargin?: number;
+  backgroundLayer?: number;
+  textLayer?: number;
 };
 
 type ActivePopupState = {
@@ -41,6 +54,10 @@ function maybeDeletePopupState(scene: Phaser.Scene, state: ActivePopupState): vo
   }
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
 /**
  * Show a center popup with the event name, splitting background and text
  * into separate depth layers so fullscreen effects can render between them.
@@ -52,6 +69,7 @@ export function showCenterPopup(
   _textColor: string,
   iconEmoji?: string,
   duration: number = 2500,
+  options: CenterPopupOptions = {},
 ): Promise<void> {
   // Close existing popup if any (also resolves any pending promise)
   closeCenterPopup(ctx);
@@ -68,20 +86,31 @@ export function showCenterPopup(
   const screenCenterX = cam.width / 2;
   const screenCenterY = cam.height / 2;
 
-  const textFontSize = 28 / (cam.zoom || 1);
+  const zoom = cam.zoom || 1;
   const displayText = iconEmoji ? `${iconEmoji} ${eventName}` : eventName;
-  const panelWidth = PANEL_WIDTH;
-  const panelHeight = PANEL_HEIGHT;
-  const wordWrapWidthPx = panelWidth - PANEL_HORIZONTAL_PADDING * 2;
-  const wordWrapWidth = wordWrapWidthPx / (cam.zoom || 1);
+  const viewportMargin = options.viewportMargin ?? DEFAULT_VIEWPORT_MARGIN;
+  const maxPanelWidth = Math.max(MIN_PANEL_WIDTH, cam.width - viewportMargin * 2);
+  const maxPanelHeight = Math.max(MIN_PANEL_HEIGHT, cam.height - viewportMargin * 2);
+  const panelWidth = clamp(options.width ?? PANEL_WIDTH, MIN_PANEL_WIDTH, maxPanelWidth);
+  const panelHeight = clamp(options.height ?? PANEL_HEIGHT, MIN_PANEL_HEIGHT, maxPanelHeight);
+  const horizontalPadding = Math.min(
+    options.horizontalPadding ?? PANEL_HORIZONTAL_PADDING,
+    Math.max(24, panelWidth / 3),
+  );
+  const textFontSizePx = Math.min(options.fontSize ?? 28, Math.max(16, panelHeight * 0.16));
+  const textFontSize = textFontSizePx / zoom;
+  const wordWrapWidthPx = Math.max(120, panelWidth - horizontalPadding * 2);
+  const wordWrapWidth = wordWrapWidthPx / zoom;
+  const backgroundLayer = options.backgroundLayer ?? LAYER_POPUP_BG;
+  const textLayer = options.textLayer ?? LAYER_POPUP_TEXT;
 
   // Convert pixel dimensions to world units so shapes/text render
   // at stable screen pixel sizes regardless of camera zoom.
-  const worldPanelWidth = panelWidth / (cam.zoom || 1);
-  const worldPanelHeight = panelHeight / (cam.zoom || 1);
+  const worldPanelWidth = panelWidth / zoom;
+  const worldPanelHeight = panelHeight / zoom;
 
   // Background panel at LAYER_POPUP_BG
-  const panel = ctx.orchestrator.createScreenPositionedObject(screenCenterX, screenCenterY, LAYER_POPUP_BG, (wx, wy) =>
+  const panel = ctx.orchestrator.createScreenPositionedObject(screenCenterX, screenCenterY, backgroundLayer, (wx, wy) =>
     ctx.scene.add.image(wx, wy, EVENT_POPUP_FRAME_KEY),
   );
   const targetScaleX = worldPanelWidth / panel.width;
@@ -91,7 +120,7 @@ export function showCenterPopup(
   panel.setScale(targetScaleX * 0.85, targetScaleY * 0.85);
 
   // Text at LAYER_POPUP_TEXT (always readable, above effects)
-  const text = ctx.orchestrator.createScreenPositionedObject(screenCenterX, screenCenterY, LAYER_POPUP_TEXT, (wx, wy) =>
+  const text = ctx.orchestrator.createScreenPositionedObject(screenCenterX, screenCenterY, textLayer, (wx, wy) =>
     ctx.scene.add.text(wx, wy, displayText, {
       fontFamily: EVENT_POPUP_FONT_FAMILY || GAME_FONT_FAMILY,
       fontSize: `${textFontSize}px`,
@@ -100,10 +129,10 @@ export function showCenterPopup(
       align: 'center',
       wordWrap: { width: wordWrapWidth },
       stroke: EVENT_POPUP_STROKE_COLOR,
-      strokeThickness: 4 / (cam.zoom || 1),
+      strokeThickness: 4 / zoom,
       shadow: {
-        offsetX: 2 / (cam.zoom || 1),
-        offsetY: 2 / (cam.zoom || 1),
+        offsetX: 2 / zoom,
+        offsetY: 2 / zoom,
         color: EVENT_POPUP_SHADOW_COLOR,
         blur: 0,
         fill: true,
@@ -112,7 +141,7 @@ export function showCenterPopup(
   );
   text.setOrigin(0.5, 0.5);
   text.setWordWrapWidth(wordWrapWidth, true);
-  text.setLineSpacing(8 / (cam.zoom || 1));
+  text.setLineSpacing(8 / zoom);
   text.setAlpha(0);
   text.setScale(0.5);
 

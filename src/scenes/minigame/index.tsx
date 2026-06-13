@@ -12,6 +12,7 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { gameService } from '../../service/NakamaService';
 import { useGameStore } from '../../store/gameStore';
+import { CakeCuttingMiniGame } from './CakeCuttingMiniGame';
 import { CountSecondsMiniGame } from './CountSecondsMiniGame';
 import { DiceRaceMiniGame } from './DiceRaceMiniGame';
 import { DilemmaRaceMiniGame } from './DilemmaRaceMiniGame';
@@ -21,7 +22,6 @@ import { styles } from './MiniGameStyles';
 import { RainbowMemoryMiniGame } from './RainbowMemoryMiniGame';
 import { ScaleWrapper } from './ScaleWrapper';
 import { TrustDilemmaMiniGame } from './TrustDilemmaMiniGame';
-import { CakeCuttingMiniGame } from './CakeCuttingMiniGame';
 import { TypingSpeedMiniGame } from './TypingSpeedMiniGame';
 import { VernierMiniGame } from './VernierMiniGame';
 
@@ -35,7 +35,7 @@ const RESULT_DISPLAY_DURATION_MS = 5000;
 // ========== MiniGameSubmitRankScene ==========
 
 export const MiniGameSubmitRankScene: React.FC = () => {
-  const { miniGameStart, miniGameResult, myPlayerId, session, miniGameOnline } = useGameStore();
+  const { miniGameStart, miniGameResult, myPlayerId, players, session, miniGameOnline } = useGameStore();
 
   // Shared submit state
   const [submitted, setSubmitted] = useState(false);
@@ -50,8 +50,13 @@ export const MiniGameSubmitRankScene: React.FC = () => {
 
   // Reset all state when mini-game round changes
   const startKey = useMemo(
-    () => `${miniGameStart?.game_type || ''}:${(miniGameStart?.players || []).join(',')}`,
-    [miniGameStart?.game_type, miniGameStart?.players],
+    () =>
+      [
+        miniGameStart?.game_type || '',
+        miniGameStart?.connection?.minigame_instance_id || miniGameStart?.connection?.room_id || '',
+        (miniGameStart?.players || []).join(','),
+      ].join(':'),
+    [miniGameStart?.connection, miniGameStart?.game_type, miniGameStart?.players],
   );
   const lastStartKeyRef = useRef(startKey);
 
@@ -115,9 +120,24 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   const myUserId = myPlayerId || session?.user_id || '';
   const isParticipant = hasMiniGameStart && participantIds.includes(myUserId);
   const gameType = miniGameStart?.game_type || '';
+  const participantPlayers = useMemo(() => {
+    if (participantIds.length === 0 || players.length === 0) return [];
+
+    const playersById = new Map(players.map((player) => [player.player_id, player]));
+    const orderedPlayers = participantIds.flatMap((participantId) => {
+      const player = playersById.get(participantId);
+      return player ? [player] : [];
+    });
+
+    return orderedPlayers.length === participantIds.length ? orderedPlayers : [];
+  }, [participantIds, players]);
 
   // Online mode: connection info present means Colyseus-based real-time game
   const isOnlineMode = miniGameOnline && miniGameStart?.connection != null;
+  const onlineGameKey =
+    miniGameStart?.connection?.minigame_instance_id ||
+    miniGameStart?.connection?.room_id ||
+    `${gameType}:${participantIds.join(',')}`;
 
   // ========== Submit handler (shared) ==========
 
@@ -131,7 +151,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
         await gameService.sendMiniGameDataSubmit(gameType, gameData);
         setSubmitted(true);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to submit mini-game data';
+        const message = err instanceof Error ? err.message : '提交小游戏成绩失败';
         setSubmitError(message);
       } finally {
         setIsSubmitting(false);
@@ -161,17 +181,17 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       case 'typing_speed':
         return '打字速度';
       case 'dice_race':
-        return 'Roll Dice';
+        return '骰子竞速';
       case 'count_seconds':
-        return 'Count Seconds';
+        return '心中数秒';
       case 'math_calc':
-        return 'Math Calculation';
+        return '速算挑战';
       case 'rainbow_memory':
-        return 'Rainbow Memory';
+        return '彩虹记忆';
       case 'vernier':
-        return 'Vernier Caliper';
+        return '游标卡尺';
       default:
-        return `Mini-Game: ${gameType}`;
+        return `小游戏: ${gameType}`;
     }
   };
   // ========== Playing phase rendering ==========
@@ -181,39 +201,75 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       // --- Dilemma Race: online mode (Colyseus real-time game) ---
       case 'dilemma_race':
         if (isOnlineMode && miniGameStart?.connection) {
-          return <DilemmaRaceMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+          return (
+            <DilemmaRaceMiniGame
+              key={onlineGameKey}
+              connection={miniGameStart.connection}
+              isParticipant={isParticipant}
+              playerId={myUserId}
+              participantIds={participantIds}
+              participantPlayers={participantPlayers}
+            />
+          );
         }
         // dilemma_race requires online mode; show waiting message if no connection
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>dilemma_race requires online mode. Waiting for server result...</p>
+            <p style={styles.submittedText}>步步为营需要联机模式, 等待结算</p>
           </div>
         );
       case 'trust_dilemma':
         if (isOnlineMode && miniGameStart?.connection) {
-          return <TrustDilemmaMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+          return (
+            <TrustDilemmaMiniGame
+              key={onlineGameKey}
+              connection={miniGameStart.connection}
+              isParticipant={isParticipant}
+              playerId={myUserId}
+              participantIds={participantIds}
+              participantPlayers={participantPlayers}
+            />
+          );
         }
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>trust_dilemma requires online mode. Waiting for server result...</p>
+            <p style={styles.submittedText}>信任考验需要联机模式, 等待结算</p>
           </div>
         );
       case 'cake_cutting':
         if (isOnlineMode && miniGameStart?.connection) {
-          return <CakeCuttingMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+          return (
+            <CakeCuttingMiniGame
+              key={onlineGameKey}
+              connection={miniGameStart.connection}
+              isParticipant={isParticipant}
+              playerId={myUserId}
+              participantIds={participantIds}
+              participantPlayers={participantPlayers}
+            />
+          );
         }
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>cake_cutting requires online mode. Waiting for server result...</p>
+            <p style={styles.submittedText}>切蛋糕需要联机模式, 等待结算</p>
           </div>
         );
       case 'typing_speed':
         if (isOnlineMode && miniGameStart?.connection) {
-          return <TypingSpeedMiniGame connection={miniGameStart.connection} isParticipant={isParticipant} />;
+          return (
+            <TypingSpeedMiniGame
+              key={onlineGameKey}
+              connection={miniGameStart.connection}
+              isParticipant={isParticipant}
+              playerId={myUserId}
+              participantIds={participantIds}
+              participantPlayers={participantPlayers}
+            />
+          );
         }
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>typing_speed requires online mode. Waiting for server result...</p>
+            <p style={styles.submittedText}>打字速度需要联机模式, 等待结算</p>
           </div>
         );
       case 'dice_race':
@@ -264,9 +320,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       default:
         return (
           <div style={styles.gameArea}>
-            <p style={styles.submittedText}>
-              {gameType} mini-game not yet implemented. Waiting for server auto-processing...
-            </p>
+            <p style={styles.submittedText}>{gameType} 小游戏暂未接入前端, 等待服务器处理</p>
           </div>
         );
     }
@@ -278,8 +332,8 @@ export const MiniGameSubmitRankScene: React.FC = () => {
     if (!hasMiniGameStart) {
       return (
         <>
-          <h2 style={styles.title}>Mini-Game</h2>
-          <p style={styles.submittedText}>Waiting for mini-game start...</p>
+          <h2 style={styles.title}>小游戏</h2>
+          <p style={styles.submittedText}>等待小游戏开始</p>
         </>
       );
     }
@@ -288,7 +342,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
     if (gamePhase === 'result') {
       return (
         <>
-          <h2 style={styles.title}>{getGameTitle()} - Results</h2>
+          <h2 style={styles.title}>{getGameTitle()} · 结果</h2>
           {renderResult()}
         </>
       );
@@ -299,7 +353,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
       return (
         <>
           <h2 style={styles.title}>{getGameTitle()}</h2>
-          <p style={styles.submittedText}>You are not participating this round. Waiting for others...</p>
+          <p style={styles.submittedText}>未参与本轮, 等待其他玩家</p>
           {renderResult()}
         </>
       );
@@ -317,9 +371,7 @@ export const MiniGameSubmitRankScene: React.FC = () => {
   return (
     <div style={styles.modalContainer}>
       <div style={styles.screenContent}>
-        <ScaleWrapper>
-          {renderContent()}
-        </ScaleWrapper>
+        <ScaleWrapper>{renderContent()}</ScaleWrapper>
       </div>
     </div>
   );

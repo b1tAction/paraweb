@@ -47,19 +47,19 @@ export const styles: Record<string, CSSProperties> = {
   screenContent: {
     position: 'absolute',
     // Exact coordinates: X=430, Y=70, W=900, H=630 on 1760x800 image
-    left: '24.43%',   // 430/1760
-    top: '8.75%',     // 70/800
-    width: '51.14%',  // 900/1760
+    left: '24.43%', // 430/1760
+    top: '8.75%', // 70/800
+    width: '51.14%', // 900/1760
     height: '78.75%', // 630/800
-    
+
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    backdropFilter: 'blur(20px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+
+    backgroundColor: '#f7f7ef',
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
     borderRadius: '4px',
     padding: '4px',
     overflow: 'hidden',
@@ -468,38 +468,35 @@ export const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     width: '100%',
     maxWidth: '500px',
-    gap: '12px',
+    gap: '8px',
   },
   leaderboardHeader: {
-    fontSize: '32px',
+    fontSize: '22px',
     fontWeight: '900',
-    color: '#1a1a1a',
-    marginBottom: '20px',
-    textTransform: 'uppercase',
-    letterSpacing: '3px',
+    color: '#2a261d',
+    margin: '0 0 8px 0',
+    letterSpacing: '0',
     textAlign: 'center',
-    textShadow: '0 2px 10px rgba(0,0,0,0.1)',
   },
   leaderboardRow: {
     display: 'flex',
     alignItems: 'center',
     width: '100%',
-    padding: '16px 24px',
-    borderRadius: '20px',
-    background: 'rgba(255, 255, 255, 0.5)',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    boxShadow: '0 8px 32px rgba(31, 38, 135, 0.1)',
-    backdropFilter: 'blur(4px)',
-    transition: 'all 0.3s ease',
+    padding: '10px 14px',
+    borderRadius: '6px',
+    background: 'rgba(32, 28, 21, 0.08)',
+    border: '1px solid rgba(60, 48, 31, 0.18)',
+    transition: 'background-color 0.2s ease, border-color 0.2s ease',
   },
   leaderboardRank: {
-    fontSize: '32px',
+    fontSize: '15px',
     fontWeight: '900',
-    width: '48px',
-    marginRight: '16px',
+    width: '44px',
+    marginRight: '12px',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
+    color: '#3b3324',
   },
   leaderboardInfo: {
     display: 'flex',
@@ -507,15 +504,15 @@ export const styles: Record<string, CSSProperties> = {
     flex: 1,
   },
   leaderboardName: {
-    fontSize: '20px',
+    fontSize: '15px',
     fontWeight: '800',
-    color: '#2c3e50',
-    marginBottom: '4px',
+    color: '#2e291f',
+    marginBottom: '2px',
   },
   leaderboardDetail: {
-    fontSize: '14px',
+    fontSize: '12px',
     fontWeight: '600',
-    color: '#7f8c8d',
+    color: '#766b5a',
   },
   leaderboardDiceArea: {
     display: 'flex',
@@ -524,43 +521,40 @@ export const styles: Record<string, CSSProperties> = {
     gap: '4px',
   },
   diceBadge: {
-    padding: '4px 12px',
-    borderRadius: '100px',
+    padding: '3px 8px',
+    borderRadius: '3px',
     fontSize: '12px',
-    color: '#fff',
+    color: '#2a2419',
     fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: '1px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+    letterSpacing: '0',
+    border: '1px solid rgba(60, 48, 31, 0.2)',
   },
   diceDesc: {
     fontSize: '11px',
-    color: '#263238',
+    color: '#4f4638',
     fontWeight: '800',
-    textShadow: '0 1px 0 rgba(255, 255, 255, 0.65)',
   },
   // Specific Rank Styles
   rank1: {
-    background: 'linear-gradient(135deg, rgba(255,215,0,0.1) 0%, rgba(255,215,0,0.3) 100%)',
-    border: '1.5px solid #FFD700',
-    boxShadow: '0 8px 32px rgba(255, 215, 0, 0.2)',
+    background: 'rgba(190, 158, 82, 0.16)',
+    border: '1px solid rgba(190, 158, 82, 0.42)',
   },
   rank2: {
-    background: 'linear-gradient(135deg, rgba(192,192,192,0.1) 0%, rgba(192,192,192,0.3) 100%)',
-    border: '1.5px solid #C0C0C0',
+    background: 'rgba(137, 143, 145, 0.13)',
+    border: '1px solid rgba(137, 143, 145, 0.35)',
   },
   rank3: {
-    background: 'linear-gradient(135deg, rgba(205,127,50,0.1) 0%, rgba(205,127,50,0.3) 100%)',
-    border: '1.5px solid #CD7F32',
+    background: 'rgba(157, 103, 62, 0.13)',
+    border: '1px solid rgba(157, 103, 62, 0.35)',
   },
   rank4: {
-    background: 'linear-gradient(135deg, rgba(139,69,19,0.05) 0%, rgba(139,69,19,0.15) 100%)',
-    border: '1.5px solid #8B4513',
+    background: 'rgba(82, 66, 47, 0.1)',
+    border: '1px solid rgba(82, 66, 47, 0.28)',
   },
-  badgeGold: { backgroundColor: '#FFD700', color: '#000' },
-  badgeSilver: { backgroundColor: '#C0C0C0', color: '#000' },
-  badgeCopper: { backgroundColor: '#CD7F32' },
-  badgeWood: { backgroundColor: '#8B4513' },
+  badgeGold: { backgroundColor: '#c7a85a', color: '#211b12' },
+  badgeSilver: { backgroundColor: '#9ba0a0', color: '#191b1b' },
+  badgeCopper: { backgroundColor: '#a46d45', color: '#211811' },
+  badgeWood: { backgroundColor: '#6f5c42', color: '#f0e2c8' },
 };
 
 // Dice face dot positions in 3x3 grid (0=top-left, 8=bottom-right)

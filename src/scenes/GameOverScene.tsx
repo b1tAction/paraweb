@@ -429,6 +429,7 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute',
     inset: 0,
     background: 'linear-gradient(180deg, rgba(7, 11, 16, 0.22), rgba(8, 11, 14, 0.68))',
+    zIndex: 0,
   },
   loading: {
     position: 'fixed',
@@ -442,13 +443,14 @@ const styles: Record<string, React.CSSProperties> = {
     backgroundPosition: 'center',
     fontFamily: 'Zpix, sans-serif',
   },
+  // ====== 1. 胜者区：向上提，并精简高度，防止压迫中间人物 ======
   heroSection: {
     position: 'absolute',
     left: '50%',
-    top: '7%',
+    top: '3%', // 从 7% 提到 3%
     transform: 'translateX(-50%)',
-    width: 'min(720px, calc(100vw - 32px))',
-    zIndex: 1,
+    width: 'min(640px, calc(100vw - 32px))',
+    zIndex: 10, // 确保在最上层
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -456,32 +458,32 @@ const styles: Record<string, React.CSSProperties> = {
     textShadow: '0 3px 0 rgba(62, 38, 29, 0.72), 0 10px 24px rgba(0, 0, 0, 0.4)',
   },
   resultLabel: {
-    fontSize: 'clamp(12px, 1.2vw, 15px)',
+    fontSize: 'clamp(11px, 1vw, 13px)',
     color: '#f3dfab',
-    marginBottom: '8px',
+    marginBottom: '4px',
   },
   title: {
     margin: 0,
-    fontSize: 'clamp(36px, 5vw, 64px)',
+    fontSize: 'clamp(28px, 4vw, 48px)', // 略微缩小字体
     lineHeight: 1,
   },
   winnerCard: {
-    marginTop: '20px',
-    width: 'min(520px, 100%)',
-    minHeight: '132px',
-    padding: '18px 22px',
+    marginTop: '10px', // 缩小间距
+    width: 'min(460px, 100%)',
+    minHeight: '90px', // 缩小高度
+    padding: '10px 16px',
     display: 'grid',
     alignItems: 'center',
     justifyItems: 'center',
-    gap: '18px',
-    background: 'rgba(22, 29, 32, 0.68)',
+    gap: '12px',
+    background: 'rgba(22, 29, 32, 0.85)', // 提高不透明度，文字更清晰
     border: '1px solid rgba(255, 232, 166, 0.44)',
     borderRadius: '8px',
-    boxShadow: '0 18px 40px rgba(0, 0, 0, 0.28)',
-    backdropFilter: 'blur(3px)',
+    boxShadow: '0 12px 30px rgba(0, 0, 0, 0.5)',
+    backdropFilter: 'blur(4px)',
   },
   winnerCardWithFigure: {
-    gridTemplateColumns: '120px minmax(0, 1fr)',
+    gridTemplateColumns: '90px minmax(0, 1fr)', // 缩小立绘格子
   },
   winnerCardTextOnly: {
     gridTemplateColumns: 'minmax(0, 1fr)',
@@ -491,7 +493,7 @@ const styles: Record<string, React.CSSProperties> = {
     aspectRatio: '1 / 1',
     overflow: 'hidden',
     imageRendering: 'pixelated',
-    filter: 'drop-shadow(0 14px 14px rgba(0, 0, 0, 0.5))',
+    filter: 'drop-shadow(0 8px 8px rgba(0, 0, 0, 0.5))',
   },
   winnerFigureCanvas: {
     width: '100%',
@@ -504,7 +506,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '8px',
+    gap: '4px',
     textAlign: 'center',
   },
   winnerName: {
@@ -512,7 +514,7 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontSize: 'clamp(24px, 3vw, 38px)',
+    fontSize: 'clamp(20px, 2.5vw, 30px)',
     color: '#fff5c5',
   },
   winnerTags: {
@@ -521,18 +523,20 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     gap: '6px',
     color: '#ead8a0',
-    fontSize: 'clamp(11px, 1vw, 14px)',
+    fontSize: 'clamp(11px, 0.9vw, 13px)',
   },
+  // ====== 2. 玩家舞台：调低层级，并整体稍微向下平移 ======
   playerStage: {
     position: 'absolute',
     inset: 0,
-    zIndex: 1,
+    top: '6%', // 整体舞台往下微调 6%，避开上方的胜者卡片
+    zIndex: 1, // 放在统计面板的下方
     pointerEvents: 'none',
   },
   playerSlot: {
     position: 'absolute',
     transform: 'translate(-50%, -100%)',
-    width: 'clamp(168px, 14.6vw, 256px)',
+    width: 'clamp(140px, 12vw, 220px)', // 稍微收敛一下立绘大小
     aspectRatio: '1 / 1',
     display: 'flex',
     alignItems: 'stretch',
@@ -554,52 +558,53 @@ const styles: Record<string, React.CSSProperties> = {
   },
   playerPanel: {
     position: 'absolute',
-    minWidth: 'clamp(110px, 10vw, 156px)',
-    maxWidth: 'min(220px, 22vw)',
-    padding: '7px 9px',
+    minWidth: 'clamp(110px, 10vw, 140px)',
+    maxWidth: 'min(200px, 20vw)',
+    padding: '6px 8px',
     color: '#fdf5d0',
-    background: 'rgba(29, 35, 35, 0.72)',
+    background: 'rgba(29, 35, 35, 0.85)',
     border: '1px solid rgba(255, 232, 166, 0.4)',
     borderRadius: '8px',
     boxShadow: '0 9px 18px rgba(0, 0, 0, 0.28)',
     backdropFilter: 'blur(2px)',
   },
   winnerPlayerPanel: {
-    background: 'rgba(60, 48, 18, 0.76)',
+    background: 'rgba(60, 48, 18, 0.85)',
     borderColor: 'rgba(255, 222, 124, 0.68)',
   },
   playerName: {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    fontSize: 'clamp(12px, 1.15vw, 15px)',
+    fontSize: 'clamp(12px, 1.1vw, 14px)',
     fontWeight: 900,
     lineHeight: 1.3,
     textAlign: 'center',
     textShadow: '0 2px 4px rgba(0, 0, 0, 0.65)',
   },
   playerTags: {
-    marginTop: '5px',
+    marginTop: '4px',
     display: 'flex',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: '4px',
     color: '#e9d393',
-    fontSize: 'clamp(10px, 0.95vw, 12px)',
+    fontSize: 'clamp(10px, 0.9vw, 11px)',
     lineHeight: 1.2,
   },
+  // ====== 3. 左右两侧面板 ======
   summaryPanel: {
     position: 'absolute',
     left: '24px',
     top: '24%',
-    width: 'min(480px, calc(100vw - 32px))',
+    width: 'min(440px, calc(100vw - 32px))', // 宽度略微收紧
     maxHeight: '58vh',
     padding: '18px 20px 20px',
-    zIndex: 1,
-    background: 'rgba(13, 20, 22, 0.8)',
+    zIndex: 5, // 高于舞台
+    background: 'rgba(13, 20, 22, 0.85)',
     border: '1px solid rgba(255, 232, 166, 0.34)',
     borderRadius: '8px',
-    boxShadow: '0 18px 40px rgba(0, 0, 0, 0.28)',
+    boxShadow: '0 18px 40px rgba(0, 0, 0, 0.4)',
     backdropFilter: 'blur(2px)',
     overflow: 'hidden',
   },
@@ -615,12 +620,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   panelTitle: {
     margin: 0,
-    fontSize: 'clamp(18px, 2vw, 26px)',
-  },
-  tableWrap: {
-    width: '100%',
-    overflowX: 'auto',
-    overflowY: 'auto',
+    fontSize: 'clamp(18px, 1.8vw, 24px)',
   },
   table: {
     width: '100%',
@@ -629,14 +629,14 @@ const styles: Record<string, React.CSSProperties> = {
     tableLayout: 'fixed',
   },
   th: {
-    padding: '10px 12px',
-    fontSize: '13px',
+    padding: '10px 6px', // 紧凑间距
+    fontSize: '12px',
     color: '#f1e0ad',
     textAlign: 'left',
     borderBottom: '1px solid rgba(255, 232, 166, 0.24)',
   },
   thScore: {
-    padding: '10px 8px',
+    padding: '10px 4px',
     fontSize: '12px',
     color: '#f1e0ad',
     textAlign: 'center',
@@ -649,8 +649,8 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(116, 88, 21, 0.22)',
   },
   td: {
-    padding: '11px 12px',
-    fontSize: '13px',
+    padding: '10px 6px',
+    fontSize: '12px',
     borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -661,21 +661,21 @@ const styles: Record<string, React.CSSProperties> = {
     right: '24px',
     top: '24%',
     width: 'min(280px, calc(100vw - 32px))',
-    maxHeight: '70vh',
+    maxHeight: '66vh',
     padding: '18px 20px 20px',
-    zIndex: 1,
-    background: 'rgba(13, 20, 22, 0.8)',
+    zIndex: 5, // 高于舞台
+    background: 'rgba(13, 20, 22, 0.85)',
     border: '1px solid rgba(255, 232, 166, 0.34)',
     borderRadius: '8px',
-    boxShadow: '0 18px 40px rgba(0, 0, 0, 0.28)',
+    boxShadow: '0 18px 40px rgba(0, 0, 0, 0.4)',
     backdropFilter: 'blur(2px)',
     overflow: 'hidden',
   },
   achievementViewport: {
     height: ACHIEVEMENT_VIEWPORT_HEIGHT,
-    maxHeight: 'calc(70vh - 64px)',
+    maxHeight: 'calc(66vh - 64px)',
     overflowY: 'auto',
-    paddingRight: '8px',
+    paddingRight: '4px',
     overscrollBehaviorY: 'contain',
     scrollbarGutter: 'stable',
     scrollSnapType: 'y mandatory',
@@ -704,39 +704,40 @@ const styles: Record<string, React.CSSProperties> = {
     scrollSnapStop: 'always',
   },
   achievementName: {
-    fontSize: '16px',
+    fontSize: '15px',
     fontWeight: 700,
   },
   achievementDesc: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: '#ccc',
-    marginTop: '4px',
+    marginTop: '2px',
   },
   achievementPoints: {
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: 700,
     color: '#FFD700',
-    marginTop: '4px',
+    marginTop: '2px',
   },
   achievementPlayer: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: '#ead8a0',
-    marginTop: '4px',
+    marginTop: '2px',
   },
+  // ====== 4. 重新开始按钮 ======
   restartAction: {
     position: 'absolute',
     left: '50%',
-    bottom: '4%',
+    bottom: '2%', // 从 4% 压到 2%，紧贴屏幕底部，给玄武守护航
     transform: 'translateX(-50%)',
-    zIndex: 1,
+    zIndex: 10, // 提到最顶层
     display: 'flex',
     justifyContent: 'center',
     pointerEvents: 'auto',
   },
   restartButton: {
-    minWidth: '288px',
-    minHeight: '88px',
-    padding: '16px 36px',
+    minWidth: '240px', // 稍微缩小一点按钮基底
+    minHeight: '74px',
+    padding: '12px 28px',
     color: '#3c3833',
     backgroundColor: 'transparent',
     backgroundImage: assetCssUrl('assets/button/button_up.png'),
@@ -745,7 +746,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     cursor: 'pointer',
     fontFamily: 'inherit',
-    fontSize: '34px',
+    fontSize: '28px', // 字体略微收紧
     textShadow: '0 1px 0 rgba(255,255,255,0.75)',
     imageRendering: 'pixelated',
   },
