@@ -76,7 +76,7 @@ export function playCharacterSfx(soundType: string, volume?: number): void {
   // Try to get cached audio, or create new one
   let baseAudio = audioCache.get(soundType);
   if (!baseAudio) {
-    baseAudio = preloadCharacterSound(soundType);
+    baseAudio = preloadCharacterSound(soundType) ?? undefined;
   }
 
   if (!baseAudio) {

@@ -7,7 +7,6 @@ import {
   playBossAttackSfx,
   playBossHurtSfx,
   playBossSkillSfx,
-  playCharacterSfx,
   playPlayerAttackSfx,
   playPlayerHurtSfx,
 } from '../utils/characterSfx';

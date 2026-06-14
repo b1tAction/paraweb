@@ -89,7 +89,7 @@ export function playEventSfx(eventType: string, volume?: number): void {
   // Try to get cached audio, or create new one
   let baseAudio = audioCache.get(eventType);
   if (!baseAudio) {
-    baseAudio = preloadEventSound(eventType);
+    baseAudio = preloadEventSound(eventType) ?? undefined;
   }
 
   if (!baseAudio) {
