@@ -136,8 +136,8 @@ export const FactionSelectScene: React.FC = () => {
                     faction={option.value}
                     width={500}
                     height={500}
-                    xOffset={-128}
-                    yOffset={-152}
+                    xOffset={0}
+                    yOffset={0}
                     style={styles.factionFigureCanvas}
                   />
                 </div>

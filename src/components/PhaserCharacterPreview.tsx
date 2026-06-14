@@ -3,7 +3,6 @@ import type React from 'react';
 import { useEffect, useMemo, useRef } from 'react';
 import {
   type CharacterRenderOptions,
-  getCharacterOffsetY,
   getCharacterProfileByFaction,
   getCharacterRenderer,
 } from '../game/characterRenderConfig';
@@ -76,11 +75,11 @@ export const PhaserCharacterPreview: React.FC<PhaserCharacterPreviewProps> = ({
           player: dummyPlayer,
           profile,
           x: width / 2 + xOffset,
-          y: height / 2 + getCharacterOffsetY(profile) + yOffset,
+          y: height / 2 + yOffset,
         });
         const idleConfig = profile.animations.idle;
-        const fitScale = Math.min(width / idleConfig.frameWidth, height / idleConfig.frameHeight) * 0.9;
-        sprite.setScale((profile.scale ?? 1) * fitScale);
+        const fitScale = Math.min(width / idleConfig.frameWidth, height / idleConfig.frameHeight) * 0.85;
+        sprite.setScale(fitScale);
         renderer.play(this, sprite, profile, 'idle');
       }
     }
