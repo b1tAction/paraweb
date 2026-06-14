@@ -3,9 +3,16 @@ import { dispatchDevBoardFocusCell } from '../game/devBoardEvents';
 import { Scene, useGameStore } from '../store/gameStore';
 import type { LogEntry, MapConfig, Player } from '../types/protocol';
 import { playEventSfx } from '../utils/eventSfx';
+import {
+  playBossAttackSfx,
+  playBossHurtSfx,
+  playBossSkillSfx,
+  playPlayerAttackSfx,
+  playPlayerHurtSfx,
+} from '../utils/characterSfx';
 import { injectBoard, MOCK_DEFINITIONS, MOCK_MAP_CONFIG, MOCK_PLAYERS } from './devMockData';
 
-export type DevEffectGroup = 'Action' | 'Event' | 'Buff' | 'Item' | 'Skill/Boss' | 'Dice';
+export type DevEffectGroup = 'Action' | 'Event' | 'Buff' | 'Item' | 'Skill/Boss' | 'Dice' | 'Sound';
 export type DevDiceType = 'wood' | 'copper' | 'silver' | 'gold';
 export type DevEffectDiceControls = 'roll' | 'upgrade';
 
@@ -661,6 +668,24 @@ export const DEV_EFFECT_PRESETS: DevEffectPreset[] = [
       ),
   },
   {
+    id: 'boss_damage_normal',
+    group: 'Skill/Boss',
+    label: 'Boss Damage Normal',
+    description: '玩家普通攻击 Boss（非暴击）。',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) =>
+      bossEntry(
+        context,
+        'boss_damage',
+        { damage: 3, is_crit: false, boss_remaining_hp: 27 },
+        {
+          target: context.bossPlayer?.player_id ?? DEV_BOSS_PLAYER_ID,
+          source: context.targetPlayer.player_id,
+        },
+      ),
+  },
+  {
     id: 'boss_attack',
     group: 'Skill/Boss',
     label: 'Boss Attack',
@@ -668,6 +693,15 @@ export const DEV_EFFECT_PRESETS: DevEffectPreset[] = [
     requiresBoss: true,
     focus: 'boss',
     build: (context) => bossEntry(context, 'boss_attack', { attack_type: 'crit', is_crit: true }),
+  },
+  {
+    id: 'boss_attack_normal',
+    group: 'Skill/Boss',
+    label: 'Boss Attack Normal',
+    description: 'Boss 普通攻击玩家（非暴击）。',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) => bossEntry(context, 'boss_attack', { attack_type: 'normal', is_crit: false }),
   },
   {
     id: 'boss_skill_thunder',
@@ -738,6 +772,212 @@ export const DEV_EFFECT_PRESETS: DevEffectPreset[] = [
         { source: 'dev_dice_upgrade' },
       ),
   },
+  // Sound effect testing presets
+  {
+    id: 'sound_test_player_attack_anim',
+    group: 'Sound',
+    label: '🎬 Player Attack (with anim)',
+    description: '玩家攻击Boss动画+音效（普通攻击）',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) =>
+      bossEntry(
+        context,
+        'boss_damage',
+        { damage: 3, is_crit: false, boss_remaining_hp: 27 },
+        {
+          target: context.bossPlayer?.player_id ?? DEV_BOSS_PLAYER_ID,
+          source: context.targetPlayer.player_id,
+        },
+      ),
+  },
+  {
+    id: 'sound_test_player_crit_anim',
+    group: 'Sound',
+    label: '🎬 Player Crit (with anim)',
+    description: '玩家暴击攻击Boss动画+音效+弹道',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) =>
+      bossEntry(
+        context,
+        'boss_damage',
+        { damage: 6, is_crit: true, boss_remaining_hp: 24 },
+        {
+          target: context.bossPlayer?.player_id ?? DEV_BOSS_PLAYER_ID,
+          source: context.targetPlayer.player_id,
+        },
+      ),
+  },
+  {
+    id: 'sound_test_player_hurt_anim',
+    group: 'Sound',
+    label: '🎬 Player Hurt (with anim)',
+    description: '玩家受击动画+音效',
+    build: (context) => entry(context, 'damage', { hp_change: -2 }, { source: 'dev_damage' }),
+  },
+  {
+    id: 'sound_test_boss_attack_anim',
+    group: 'Sound',
+    label: '🎬 Boss Attack (with anim)',
+    description: 'Boss普通攻击玩家动画+音效',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) => bossEntry(context, 'boss_attack', { attack_type: 'normal', is_crit: false }),
+  },
+  {
+    id: 'sound_test_boss_crit_anim',
+    group: 'Sound',
+    label: '🎬 Boss Crit (with anim)',
+    description: 'Boss暴击攻击玩家动画+音效',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) => bossEntry(context, 'boss_attack', { attack_type: 'crit', is_crit: true }),
+  },
+  {
+    id: 'sound_test_boss_hurt_anim',
+    group: 'Sound',
+    label: '🎬 Boss Hurt (with anim)',
+    description: 'Boss受击动画+音效（玩家攻击）',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) =>
+      bossEntry(
+        context,
+        'boss_damage',
+        { damage: 3, is_crit: false, boss_remaining_hp: 27 },
+        {
+          target: context.bossPlayer?.player_id ?? DEV_BOSS_PLAYER_ID,
+          source: context.targetPlayer.player_id,
+        },
+      ),
+  },
+  {
+    id: 'sound_test_boss_thunder_anim',
+    group: 'Sound',
+    label: '🎬 Boss Thunder (with anim)',
+    description: 'Boss雷击技能动画+音效（完整特效）',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) =>
+      bossEntry(context, 'boss_skill', { skill_type: 'thunder', targets: [context.targetPlayer.player_id] }),
+  },
+  {
+    id: 'sound_test_boss_curse_anim',
+    group: 'Sound',
+    label: '🎬 Boss Curse (with anim)',
+    description: 'Boss诅咒技能动画+音效（紫色脉冲）',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) =>
+      bossEntry(context, 'boss_skill', { skill_type: 'curse', targets: [context.targetPlayer.player_id] }),
+  },
+  {
+    id: 'sound_test_boss_thorns_anim',
+    group: 'Sound',
+    label: '🎬 Boss Thorns (with anim)',
+    description: 'Boss荆棘技能动画+音效（尖刺特效）',
+    requiresBoss: true,
+    focus: 'boss',
+    build: (context) => bossEntry(context, 'boss_skill', { skill_type: 'thorns', targets: [] }),
+  },
+  {
+    id: 'sound_divider',
+    group: 'Sound',
+    label: '───── 仅音效测试 ─────',
+    description: '以下是纯音效测试（无动画）',
+    build: () => [],
+  },
+  {
+    id: 'sound_player_attack',
+    group: 'Sound',
+    label: '🔊 Player Attack',
+    description: '播放玩家普通攻击音效。',
+    build: () => {
+      playPlayerAttackSfx(false);
+      return [];
+    },
+  },
+  {
+    id: 'sound_player_crit',
+    group: 'Sound',
+    label: '🔊 Player Crit',
+    description: '播放玩家暴击攻击音效。',
+    build: () => {
+      playPlayerAttackSfx(true);
+      return [];
+    },
+  },
+  {
+    id: 'sound_player_hurt',
+    group: 'Sound',
+    label: '🔊 Player Hurt',
+    description: '播放玩家受击音效。',
+    build: () => {
+      playPlayerHurtSfx();
+      return [];
+    },
+  },
+  {
+    id: 'sound_boss_attack',
+    group: 'Sound',
+    label: '🔊 Boss Attack',
+    description: '播放Boss普通攻击音效。',
+    build: () => {
+      playBossAttackSfx(false);
+      return [];
+    },
+  },
+  {
+    id: 'sound_boss_crit',
+    group: 'Sound',
+    label: '🔊 Boss Crit',
+    description: '播放Boss暴击攻击音效。',
+    build: () => {
+      playBossAttackSfx(true);
+      return [];
+    },
+  },
+  {
+    id: 'sound_boss_hurt',
+    group: 'Sound',
+    label: '🔊 Boss Hurt',
+    description: '播放Boss受击音效。',
+    build: () => {
+      playBossHurtSfx();
+      return [];
+    },
+  },
+  {
+    id: 'sound_boss_thunder',
+    group: 'Sound',
+    label: '🔊 Boss Thunder',
+    description: '播放Boss雷击技能音效。',
+    build: () => {
+      playBossSkillSfx('thunder');
+      return [];
+    },
+  },
+  {
+    id: 'sound_boss_curse',
+    group: 'Sound',
+    label: '🔊 Boss Curse',
+    description: '播放Boss诅咒技能音效。',
+    build: () => {
+      playBossSkillSfx('curse');
+      return [];
+    },
+  },
+  {
+    id: 'sound_boss_thorns',
+    group: 'Sound',
+    label: '🔊 Boss Thorns',
+    description: '播放Boss荆棘技能音效。',
+    build: () => {
+      playBossSkillSfx('thorns');
+      return [];
+    },
+  },
 ];
 
 export function getDevEffectGroups() {
@@ -756,6 +996,12 @@ export function triggerDevEffect(presetId: string, optionsOrTargetPlayerId?: str
     ...candidate,
     timestamp: `${context.timestamp}#dev-${preset.id}-${index}`,
   }));
+  
+  // Skip board updates if this is a sound-only preset (returns empty array)
+  if (entries.length === 0) {
+    return entries;
+  }
+  
   const focusPosition =
     preset.focus === 'boss' && context.bossPlayer
       ? context.bossPlayer.position
