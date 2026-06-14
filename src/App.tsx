@@ -22,6 +22,8 @@ import { playBoardBgm, stopBoardBgm } from './utils/boardBgm';
 import { playEndBgm, stopEndBgm } from './utils/endBgm';
 import { playMiniGameBgm, stopMiniGameBgm } from './utils/miniGameBgm';
 import { playStartBgm, stopStartBgm } from './utils/startBgm';
+import { preloadAllCharacterSounds } from './utils/characterSfx';
+import { preloadAllEventSounds } from './utils/eventSfx';
 
 // DEV-mode debug tools — tree-shaken in production builds
 const DevPanel = import.meta.env.DEV
@@ -136,6 +138,12 @@ const App: React.FC = () => {
     miniGameAudioStarted: false,
   });
   const previousSceneRef = useRef<Scene | null>(null);
+
+  // Preload all sound effects on app mount
+  useEffect(() => {
+    preloadAllCharacterSounds();
+    preloadAllEventSounds();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
