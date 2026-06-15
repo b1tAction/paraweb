@@ -27,6 +27,7 @@ import type { LogEntryAnimationContext } from '../logEntryAnimationPolicy';
 import { getMetadataBoolean, getMetadataNumber, getMetadataString } from '../logEntryPlayback';
 import { LAYER_BOSS_BATTLE_CHARACTER, LAYER_EFFECT_BASE, LAYER_SHADER_OVERLAY, worldDepth } from '../renderLayers';
 import { BOSS_BATTLE_DISSOLVE_FRAGMENT_SOURCE, BOSS_BATTLE_DISSOLVE_SHADER_NAME } from '../shaders/bossBattleDissolve';
+import { playBossAttackSfx, playBossHurtSfx, playBossSkillSfx, playPlayerAttackSfx } from '../../utils/characterSfx';
 import type { BoardAnimationContext } from './eventAnimations';
 
 type ShaderUniformValue = number | readonly number[];
@@ -532,6 +533,9 @@ function playBossDamageEffects(ctx: BoardAnimationContext, context: LogEntryAnim
       const attackState: CharacterAnimationState = 'attack_crit';
       const attackAnimEvent = `animationcomplete-${getAnimationKey(sourceProfile, attackState)}`;
 
+      // Play player crit attack sound
+      playPlayerAttackSfx(true);
+
       if (
         sourceProfile.animations[attackState] &&
         sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)
@@ -564,6 +568,9 @@ function playBossDamageEffects(ctx: BoardAnimationContext, context: LogEntryAnim
       const attackState: CharacterAnimationState = Math.random() < 0.5 ? 'attack_1' : 'attack_2';
       const attackAnimEvent = `animationcomplete-${getAnimationKey(sourceProfile, attackState)}`;
 
+      // Play player normal attack sound
+      playPlayerAttackSfx(false);
+
       if (
         sourceProfile.animations[attackState] &&
         sourceRenderer.hasAnimation?.(ctx.scene, sourceProfile, attackState)
@@ -589,6 +596,9 @@ function playBossDamageEffects(ctx: BoardAnimationContext, context: LogEntryAnim
     ctx.characterRenderOptions,
     !isDefeated,
   );
+
+  // Play boss hurt sound effect
+  playBossHurtSfx();
 
   bossMarker.setTint(0xffffff);
   ctx.scene.time.delayedCall(120, () => bossMarker.clearTint());
@@ -642,6 +652,10 @@ function playBossAttackEffects(ctx: BoardAnimationContext, context: LogEntryAnim
 
   const attackType = getMetadataString(entry.metadata, 'attack_type') || 'normal';
   const isCrit = attackType === 'crit' || getMetadataBoolean(entry.metadata, 'is_crit');
+  
+  // Play boss attack sound effect
+  playBossAttackSfx(isCrit);
+
   const color = isCrit ? 0xff1744 : 0xd32f2f;
   playBossPulse(
     ctx,
@@ -685,6 +699,8 @@ function playBossSkillEffects(ctx: BoardAnimationContext, context: LogEntryAnima
 
   switch (skillType) {
     case 'thunder':
+      // Play thunder skill sound
+      playBossSkillSfx('thunder');
       playBossThunderFlash(ctx, bossMarker, bossPlayer.player_id, depthBase);
       // Delay per-player strikes so they start after the boss flash finishes
       ctx.scene.time.delayedCall(500, () => {
@@ -696,6 +712,8 @@ function playBossSkillEffects(ctx: BoardAnimationContext, context: LogEntryAnima
       });
       break;
     case 'curse':
+      // Play curse skill sound
+      playBossSkillSfx('curse');
       playBossPulse(ctx, bossMarker, 'Boss 诅咒', 0x7e57c2, '#f3e5f5', 2.1, bossPlayer.player_id, depthBase);
       targetMarkers.forEach((marker) => {
         playBossPulse(ctx, marker, '诅咒', 0x7e57c2, '#f3e5f5', 1.8, undefined, depthBase);
@@ -705,6 +723,8 @@ function playBossSkillEffects(ctx: BoardAnimationContext, context: LogEntryAnima
       playBossPulse(ctx, bossMarker, 'Boss 回复', 0x66bb6a, '#e8f5e9', 2.2, bossPlayer.player_id, depthBase);
       break;
     case 'thorns':
+      // Play thorns skill sound
+      playBossSkillSfx('thorns');
       playBossThornsPulse(ctx, bossMarker, depthBase);
       break;
     default:

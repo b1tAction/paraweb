@@ -30,6 +30,7 @@ import {
   markItemDescriptionSeen,
 } from '../logEntryPlayback';
 import { LAYER_CHARACTER_BASE, LAYER_EFFECT_BASE, LAYER_EFFECT_TEXT_BASE, worldDepth } from '../renderLayers';
+import { playPlayerHurtSfx } from '../../utils/characterSfx';
 import { isBossReflectDamage, playBossProfileAnimation, playBossReflectAnimation } from './bossAnimations';
 import type { BoardAnimationContext } from './eventAnimations';
 
@@ -332,6 +333,10 @@ export function playDamageAnimation(
     const hurtAnimationEvent = `animationcomplete-${getAnimationKey(profile, 'hurt')}`;
     marker.removeAllListeners(hurtAnimationEvent);
     renderer.play(ctx.scene, marker, profile, 'hurt');
+    
+    // Play player hurt sound effect
+    playPlayerHurtSfx();
+    
     marker.once(hurtAnimationEvent, () => {
       const nextState = activeMoveAnimations.has(entry.target) ? 'move' : 'idle';
       renderer.play(ctx.scene, marker, profile, nextState);
